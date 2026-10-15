@@ -17,6 +17,14 @@ A local Mac agent and Chrome extension that attaches local project context to Ch
 6. In ChatGPT, mention a discovered project by name. VibeBridge will attach its README, saved notes, Git remote, branch, latest commit, and working-tree status to relevant development prompts.
 7. To save a durable fact, write `Remember for this project: ...` in a ChatGPT message after the correct project is active.
 
+## Project memory
+
+- `VIBEBRIDGE_CONTEXT.md` stores durable project goals, architecture, user workflow preferences, implementation status, decisions, limitations, and prioritized next steps. The local agent automatically includes it in project context when the file exists.
+- `README.md` remains the install and usage guide. Git remote, branch, working-tree status, and latest commit are read live so memory does not need to duplicate changing Git state.
+- `Remember for this project: ...` saves a local note under `~/Library/Application Support/VibeBridge/projects/`. These notes are separate from Git and are not uploaded to the repository.
+- Do not save credentials, bearer tokens, passwords, or private customer data in project memory.
+- Memory is contextual guidance, not proof that a feature is implemented. Verify current code and runtime behavior before relying on a statement.
+
 ## Scope and security
 
 - The local service binds to `127.0.0.1`, not the network.

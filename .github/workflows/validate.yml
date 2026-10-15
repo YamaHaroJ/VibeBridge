@@ -1,0 +1,33 @@
+name: Validate VibeBridge
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Validate Python syntax
+        run: python -m py_compile agent/server.py agent/updater.py
+
+      - name: Validate extension manifest
+        run: python -m json.tool extension/manifest.json > /dev/null
+
+      - name: Check JavaScript syntax
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: |
+          node --check extension/background.js
+          node --check extension/chatgpt.js
+          node --check extension/popup.js

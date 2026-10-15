@@ -5,6 +5,7 @@ Only updates a clean checkout. Logs progress to Application Support so the
 extension can show status even if the agent restarts during the update.
 """
 import json
+import shutil
 import subprocess
 import sys
 import time

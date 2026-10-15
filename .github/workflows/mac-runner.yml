@@ -1,0 +1,103 @@
+name: VibeBridge Mac runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "Predefined task to run on the trusted Mac runner"
+        required: true
+        type: choice
+        options:
+          - validate
+          - test
+          - diagnostics
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vibebridge-mac-runner
+  cancel-in-progress: false
+
+jobs:
+  run-on-mac:
+    runs-on: [self-hosted, macOS, vibebridge]
+    timeout-minutes: 15
+    steps:
+      - name: Verify checkout
+        uses: actions/checkout@v4
+
+      - name: Record runner details
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p runner-results
+          {
+            echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "host=$(scutil --get ComputerName 2>/dev/null || hostname)"
+            echo "macOS=$(sw_vers -productVersion)"
+            echo "python=$(python3 --version 2>&1)"
+            echo "node=$(node --version 2>&1 || true)"
+            echo "git=$(git rev-parse --short HEAD)"
+            echo "task=${{ inputs.task }}"
+          } | tee runner-results/runner-info.txt
+
+      - name: Validate source
+        if: inputs.task == 'validate' || inputs.task == 'test'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile agent/server.py agent/updater.py
+          python3 -m json.tool extension/manifest.json >/dev/null
+          bash -n agent/install.sh
+          bash -n "packaging/Install VibeBridge.command"
+          bash -n "packaging/Authenticate GitHub.command"
+          node --check extension/background.js
+          node --check extension/chatgpt.js
+          node --check extension/popup.js
+          echo "Source validation passed." | tee runner-results/validation.txt
+
+      - name: Run unit tests
+        if: inputs.task == 'test'
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 -m unittest discover -s tests -v 2>&1 | tee runner-results/unit-tests.txt
+
+      - name: Capture local-agent diagnostics
+        if: inputs.task == 'diagnostics'
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "== Agent process =="
+            launchctl print "gui/$(id -u)/com.vibebridge.agent" 2>&1 || true
+            echo
+            echo "== Updater process =="
+            launchctl print "gui/$(id -u)/com.vibebridge.updater" 2>&1 || true
+            echo
+            echo "== Health endpoint =="
+            TOKEN_FILE="$HOME/Library/Application Support/VibeBridge/token"
+            if [ -f "$TOKEN_FILE" ]; then
+              curl --silent --show-error --max-time 5 \
+                -H "Authorization: Bearer $(cat "$TOKEN_FILE")" \
+                http://127.0.0.1:43127/health || true
+            else
+              echo "Token file missing."
+            fi
+            echo
+            echo "== Recent agent log =="
+            tail -n 120 "$HOME/Library/Application Support/VibeBridge/agent-error.log" 2>/dev/null || true
+            echo
+            echo "== Recent updater log =="
+            tail -n 120 "$HOME/Library/Application Support/VibeBridge/updater-error.log" 2>/dev/null || true
+          } | tee runner-results/diagnostics.txt
+
+      - name: Upload Mac-run results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vibebridge-mac-${{ inputs.task }}-${{ github.run_id }}
+          path: runner-results/
+          if-no-files-found: warn
+          retention-days: 7

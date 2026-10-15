@@ -59,6 +59,9 @@ VibeBridge is a local-first Mac agent plus Chrome extension that carries relevan
 1. Finish and verify the seamless ChatGPT continuity flow: identify the intended project, retain active-project state across new chats, and reliably attach the right context when the user says “continue,” “update,” or “okay.”
 2. Improve memory quality: distinguish durable decisions from temporary observations; prevent repeated/near-duplicate notes; provide a way to correct or remove stale notes; and include the most relevant notes within the context budget.
 3. Add a clear context-injection status/diagnostic so the user can tell which project was selected and whether memory was attached.
+4. Keep GitHub-wide repository discovery as a core requirement: list old and new repositories accessible to the authenticated GitHub CLI account, distinguish repos already cloned locally, and let the user deliberately clone a selected repo into `~/Projects`.
+5. Test the extension against current ChatGPT composer/send-button behavior and ensure a failed context lookup never loses or duplicates the user\u2019s original message.
+6. Improve memory management after discovery and continuity are stable: provide a way to correct or remove stale notes and prioritize useful information within the context budget.
 4. Test the extension against current ChatGPT composer/send-button behavior and ensure a failed context lookup never loses or duplicates the user's original message.
 5. Update README and version metadata only after implementation and verification.
 

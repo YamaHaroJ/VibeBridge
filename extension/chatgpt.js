@@ -12,63 +12,34 @@
   const commandMarker = "VIBEBRIDGE LOCAL COMMAND";
   const processedBlocks = new WeakSet();
 
-  // Automatically checkpoint each newly rendered user/assistant message.
-  // Existing history is ignored; only messages created during this page session are sent.
-  const knownCheckpointNodes = new WeakSet();
-  const pendingCheckpoints = new Map();
-  let checkpointTimer = null;
-  let checkpointFlushRunning = false;
-  document.querySelectorAll('[data-message-author-role="user"], [data-message-author-role="assistant"]').forEach(node => knownCheckpointNodes.add(node));
+  // Save only explicit checkpoint blocks; never upload raw messages.
+  const processedMemoryBlocks = new WeakSet();
 
   function conversationKey() {
     const match = location.pathname.match(/\/c\/([^/]+)/);
     return match ? match[1].slice(0, 80) : "chat";
   }
 
-  function queueMessageCheckpoints() {
-    const nodes = document.querySelectorAll('[data-message-author-role="user"], [data-message-author-role="assistant"]');
-    for (const node of nodes) {
-      const role = node.getAttribute("data-message-author-role");
-      const text = (node.innerText || node.textContent || "").trim();
-      if (!text) continue;
-      if (!knownCheckpointNodes.has(node)) {
-        knownCheckpointNodes.add(node);
-        pendingCheckpoints.set(node, {role, text});
-      } else if (pendingCheckpoints.has(node)) {
-        pendingCheckpoints.set(node, {role, text});
-      }
-    }
-    if (pendingCheckpoints.size) {
-      clearTimeout(checkpointTimer);
-      checkpointTimer = setTimeout(flushMessageCheckpoints, 1800);
-    }
-  }
-
-  async function flushMessageCheckpoints() {
-    if (checkpointFlushRunning || !pendingCheckpoints.size) return;
-    checkpointFlushRunning = true;
-    const entries = Array.from(pendingCheckpoints.values());
-    pendingCheckpoints.clear();
-    const conversation = conversationKey();
-    try {
-      for (const item of entries) {
-        const text = item.text.trim();
-        if (!text) continue;
-        try {
-          const result = await chrome.runtime.sendMessage({
-            type: "VIBEBRIDGE_CHECKPOINT_MESSAGE",
-            payload: {role: item.role, text, conversation}
-          });
-          if (!result?.saved) showNotice("Automatic GitHub checkpoint failed: " + (result?.error || "unknown error"));
-        } catch (error) {
-          showNotice("Automatic GitHub checkpoint failed: " + error.message);
-        }
-      }
-    } finally {
-      checkpointFlushRunning = false;
-      if (pendingCheckpoints.size) {
-        clearTimeout(checkpointTimer);
-        checkpointTimer = setTimeout(flushMessageCheckpoints, 500);
+  async function saveAssistantCheckpoints() {
+    const nodes = document.querySelectorAll('[data-message-author-role="assistant"] pre');
+    for (const pre of nodes) {
+      if (processedMemoryBlocks.has(pre)) continue;
+      const code = pre.querySelector("code");
+      const classes = (code?.className || "") + " " + (pre.className || "");
+      if (!/language-vibebridge-memory|vibebridge-memory/i.test(classes)) continue;
+      processedMemoryBlocks.add(pre);
+      const summary = (code?.textContent || pre.textContent || "").trim();
+      pre.style.display = "none";
+      if (!summary) continue;
+      try {
+        const result = await chrome.runtime.sendMessage({
+          type: "VIBEBRIDGE_CHECKPOINT_MESSAGE",
+          payload: {summary, conversation: conversationKey()}
+        });
+        showNotice(result?.saved ? "Project checkpoint saved to GitHub." :
+          "GitHub checkpoint failed: " + (result?.error || "unknown error"));
+      } catch (error) {
+        showNotice("GitHub checkpoint failed: " + error.message);
       }
     }
   }
@@ -244,7 +215,7 @@
 
   const observer = new MutationObserver(() => {
     addCommandControls();
-    queueMessageCheckpoints();
+    saveAssistantCheckpoints();
   });
   observer.observe(document.documentElement, {childList: true, subtree: true, characterData: true});
   addCommandControls();
@@ -303,7 +274,7 @@
         else if (saved?.error) showNotice("VibeBridge memory: " + saved.error);
       }
       if (result?.matched && result.context) {
-        const addition = marker + "\nThe following is persistent context from the user's local project. Treat it as background information, verify implementation against code when needed, and do not assume planned features are implemented.\n\n" + result.context + "\n\nEND " + marker + "\n\nUSER REQUEST:\n";
+        const addition = marker + "\nThe following is persistent context from the user's project. Treat it as background information, verify implementation against code when needed, and do not assume planned features are implemented.\n\n" + result.context + "\n\nEND " + marker + "\n\nVIBEBRIDGE MEMORY INSTRUCTION: At the end of your normal response, include a concise rolling checkpoint of durable project goals, decisions, verified progress, blockers, and next steps. Do not include raw transcripts or secrets. Put only the checkpoint in a fenced code block labelled vibebridge-memory. The extension hides this block and saves its contents to GitHub. Do not call a separate external AI API.\n\nUSER REQUEST:\n";
         writeComposer(composer, addition + original);
         showNotice(createdRepository ? "Created " + createdRepository.nameWithOwner + " and switched to its project context." : "VibeBridge attached context for " + result.project.name);
       } else if (result?.ambiguous) {

@@ -755,7 +755,7 @@ class Handler(BaseHTTPRequestHandler):
 REMOTE_TASK_REPO = "YamaHaroJ/VibeBridge"
 REMOTE_TASK_OWNER = "YamaHaroJ"
 REMOTE_TASKS = {"validate", "test", "diagnostics"}
-REMOTE_TASK_POLL_SECONDS = 30
+REMOTE_TASK_POLL_SECONDS = 2
 _remote_task_seen = set()
 
 
@@ -793,7 +793,7 @@ def run_remote_task(task):
     success = True
     for command in commands:
         try:
-            result = subprocess.run(command, cwd=str(root), capture_output=True, text=True, timeout=180)
+            result = subprocess.run(command, cwd=str(root), capture_output=True, text=True, timeout=45)
             output.append("$ " + " ".join(command) + "\n" +
                           (result.stdout or "")[-7000:] +
                           (("\nSTDERR:\n" + result.stderr[-3000:]) if result.stderr else "") +
@@ -815,7 +815,7 @@ def remote_task_worker():
             listed = subprocess.run(
                 ["gh", "issue", "list", "--repo", REMOTE_TASK_REPO, "--state", "open",
                  "--json", "number,title,body,author", "--limit", "30"],
-                capture_output=True, text=True, timeout=30
+                capture_output=True, text=True, timeout=8
             )
             if listed.returncode == 0:
                 issues = json.loads(listed.stdout or "[]")
@@ -836,11 +836,11 @@ def remote_task_worker():
                     # GitHub CLI uses the authenticated local account; issue content is never evaluated.
                     subprocess.run(
                         ["gh", "issue", "comment", str(number), "--repo", REMOTE_TASK_REPO, "--body", body],
-                        capture_output=True, text=True, timeout=30
+                        capture_output=True, text=True, timeout=10
                     )
                     subprocess.run(
                         ["gh", "issue", "close", str(number), "--repo", REMOTE_TASK_REPO],
-                        capture_output=True, text=True, timeout=30
+                        capture_output=True, text=True, timeout=10
                     )
         except Exception as exc:
             print("VibeBridge remote-task worker:", str(exc)[:500])

@@ -21,7 +21,7 @@ fi
 
 PYTHON="$(command -v python3 || true)"
 if [[ -z "$PYTHON" ]] || ! "$PYTHON" -c 'import sys; sys.exit(0 if sys.version_info >= (3,9) else 1)'; then
-  error_dialog "Python 3.9 or newer is required. Install Python 3, then run this installer again." || true
+  error_dialog "Python 3.9 or newer is required. Setup cannot continue until Python is installed." || true
   open "https://www.python.org/downloads/macos/"
   exit 1
 fi
@@ -45,7 +45,7 @@ if [[ ! -d "$PAYLOAD/agent" || ! -d "$PAYLOAD/extension" ]]; then
   exit 1
 fi
 
-/usr/bin/osascript -e 'display dialog "VibeBridge will install a local background agent in your home folder. The agent listens only on this Mac. GitHub CLI is optional for installation but required for repository-management features. The Chrome extension will only attach project context after you load it in Chrome. Continue?" with title "VibeBridge Setup" buttons {"Continue","Cancel"} default button "Continue"' || exit 1
+/usr/bin/osascript -e 'display dialog "VibeBridge setup\n\nThis approval installs the local agent and enables hourly updates from the public VibeBridge GitHub repository. The agent listens only on this Mac. It does not upload your project files automatically.\n\nAfter this step, Chrome still requires you to approve the extension installation. Until the Chrome Web Store version is published, Chrome requires Developer mode + Load unpacked. GitHub sign-in is only needed for GitHub repository tools.\n\nContinue with setup?" with title "VibeBridge Setup" buttons {"Continue","Cancel"} default button "Continue"' || exit 1
 
 mkdir -p "$HOME"
 ditto "$PAYLOAD" "$DEST"

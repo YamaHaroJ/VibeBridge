@@ -868,9 +868,9 @@ def configure_fast_updates():
             return
         with plist.open("rb") as handle:
             config = plistlib.load(handle)
-        if config.get("StartInterval") == 60:
+        if config.get("StartInterval") == 5:
             return
-        config["StartInterval"] = 60
+        config["StartInterval"] = 5
         with plist.open("wb") as handle:
             plistlib.dump(config, handle)
         uid = str(__import__("os").getuid())
@@ -878,9 +878,9 @@ def configure_fast_updates():
                        capture_output=True, text=True, timeout=10)
         subprocess.run(["/bin/launchctl", "bootstrap", f"gui/{uid}", str(plist)],
                        capture_output=True, text=True, timeout=10)
-        print("VibeBridge GitHub updater configured for 60-second polling.")
+        print("VibeBridge GitHub updater configured for 5-second polling.")
     except Exception as exc:
-        print("Could not configure 60-second GitHub polling:", str(exc)[:300])
+        print("Could not configure 5-second GitHub polling:", str(exc)[:300])
 
 
 def main():

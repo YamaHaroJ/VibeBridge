@@ -1,10 +1,13 @@
 import hashlib
 import json
+import os
+import platform
 import re
 import secrets
 import subprocess
 import threading
 import time
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
@@ -487,6 +490,43 @@ def match_project(message, active=""):
 
 
 
+def local_diagnostics():
+    """Return a small allowlisted snapshot of VibeBridge services, never raw process arguments or logs."""
+    def service_snapshot(label):
+        if platform.system() != "Darwin":
+            return {"label": label, "loaded": False, "state": "unavailable-on-this-platform", "pid": None}
+        try:
+            result = subprocess.run(
+                ["/bin/launchctl", "print", f"gui/{os.getuid()}/{label}"],
+                capture_output=True, text=True, timeout=3
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return {"label": label, "loaded": False, "state": "query-failed", "pid": None}
+        if result.returncode != 0:
+            return {"label": label, "loaded": False, "state": "not-loaded", "pid": None}
+        state_match = re.search(r"(?m)^\\s*state = ([^\\r\\n]+)", result.stdout)
+        pid_match = re.search(r"(?m)^\\s*pid = (\\d+)", result.stdout)
+        return {
+            "label": label,
+            "loaded": True,
+            "state": state_match.group(1).strip() if state_match else "loaded",
+            "pid": int(pid_match.group(1)) if pid_match else None,
+        }
+
+    agent = service_snapshot("com.vibebridge.agent")
+    updater = service_snapshot("com.vibebridge.updater")
+    return {
+        "ok": True,
+        "service": "VibeBridge",
+        "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "platform": platform.system(),
+        "osVersion": platform.mac_ver()[0] if platform.system() == "Darwin" else platform.release(),
+        "agent": {**agent, "requestPid": os.getpid(), "port": PORT},
+        "updater": updater,
+        "scope": "VibeBridge launch services only; no unrelated process names, arguments, environment, or logs are returned.",
+    }
+
+
 def request_pairing(origin):
     """Legacy HTTP token bootstrap is disabled; use Chrome Native Messaging."""
     return 410, {
@@ -524,6 +564,8 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/health":
             return self.send_json(200, {"ok": True, "service": "VibeBridge", "port": PORT})
+        if path == "/diagnostics/local":
+            return self.send_json(200, local_diagnostics())
         if path == "/projects":
             return self.send_json(200, {"projects": discover_projects()})
         if path == "/github-projects":

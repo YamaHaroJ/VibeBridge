@@ -53,13 +53,16 @@ class NativePairingTests(unittest.TestCase):
         self.assertFalse(self.pairing_file.exists())
 
     @patch.object(server.subprocess, "run")
-    def test_same_approved_extension_can_reconnect_without_second_dialog(self, run):
+    @patch.object(server.subprocess, "run")
+    def test_same_approved_extension_requires_fresh_native_approval(self, run):
         self.pairing_file.write_text(self.origin)
+        run.return_value = self.approved
         with patch.object(server, "PAIRING_FILE", self.pairing_file):
             status, payload = server.request_pairing(self.origin)
         self.assertEqual(status, 200)
         self.assertEqual(payload["token"], server.TOKEN)
-        run.assert_not_called()
+        run.assert_called_once()
+        self.assertIn("A local program can imitate a browser origin", run.call_args.args[0][3])
 
     @patch.object(server.subprocess, "run")
     def test_different_extension_cannot_take_over_existing_pairing(self, run):

@@ -259,8 +259,29 @@ def project_context(project):
 def match_project(message, active=""):
     text = str(message or "").lower()
     projects = discover_projects()
+    switch_intent = bool(re.search(r"\b(?:switch|change|move)\s+(?:the\s+)?(?:project|repo|repository)?\s*(?:to|over\s+to)\b|\bopen\s+(?:the\s+)?(?:repo|repository)\b", text))
 
-    # Explicit local project mentions take precedence over the active project.
+    def as_project(repo):
+        if repo.get("localPath"):
+            return {"name": repo["name"], "path": repo["localPath"]}
+        return {"name": repo["name"], "path": "github:" + repo["nameWithOwner"],
+                "repository": repo["nameWithOwner"], "remote": True}
+
+    repos = None
+    slug_match = re.search(r"(?<![a-z0-9])([a-z0-9_.-]+/[a-z0-9_.-]+)(?![a-z0-9_.-])", text)
+    if slug_match:
+        try:
+            repos = github_projects()
+        except RuntimeError as exc:
+            raise RuntimeError("Could not search GitHub for the explicitly named repository. " + str(exc))
+        slug = slug_match.group(1).lower()
+        exact = [repo for repo in repos if str(repo.get("nameWithOwner", "")).lower() == slug]
+        if len(exact) == 1:
+            return as_project(exact[0]), "message"
+        if switch_intent:
+            raise RuntimeError("The explicitly named GitHub repository was not found in the authenticated GitHub CLI account: " + slug_match.group(1))
+
+    # Exact owner/repository slugs take priority over a same-named local folder.
     local_explicit = [
         item for item in projects
         if re.search(
@@ -273,17 +294,22 @@ def match_project(message, active=""):
     if len(local_explicit) > 1:
         return None, "ambiguous"
 
-    # Search all repositories visible to GitHub CLI, including un-cloned projects.
-    try:
-        repos = github_projects()
-    except RuntimeError:
-        repos = []
-    remote_explicit = []
+    if repos is None:
+        try:
+            repos = github_projects()
+        except RuntimeError as exc:
+            # Never silently attach the previous project's context to an explicit switch request.
+            target_alias = bool(re.search(r"\bautofill\b|\bmac\s*optimizer\b|\bvibe\s*bridge\b", text))
+            if switch_intent and target_alias:
+                raise RuntimeError("Could not search GitHub to resolve the requested project. " + str(exc))
+            repos = []
+
     aliases = {
         "autofill-insurance-extension": ("autofill", "insurance extension", "autofill extension"),
         "vibebridge": ("vibebridge", "vibe bridge"),
         "macoptimizer": ("macoptimizer", "mac optimizer"),
     }
+    remote_explicit = []
     for repo in repos:
         full = str(repo.get("nameWithOwner", "")).lower()
         name = str(repo.get("name", "")).lower()
@@ -302,23 +328,20 @@ def match_project(message, active=""):
     chosen = exact_slug if exact_slug else remote_explicit
     unique = {str(repo.get("nameWithOwner", "")).lower(): repo for repo in chosen}
     if len(unique) == 1:
-        repo = next(iter(unique.values()))
-        if repo.get("localPath"):
-            return {"name": repo["name"], "path": repo["localPath"]}, "message"
-        return {"name": repo["name"], "path": "github:" + repo["nameWithOwner"],
-                "repository": repo["nameWithOwner"], "remote": True}, "message"
+        return as_project(next(iter(unique.values()))), "message"
     if len(unique) > 1:
         return None, "ambiguous"
+    if switch_intent:
+        # An explicit target that cannot be resolved must never fall back to old context.
+        raise RuntimeError("The requested project could not be resolved. Use the repository name or owner/repository, then check GitHub CLI connection in VibeBridge settings.")
 
-    # If no new project was named, preserve the active project.
+    # No explicit target: keep the current project where possible.
     if active:
         if str(active).startswith("github:"):
             repo = github_repo_for_name(active)
             if repo:
-                if repo.get("localPath"):
-                    return {"name": repo["name"], "path": repo["localPath"]}, "active"
-                return {"name": repo["name"], "path": "github:" + repo["nameWithOwner"],
-                        "repository": repo["nameWithOwner"], "remote": True}, "active"
+                return as_project(repo), "active"
+            return {"name": str(active).split("/")[-1], "path": str(active), "remote": True}, "active"
         try:
             p = project_path(active)
             return {"name": p.name, "path": str(p)}, "active"

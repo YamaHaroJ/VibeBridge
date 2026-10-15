@@ -2,6 +2,26 @@ const token = document.querySelector("#token");
 const project = document.querySelector("#project");
 const result = document.querySelector("#result");
 const projectList = document.querySelector("#project-list");
+const enabled = document.querySelector("#enabled");
+
+chrome.storage.local.get(["enabled"], v => { enabled.checked = v.enabled !== false; });
+enabled.addEventListener("change", async () => {
+  await chrome.storage.local.set({enabled: enabled.checked});
+  result.textContent = enabled.checked ? "VibeBridge is on." : "VibeBridge is off. Your ChatGPT messages will be sent without automatic project context.";
+});
+
+document.querySelector("#github-settings").onclick = () => {
+  chrome.tabs.create({url: "https://chatgpt.com/#settings/Apps"});
+};
+document.querySelector("#connection-guide").onclick = async () => {
+  try {
+    const health = await call("/health");
+    const repos = await call("/github-projects");
+    result.textContent = "Local agent: connected (" + health.port + ").\\nGitHub CLI: connected; " + (repos.repositories || []).length + " repositories visible.\\nChatGPT GitHub connector is separate: open ChatGPT Settings → Apps/Connectors and connect GitHub there if you want ChatGPT itself to browse repositories. VibeBridge cannot inspect or change that setting.";
+  } catch (e) {
+    result.textContent = "Setup check failed: " + e.message + "\\nCheck the local agent/token and make sure GitHub CLI is installed and authenticated with `gh auth status`.";
+  }
+};
 
 chrome.storage.local.get(["token", "project"], v => {
   token.value = v.token || "";

@@ -6,6 +6,7 @@ program. Never print diagnostics to stdout: it is the framed protocol channel.
 """
 import json
 import os
+import traceback
 import struct
 import sys
 from pathlib import Path
@@ -39,27 +40,51 @@ def handle_message(message, token):
     return {"ok": True, "token": token}
 
 
-def main():
-    header = sys.stdin.buffer.read(4)
-    if not header:
-        return 0
-    if len(header) != 4:
-        return 1
-    size = struct.unpack("<I", header)[0]
-    if size > MAX_MESSAGE_BYTES:
-        return 1
-    body = sys.stdin.buffer.read(size)
+def log_error(message):
+    """Write diagnostics to a private file, never to the stdout protocol stream."""
     try:
-        message = decode_message(header + body)
-        token = TOKEN_FILE.read_text(encoding="utf-8").strip()
-        response = handle_message(message, token)
-    except (OSError, ValueError) as exc:
-        response = {"ok": False, "error": str(exc)}
+        log_path = TOKEN_FILE.parent / "native-host-error.log"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with log_path.open("a", encoding="utf-8") as stream:
+            stream.write(message.rstrip() + "\\n")
+        log_path.chmod(0o600)
+    except Exception:
+        pass
+
+
+def write_response(response):
     encoded = json.dumps(response, separators=(",", ":")).encode("utf-8")
     sys.stdout.buffer.write(struct.pack("<I", len(encoded)) + encoded)
     sys.stdout.buffer.flush()
-    return 0
 
+
+def main():
+    try:
+        header = sys.stdin.buffer.read(4)
+        if not header:
+            return 0
+        if len(header) != 4:
+            log_error("Native message header was truncated.")
+            write_response({"ok": False, "error": "Native message header was truncated."})
+            return 0
+        size = struct.unpack("<I", header)[0]
+        if size > MAX_MESSAGE_BYTES:
+            log_error("Native message exceeded the size limit.")
+            write_response({"ok": False, "error": "Native message is too large."})
+            return 0
+        body = sys.stdin.buffer.read(size)
+        message = decode_message(header + body)
+        token = TOKEN_FILE.read_text(encoding="utf-8").strip()
+        write_response(handle_message(message, token))
+        return 0
+    except Exception as exc:
+        detail = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+        log_error(detail)
+        try:
+            write_response({"ok": False, "error": str(exc) or type(exc).__name__})
+            return 0
+        except Exception:
+            return 1
 
 if __name__ == "__main__":
     raise SystemExit(main())

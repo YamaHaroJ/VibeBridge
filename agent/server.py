@@ -447,5 +447,10 @@ class Handler(BaseHTTPRequestHandler):
         print("VibeBridge:", fmt % args)
 
 
-print("VibeBridge listening on http://127.0.0.1:%d" % PORT)
-HTTPServer((HOST, PORT), Handler).serve_forever()
+def main():
+    print("VibeBridge listening on http://127.0.0.1:%d" % PORT)
+    HTTPServer((HOST, PORT), Handler).serve_forever()
+
+
+if __name__ == "__main__":
+    main()

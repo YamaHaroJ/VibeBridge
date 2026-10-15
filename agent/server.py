@@ -821,7 +821,7 @@ def run_remote_task(task):
     elif task == "diagnostics":
         # Diagnostics is a fixed, allowlisted snapshot. Never dump general process
         # arguments or local logs into a GitHub issue.
-        return True, "Local VibeBridge service snapshot:\\n" + json.dumps(local_diagnostics(), indent=2)
+        return True, "Local VibeBridge service snapshot:\n" + json.dumps(local_diagnostics(), indent=2)
     if not root.is_dir():
         raise RuntimeError("Expected checkout is missing: " + str(root))
     output = []

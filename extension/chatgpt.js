@@ -63,7 +63,7 @@
     busy = true;
     button.disabled = true;
     try {
-      const rememberMatch = original.match(/remember (?:for this project|this for the project|that for this project)[:\\-]?\\s*(.+)/i);
+      const rememberMatch = original.match(/remember (?:for this project|this for the project|that for this project)[:\-]?\s*(.+)/i);
       if (rememberMatch && rememberMatch[1]) {
         const saved = await chrome.runtime.sendMessage({type: "VIBEBRIDGE_REMEMBER", note: rememberMatch[1].trim()});
         if (saved?.saved) showNotice("Saved a note to " + saved.project + " project memory");

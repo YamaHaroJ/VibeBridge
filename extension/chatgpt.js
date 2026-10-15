@@ -63,6 +63,12 @@
     busy = true;
     button.disabled = true;
     try {
+      const rememberMatch = original.match(/remember (?:for this project|this for the project|that for this project)[:\\-]?\\s*(.+)/i);
+      if (rememberMatch && rememberMatch[1]) {
+        const saved = await chrome.runtime.sendMessage({type: "VIBEBRIDGE_REMEMBER", note: rememberMatch[1].trim()});
+        if (saved?.saved) showNotice("Saved a note to " + saved.project + " project memory");
+        else if (saved?.error) showNotice("VibeBridge memory: " + saved.error);
+      }
       const result = await chrome.runtime.sendMessage({type: "VIBEBRIDGE_RESOLVE_CONTEXT", text: original});
       if (result?.matched && result.context) {
         const addition = marker + "\nThe following is persistent context from the user's local project. Treat it as background information, verify implementation against code when needed, and do not assume planned features are implemented.\n\n" + result.context + "\n\nEND " + marker + "\n\nUSER REQUEST:\n";

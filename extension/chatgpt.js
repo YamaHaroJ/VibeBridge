@@ -162,7 +162,7 @@
       const panel = document.createElement("div");
       panel.style.cssText = "margin:8px 0;padding:10px;border:1px solid #64748b;border-radius:8px;font:13px system-ui";
       const description = document.createElement("div");
-      description.textContent = "VibeBridge can run this command in the active local project. Review it before approving.";
+      description.textContent = "VibeBridge can run this command in the active local project.";
       description.style.marginBottom = "8px";
       const run = document.createElement("button");
       run.type = "button";
@@ -176,9 +176,9 @@
       insert.style.cssText = "padding:7px 10px;border-radius:6px;cursor:pointer;display:none;margin-top:8px";
       let resultText = "";
 
-      run.addEventListener("click", async () => {
+      const executeCommand = async (automatic = false) => {
         if (run.disabled) return;
-        if (!confirm("Run this command on your Mac inside the active project folder?\n\n" + payload.command.join(" "))) return;
+        if (!automatic && !confirm("Run this command on your Mac inside the active project folder?\n\n" + payload.command.join(" "))) return;
         run.disabled = true;
         run.textContent = "Running…";
         output.style.display = "block";
@@ -194,10 +194,26 @@
           run.disabled = false;
           insert.style.display = "inline-block";
           showNotice(result?.ok ? "VibeBridge command finished." : "VibeBridge command failed. See result.");
+          if (automatic) {
+            const composer = document.querySelector("#prompt-textarea") || document.querySelector('textarea[placeholder]') || document.querySelector('[contenteditable="true"][role="textbox"]');
+            if (!composer) throw new Error("Command ran, but ChatGPT prompt field was not found. Result is shown below.");
+            const addition = "\\n\\nVIBEBRIDGE COMMAND RESULT\\nCommand: " + payload.command.join(" ") + "\\nResult JSON:\\n" + resultText + "\\n\\nInspect this result and continue development. If another local command is needed, emit another VIBEBRIDGE LOCAL COMMAND block.";
+            writeComposer(composer, readComposer(composer).trim() + addition);
+            const send = document.querySelector('button[data-testid="send-button"]') || document.querySelector('button[aria-label*="Send"]');
+            if (send && !send.disabled) { send.click(); } else { showNotice("Command result is ready in the prompt; send it to continue."); }
+          }
         } catch (error) {
           output.textContent = error.message;
           run.textContent = "Retry command";
           run.disabled = false;
+        }
+      };
+      run.addEventListener("click", () => executeCommand(false));
+      chrome.storage.local.get(["autoRunCommands"], settings => {
+        if (settings.autoRunCommands === true) {
+          description.textContent = "Hands-off mode is enabled: this command will run automatically on your Mac, then its result will be sent back to ChatGPT.";
+          run.textContent = "Run automatically";
+          executeCommand(true);
         }
       });
 

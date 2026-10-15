@@ -11,6 +11,11 @@ NATIVE_HOST_MANIFEST="$NATIVE_HOST_DIR/com.vibebridge.agent.json"
 EXTENSION_ID="meedpihcbldnlcahpeijakginpjdkghp"
 mkdir -p "$SUPPORT" "$HOME/Library/LaunchAgents"
 if [ -z "$PYTHON" ]; then echo "ERROR: Python 3 is required."; exit 1; fi
+if [ ! -f "$ROOT/agent/native_host.py" ]; then
+  echo "ERROR: Native Messaging host script is missing: $ROOT/agent/native_host.py"
+  echo "Update the VibeBridge checkout, then rerun this installer."
+  exit 1
+fi
 "$PYTHON" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3,9) else 1)' || { echo "ERROR: Python 3.9 or newer is required."; exit 1; }
 if [ ! -f "$SUPPORT/token" ]; then
   "$PYTHON" -c 'import secrets,pathlib; p=pathlib.Path.home()/"Library/Application Support/VibeBridge/token"; p.parent.mkdir(parents=True,exist_ok=True); p.write_text(secrets.token_urlsafe(32))'
@@ -34,6 +39,14 @@ manifest = {
 path = pathlib.Path(manifest_path)
 path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 path.chmod(0o600)
+# Validate the exact manifest Chrome will read before restarting services.
+loaded = json.loads(path.read_text(encoding="utf-8"))
+assert loaded["name"] == "com.vibebridge.agent"
+assert loaded["type"] == "stdio"
+assert pathlib.Path(loaded["path"]).is_file(), "Native host interpreter does not exist"
+assert pathlib.Path(loaded["args"][0]).is_file(), "Native host script does not exist"
+assert loaded["allowed_origins"] == ["chrome-extension://" + extension_id + "/"]
+print("Native Messaging manifest verified:", path)
 PY_HOST
 cat > "$PLIST" <<EOF_PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -70,6 +83,7 @@ launchctl bootout "gui/$(id -u)" "$UPDATER_PLIST" >/dev/null 2>&1 || true
 launchctl bootstrap "gui/$(id -u)" "$UPDATER_PLIST"
 echo
 echo "VibeBridge agent installed and launched."
+echo "Chrome Native Messaging host: $NATIVE_HOST_MANIFEST"
 echo "GitHub updater installed (checks every 5 seconds)."
 echo "Private local token created with owner-only permissions; the extension pairs securely during first-run setup."
 echo "Logs are stored under: $SUPPORT"

@@ -88,7 +88,15 @@ confirmConnect.addEventListener("click", async () => {
     const existing = await chrome.storage.local.get(["token"]);
     let token = existing.token;
     if (!token) {
-      throw new Error("Secure automatic pairing needs the native approval flow before it can be enabled. No token was exposed.");
+      const response = await fetch("http://127.0.0.1:43127/pair", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({})
+      });
+      const data = await response.json();
+      if (!response.ok || !data.token) throw new Error(data.error || "Could not connect to the local agent.");
+      token = data.token;
+      await chrome.storage.local.set({token});
     }
     await callAgent("/health", token);
     await chrome.storage.local.set({connectionConsent: true});

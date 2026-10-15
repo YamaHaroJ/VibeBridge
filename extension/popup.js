@@ -39,9 +39,33 @@ async function callAgent(path, token) {
   if (!response.ok) throw new Error(data.error || "Request failed");
   return data;
 }
+async function requestBackgroundUpdate() {
+  // A popup opening should never require the user to initiate an update manually.
+  // Limit requests to once every 10 minutes to avoid spawning redundant updater processes.
+  try {
+    const saved = await chrome.storage.local.get(["token", "lastAutomaticUpdateRequest"]);
+    if (!saved.token) return;
+    const now = Date.now();
+    if (saved.lastAutomaticUpdateRequest && now - saved.lastAutomaticUpdateRequest < 10 * 60 * 1000) return;
+    await chrome.storage.local.set({lastAutomaticUpdateRequest: now});
+    const response = await fetch("http://127.0.0.1:43127/update", {
+      method: "POST",
+      headers: {Authorization: "Bearer " + saved.token, "Content-Type": "application/json"},
+      body: "{}"
+    });
+    if (!response.ok) {
+      await chrome.storage.local.remove("lastAutomaticUpdateRequest");
+    }
+  } catch {
+    // The popup's connection status remains the user-facing signal; updater logs
+    // record the failure when the local agent is reachable.
+  }
+}
+
 async function initialize() {
   toggle.disabled = true;
   connect.classList.add("hidden");
+  requestBackgroundUpdate();
   renderStatus(status, statusText, "checking", "Checking local connection");
   renderStatus(githubStatus, githubStatusText, "checking", "Checking GitHub connection");
   try {

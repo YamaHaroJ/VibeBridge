@@ -27,6 +27,12 @@ This version still needs an initial bootstrap. The current installer is a shell 
 - **ChatGPT GitHub access** is managed in ChatGPT Settings → Apps/Connectors. VibeBridge cannot read, enable, or grant permissions for a ChatGPT connector. Connect GitHub there if you want ChatGPT to browse repository contents directly. VibeBridge can still attach context through the local agent when the local GitHub CLI has access.
 - The extension on/off switch pauses automatic context injection; it does not disable the background macOS agent.
 
+## Packaged macOS installer
+
+The macOS installer workflow builds a disk image and a separate Chrome extension ZIP on each push to `master`. Open the repository's **Actions** tab, select **macOS installer package**, open the latest successful run, and download the artifact named `VibeBridge-macOS-installer-...`. The disk image contains a guided installer and the local project files. The artifact is currently unsigned and not notarized, so macOS may show a warning. Do not bypass warnings unless you trust the source and have verified the repository.
+
+The initial installer checks prerequisites, asks before installing the local background agent, and opens the Chrome extension and ChatGPT settings pages. It cannot silently enable Chrome Developer mode, install an unpacked extension, grant macOS permissions, or connect ChatGPT Apps for you. The user must approve these steps. For a broadly distributable one-click install, VibeBridge will still need signed/notarized macOS packaging and a Chrome Web Store release.
+
 ## Project memory
 
 - `VIBEBRIDGE_CONTEXT.md` stores durable project goals, architecture, user workflow preferences, implementation status, decisions, limitations, and prioritized next steps. The local agent automatically includes it in project context when the file exists.

@@ -127,20 +127,34 @@ confirmConnect.addEventListener("click", async () => {
   confirmConnect.disabled = true;
   confirmConnect.textContent = "Connecting…";
   try {
-    const existing = await chrome.storage.local.get(["token"]);
-    let token = existing.token;
-    if (!token) {
-      const data = await chrome.runtime.sendNativeMessage("com.vibebridge.agent", {type: "getToken"});
-      if (chrome.runtime.lastError) {
-        throw new Error("Chrome cannot find VibeBridge's Native Messaging host. In Terminal, run: bash ~/VibeBridge/agent/install.sh — then fully quit and reopen Chrome. Details: " + chrome.runtime.lastError.message);
-      }
-      if (!data?.ok || !data.token) throw new Error(data?.error || "Could not obtain the local agent token.");
-      token = data.token;
-      await chrome.storage.local.set({token});
-    }
+    // Always fetch the current token from the registered local Native Messaging
+    // host. A stale token in extension storage must not create a connect/reconnect loop.
+    const data = await new Promise((resolve, reject) => {
+      chrome.runtime.sendNativeMessage("com.vibebridge.agent", {type: "getToken"}, response => {
+        const runtimeError = chrome.runtime.lastError;
+        if (runtimeError) {
+          reject(new Error("Chrome cannot reach VibeBridge's Native Messaging host. Run bash ~/VibeBridge/agent/install.sh, then fully quit and reopen Chrome. Details: " + runtimeError.message));
+          return;
+        }
+        if (!response?.ok || !response.token) {
+          reject(new Error(response?.error || "The local Native Messaging host did not return a token."));
+          return;
+        }
+        resolve(response);
+      });
+    });
+    const token = data.token;
+    // Verify the new token before saving it so a failed pairing cannot overwrite
+    // a previously working connection.
     await callAgent("/health", token);
-    await chrome.storage.local.set({connectionConsent: true});
+    await chrome.storage.local.set({token, connectionConsent: true});
     consent.classList.add("hidden");
+    renderStatus(status, statusText, "ready", "Connected to this Mac");
+    copy.textContent = "Local connection confirmed. Checking GitHub features…";
+    ready = true;
+    renderEnabled(true);
+    toggle.disabled = false;
+    connect.classList.add("hidden");
     await initialize();
   } catch (error) {
     consent.classList.add("hidden");

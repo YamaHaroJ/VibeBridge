@@ -35,7 +35,7 @@ cat > "$UPDATER_PLIST" <<EOF_UPDATER
 <key>Label</key><string>com.vibebridge.updater</string>
 <key>ProgramArguments</key><array><string>$PYTHON</string><string>$ROOT/agent/updater.py</string></array>
 <key>WorkingDirectory</key><string>$ROOT</string>
-<key>StartInterval</key><integer>60</integer>
+<key>StartInterval</key><integer>5</integer>
 <key>RunAtLoad</key><true/>
 <key>EnvironmentVariables</key><dict><key>PATH</key><string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
 <key>StandardOutPath</key><string>$SUPPORT/updater.log</string>
@@ -49,7 +49,7 @@ launchctl bootout "gui/$(id -u)" "$UPDATER_PLIST" >/dev/null 2>&1 || true
 launchctl bootstrap "gui/$(id -u)" "$UPDATER_PLIST"
 echo
 echo "VibeBridge agent installed and launched."
-echo "GitHub updater installed (checks every 60 seconds)."
+echo "GitHub updater installed (checks every 5 seconds)."
 echo "Private local token created with owner-only permissions; the extension pairs securely during first-run setup."
 echo "Logs are stored under: $SUPPORT"
 echo "Update logs: update.log; agent logs: agent.log and agent-error.log; updater launch logs: updater.log and updater-error.log"

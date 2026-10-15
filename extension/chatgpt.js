@@ -34,9 +34,13 @@
   }
 
   function shouldResolve(text) {
-    return /\b(project|repo|repository|code|coding|vibe ?code|extension|app|website|site|bug|fix|update|build|implement|deploy|terminal|github|continue|resume|again|that|this|it|same|okay|ok)\b/i.test(text);
+    return /\b(project|repo|repository|code|coding|vibe ?code|extension|app|website|site|bug|fix|update|build|implement|deploy|terminal|github|continue|resume|again|that|this|it|same|okay|ok|switch|create|new)\b/i.test(text);
   }
 
+  async function isEnabled() {
+    const state = await chrome.storage.local.get(["enabled"]);
+    return state.enabled !== false;
+  }
   function showNotice(text) {
     let node = document.getElementById("vibebridge-notice");
     if (!node) {
@@ -181,7 +185,7 @@
     if (!button || bypassNextSend || busy) return;
     const composer = composerFor(button);
     const original = readComposer(composer).trim();
-    if (!original || original.includes(marker)) return;
+    if (!original || original.includes(marker) || original.includes("VIBEBRIDGE DISABLED")) return;
     if (!shouldResolve(original)) return;
 
     event.preventDefault();
@@ -190,6 +194,10 @@
     busy = true;
     button.disabled = true;
     try {
+      if (!(await isEnabled())) {
+        showNotice("VibeBridge is off. Your message will be sent without project context.");
+        return;
+      }
       const result = await chrome.runtime.sendMessage({type: "VIBEBRIDGE_RESOLVE_CONTEXT", text: original});
       const rememberMatch = original.match(/remember (?:for this project|this for the project|that for this project)[:\-]?\s*(.+)/i);
       if (rememberMatch && rememberMatch[1]) {
@@ -204,10 +212,12 @@
       } else if (result?.ambiguous) {
         showNotice("VibeBridge found multiple possible projects. Mention the exact project name.");
       } else if (result?.error) {
-        showNotice("VibeBridge: " + result.error);
+        showNotice("VibeBridge: " + result.error + "\nYour original message will still be sent. Check the local agent and GitHub CLI connection in the extension popup.");
+      } else {
+        showNotice("VibeBridge did not attach project context. No matching project was found; your original message will still be sent. Try the exact repository name or owner/repository.");
       }
     } catch (error) {
-      showNotice("VibeBridge couldn't load project context: " + error.message);
+      showNotice("VibeBridge could not load project context: " + error.message + "\nYour original message will still be sent. Check the local agent and GitHub CLI connection in the extension popup.");
     } finally {
       busy = false;
       button.disabled = false;

@@ -136,3 +136,11 @@ Important setup distinction: ChatGPT's GitHub connector is optional for VibeBrid
 - Commit `6903f88` adds unit tests for the closed task enum and fixed-command execution.
 - This is a source change. The existing Mac updater checks hourly, so the poller is not active until the updated `agent/server.py` reaches the Mac and the agent restarts. Once deployed, ChatGPT can request one of the predefined tasks by opening an issue with the exact title; the agent reports results as an issue comment.
 - Remaining verification: run CI, verify `agent/server.py` compiles, run unit tests, and verify the Mac issue poller processes an owner-authored test task. Do not claim end-to-end Mac execution until the issue comment proves it.
+
+
+## Native Messaging pairing and verification checkpoint (2026-10-15)
+- The current source path uses Chrome Native Messaging for token bootstrap; the unauthenticated HTTP `/pair` token-transfer route is disabled (returns 410). The native host only handles `getToken`, and Chrome's host manifest restricts launch to the fixed extension ID.
+- Commits `9457331`, `e2b6fdf`, `8ff8dea`, `9fe2dca`, `fb4926a`, `1f26b92`, `f016c12`, `90c750b`, `b8956ad`, `5922d31`, `b6f134c`, and `a4effdb` implement the host, popup integration, disabled HTTP pairing, installer registration, and regression tests. Extension manifest version is currently `0.2.20`.
+- The README setup steps were stale and still instructed users to paste a clipboard token. It has now been updated to describe Native Messaging and native approval instead.
+- Remote Mac task issues `#38` through `#43` were created to request validation/tests, but no runner comments had arrived at the last check. Do not claim these latest tests passed until a fresh runner comment confirms it.
+- Next: commit this checkpoint, then request fresh Mac validation and test tasks. If the runner still does not process tasks, diagnose the local poller/agent deployment instead of repeatedly creating issues. Do not ask the user to run terminal commands unless the remote task path is demonstrably unavailable.

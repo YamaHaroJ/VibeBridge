@@ -1,41 +1,110 @@
 <!doctype html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VibeBridge</title><style>
-:root{color-scheme:dark}*{box-sizing:border-box}body{font:13px/1.45 system-ui,sans-serif;width:340px;padding:14px;margin:0;background:#111827;color:#f9fafb}h2{font-size:19px;margin:0}header{display:flex;align-items:center;justify-content:space-between;margin-bottom:3px}.sub{margin:0 0 12px;color:#cbd5e1;font-size:12px}label{display:block;margin:10px 0 4px;color:#e5e7eb}input,select,button{width:100%;padding:9px;border-radius:7px;border:1px solid #4b5563;font:inherit}input,select{background:#1f2937;color:white}button{margin:6px 0 0;background:#60a5fa;color:#111827;border:0;font-weight:650;cursor:pointer}button.secondary{background:#374151;color:#f9fafb;border:1px solid #4b5563}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #93c5fd;outline-offset:2px}.toggle{display:flex;align-items:center;gap:8px;padding:10px;background:#1f2937;border:1px solid #374151;border-radius:8px;margin:12px 0}.toggle input{width:auto;margin:0;accent-color:#60a5fa}section{padding:11px;background:#1f2937;border:1px solid #374151;border-radius:9px;margin:10px 0}details{border-top:1px solid #374151;margin-top:12px;padding-top:10px}summary{cursor:pointer;font-weight:650;color:#d1d5db;padding:4px 0}small{display:block;color:#cbd5e1;font-size:11px;margin-top:8px}#result{white-space:pre-wrap;overflow-wrap:anywhere;max-height:150px;overflow:auto;padding:10px;border-radius:8px;background:#030712;border:1px solid #374151;min-height:42px;margin:10px 0 0}#github-repo{margin-top:5px}.note{font-size:11px;color:#cbd5e1;margin:6px 0}
-</style></head>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>VibeBridge</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f7f8fa;
+      --surface: #ffffff;
+      --ink: #171923;
+      --muted: #707786;
+      --line: #e5e7eb;
+      --accent: #6759e8;
+      --accent-soft: #eeecff;
+      --ok: #17845b;
+      --warn: #a56a12;
+      --shadow: 0 12px 34px rgba(26, 30, 50, .09);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111217;
+        --surface: #1a1c23;
+        --ink: #f5f6fa;
+        --muted: #a1a6b4;
+        --line: #30333d;
+        --accent: #a69cff;
+        --accent-soft: #2b2747;
+        --ok: #5bd6a2;
+        --warn: #f0c36c;
+        --shadow: 0 12px 34px rgba(0, 0, 0, .25);
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      width: 300px;
+      margin: 0;
+      padding: 18px;
+      background: var(--bg);
+      color: var(--ink);
+      font: 13px/1.45 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .top { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
+    .mark {
+      display: grid; place-items: center; width: 34px; height: 34px;
+      border-radius: 11px; background: var(--accent-soft); color: var(--accent);
+      font-size: 17px; font-weight: 800; letter-spacing: -1px;
+    }
+    h1 { margin: 0; font-size: 16px; letter-spacing: -.35px; font-weight: 750; }
+    .tagline { margin: 2px 0 0; color: var(--muted); font-size: 11px; }
+    .panel {
+      padding: 17px 15px 14px;
+      background: var(--surface); border: 1px solid var(--line);
+      border-radius: 17px; box-shadow: var(--shadow);
+    }
+    .state-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .state-title { font-size: 14px; font-weight: 700; }
+    .state-copy { margin-top: 3px; color: var(--muted); font-size: 11px; }
+    .switch {
+      position: relative; flex: 0 0 auto; width: 46px; height: 27px;
+      border: 0; padding: 0; border-radius: 999px; cursor: pointer;
+      background: #c9cbd3; transition: background .18s ease, opacity .18s ease;
+    }
+    .switch::after {
+      content: ""; position: absolute; width: 21px; height: 21px;
+      left: 3px; top: 3px; border-radius: 50%; background: white;
+      box-shadow: 0 1px 4px #0002; transition: transform .18s ease;
+    }
+    .switch[aria-checked="true"] { background: var(--accent); }
+    .switch[aria-checked="true"]::after { transform: translateX(19px); }
+    .switch:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+    .switch:disabled { opacity: .38; cursor: not-allowed; }
+    .status {
+      display: flex; align-items: center; gap: 8px; margin-top: 17px;
+      padding-top: 13px; border-top: 1px solid var(--line);
+      color: var(--muted); font-size: 11px;
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: #a5a8b2; flex: 0 0 auto; }
+    .status[data-state="ready"] .dot { background: var(--ok); }
+    .status[data-state="setup"] .dot { background: var(--warn); }
+    .footer { text-align: center; margin: 12px 0 0; color: var(--muted); font-size: 10px; }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  </style>
+</head>
 <body>
-<header><h2>VibeBridge</h2></header>
-<p class="sub">Keep your ChatGPT projects in context.</p>
-<label class="toggle"><input id="enabled" type="checkbox" checked> <span><strong>Enable VibeBridge</strong><small>Attach project context to relevant prompts</small></span></label>
-<section>
-<label for="token">Local agent token</label>
-<input id="token" type="password" autocomplete="off" placeholder="Paste token from installer">
-<label for="project">Active project</label>
-<input id="project" list="project-list" placeholder="Project name or folder path">
-<datalist id="project-list"></datalist>
-<button id="discover" class="secondary">Find local projects</button>
-<button id="save">Save settings</button>
-<button id="health" class="secondary">Check connection</button>
-</section>
-<section>
-<strong>Updates</strong>
-<p class="note">Updates the local agent from GitHub. The update stops if local files have uncommitted changes.</p>
-<button id="update">Update VibeBridge safely</button>
-<button id="update-status" class="secondary">Check update status</button>
-</section>
-<details>
-<summary>GitHub & project tools</summary>
-<p class="note">Local repository access uses GitHub CLI on this Mac. ChatGPT’s own GitHub connector is separate and must be connected in ChatGPT Settings.</p>
-<button id="github-settings" class="secondary">Open ChatGPT settings</button>
-<button id="connection-guide" class="secondary">Check connection setup</button>
-<label for="github-repo">GitHub repository</label>
-<select id="github-repo"><option value="">Load your repositories first</option></select>
-<button id="github-discover" class="secondary">Find GitHub repositories</button>
-<button id="clone-repo" class="secondary">Clone selected repository to Mac</button>
-<button id="create-repo" class="secondary">Create a new GitHub repository</button>
-<button id="test-switch" class="secondary">Test repository switching</button>
-<button id="diagnostics" class="secondary">Run Git diagnostics</button>
-</details>
-<pre id="result" role="status" aria-live="polite">Agent not checked.</pre>
-<script src="popup.js"></script>
-</body></html>
+  <header class="top">
+    <div class="mark" aria-hidden="true">V</div>
+    <div>
+      <h1>VibeBridge</h1>
+      <p class="tagline">Your projects, in context.</p>
+    </div>
+  </header>
+  <main class="panel">
+    <div class="state-row">
+      <div>
+        <div class="state-title" id="state-title">Checking setup</div>
+        <div class="state-copy" id="state-copy">Connecting to your local agent…</div>
+      </div>
+      <button class="switch" id="enabled" type="button" role="switch" aria-checked="false" aria-label="Turn VibeBridge on or off" disabled></button>
+    </div>
+    <div class="status" id="status" data-state="checking" role="status" aria-live="polite">
+      <span class="dot" aria-hidden="true"></span>
+      <span id="status-text">Checking local connection</span>
+    </div>
+  </main>
+  <p class="footer">Automatic project context for ChatGPT</p>
+  <script src="popup.js"></script>
+</body>
+</html>

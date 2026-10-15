@@ -397,12 +397,12 @@ class Handler(BaseHTTPRequestHandler):
             query = parse_qs(urlparse(self.path).query)
             message = query.get("message", [""])[0]
             active = query.get("active", [""])[0]
-            project, reason = match_project(message, active)
-            if reason == "ambiguous":
-                return self.send_json(200, {"matched": False, "ambiguous": True, "candidates": [p["name"] for p in discover_projects() if p["name"].lower() in message.lower()]})
-            if not project:
-                return self.send_json(200, {"matched": False, "reason": "no-project-match"})
             try:
+                project, reason = match_project(message, active)
+                if reason == "ambiguous":
+                    return self.send_json(200, {"matched": False, "ambiguous": True, "candidates": [p["name"] for p in discover_projects() if p["name"].lower() in message.lower()]})
+                if not project:
+                    return self.send_json(200, {"matched": False, "reason": "no-project-match"})
                 return self.send_json(200, {"matched": True, "matchReason": reason, "project": project, "context": project_context(project["path"])})
             except Exception as e:
                 return self.send_json(400, {"error": str(e)})
@@ -451,12 +451,12 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self.send_json(500, {"error": "Could not start updater: " + str(e)})
         if path == "/context":
-            project, reason = match_project(body.get("message", ""), body.get("active", ""))
-            if reason == "ambiguous":
-                return self.send_json(200, {"matched": False, "ambiguous": True})
-            if not project:
-                return self.send_json(200, {"matched": False})
             try:
+                project, reason = match_project(body.get("message", ""), body.get("active", ""))
+                if reason == "ambiguous":
+                    return self.send_json(200, {"matched": False, "ambiguous": True})
+                if not project:
+                    return self.send_json(200, {"matched": False})
                 return self.send_json(200, {"matched": True, "matchReason": reason, "project": project, "context": project_context(project["path"])})
             except Exception as e:
                 return self.send_json(400, {"error": str(e)})

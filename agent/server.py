@@ -494,6 +494,271 @@ def request_pairing(origin):
     }
 
 
+class Handler(BaseHTTPRequestHandler):
+    def send_json(self, status, obj):
+        data = json.dumps(obj).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        origin = self.headers.get("Origin", "")
+        if origin.startswith("chrome-extension://"):
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
+        self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def do_OPTIONS(self):
+        origin = self.headers.get("Origin", "")
+        if not origin.startswith("chrome-extension://"):
+            return self.send_json(403, {"error": "Extension origin required"})
+        return self.send_json(200, {"ok": True})
+
+    def authorized(self):
+        return secrets.compare_digest(self.headers.get("Authorization", ""), "Bearer " + TOKEN)
+
+    def do_GET(self):
+        if not self.authorized():
+            return self.send_json(401, {"error": "Unauthorized"})
+        path = urlparse(self.path).path
+        if path == "/health":
+            return self.send_json(200, {"ok": True, "service": "VibeBridge", "port": PORT})
+        if path == "/projects":
+            return self.send_json(200, {"projects": discover_projects()})
+        if path == "/github-projects":
+            try:
+                return self.send_json(200, {"repositories": github_projects()})
+            except RuntimeError as e:
+                return self.send_json(400, {"error": str(e)})
+        if path == "/filesystem/list":
+            query = parse_qs(urlparse(self.path).query)
+            try:
+                return self.send_json(200, filesystem_listing(query.get("path", [str(HOME_ROOT)])[0]))
+            except (ValueError, OSError) as e:
+                return self.send_json(400, {"error": str(e)})
+        if path == "/filesystem/read":
+            query = parse_qs(urlparse(self.path).query)
+            try:
+                target = filesystem_path(query.get("path", [""])[0])
+                if not target.is_file():
+                    raise ValueError("Path is not a file.")
+                if target.stat().st_size > MAX_FILE_BYTES:
+                    raise ValueError("File exceeds the 2 MB read limit.")
+                return self.send_json(200, {"path": str(target), "content": target.read_text(encoding="utf-8", errors="replace")})
+            except (ValueError, OSError) as e:
+                return self.send_json(400, {"error": str(e)})
+        if path == "/update-status":
+            log_names = ("update.log", "updater.log", "updater-error.log", "agent.log", "agent-error.log")
+            logs = {}
+            for name in log_names:
+                try:
+                    logs[name] = (SUPPORT / name).read_text(errors="replace").splitlines()[-35:]
+                except OSError:
+                    logs[name] = []
+            deployed_revision = ""
+            try:
+                deployed_revision = (SUPPORT / "last-synced-revision").read_text(encoding="utf-8").strip()
+            except OSError:
+                pass
+            current = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOTS[2],
+                                     capture_output=True, text=True, timeout=5)
+            remote = subprocess.run(["git", "ls-remote", "https://github.com/YamaHaroJ/VibeBridge.git", "refs/heads/master"],
+                                    capture_output=True, text=True, timeout=12)
+            loaded = subprocess.run(["/bin/launchctl", "list", "com.vibebridge.updater"],
+                                    capture_output=True, text=True, timeout=5)
+            return self.send_json(200, {
+                "logs": logs,
+                # Archive deployment deliberately leaves Git HEAD unchanged when the
+                # checkout has local edits. Report the deployed marker first so the
+                # extension can verify the files actually installed, not stale HEAD.
+                "currentRevision": (deployed_revision[:12] if deployed_revision else
+                                    current.stdout.strip()[:12] if current.returncode == 0 else "unknown"),
+                "remoteRevision": remote.stdout.split()[0][:12] if remote.returncode == 0 and remote.stdout.split() else "unavailable",
+                "updaterLoaded": loaded.returncode == 0 and "Could not find service" not in loaded.stderr,
+            })
+        if path == "/context":
+            query = parse_qs(urlparse(self.path).query)
+            message = query.get("message", [""])[0]
+            active = query.get("active", [""])[0]
+            try:
+                project, reason = match_project(message, active)
+                if reason == "ambiguous":
+                    return self.send_json(200, {"matched": False, "ambiguous": True, "candidates": [p["name"] for p in discover_projects() if p["name"].lower() in message.lower()]})
+                if not project:
+                    return self.send_json(200, {"matched": False, "reason": "no-project-match"})
+                return self.send_json(200, {"matched": True, "matchReason": reason, "project": project, "context": project_context(project["path"])})
+            except Exception as e:
+                return self.send_json(400, {"error": str(e)})
+        return self.send_json(404, {"error": "Not found"})
+
+    def do_POST(self):
+        path = urlparse(self.path).path
+        if path == "/pair":
+            status, payload = request_pairing(self.headers.get("Origin", ""))
+            return self.send_json(status, payload)
+        if not self.authorized():
+            return self.send_json(401, {"error": "Unauthorized"})
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            if length > 1024 * 1024:
+                return self.send_json(413, {"error": "Request too large"})
+            body = json.loads(self.rfile.read(length))
+        except Exception:
+            return self.send_json(400, {"error": "Invalid JSON"})
+        path = urlparse(self.path).path
+        if path == "/checkpoint":
+            try:
+                result = sync_message_checkpoint(body.get("summary", ""), body.get("conversation", "chat"))
+                return self.send_json(200, result)
+            except (ValueError, RuntimeError) as e:
+                return self.send_json(400, {"error": str(e)})
+        if path == "/filesystem/write":
+            try:
+                target = filesystem_path(body.get("path", ""))
+                content = body.get("content")
+                if not isinstance(content, str):
+                    raise ValueError("content must be a string.")
+                if len(content.encode("utf-8")) > MAX_FILE_BYTES:
+                    return self.send_json(413, {"error": "File exceeds the 2 MB write limit."})
+                if not target.parent.is_dir():
+                    raise ValueError("Parent folder does not exist.")
+                if target.exists() and not target.is_file():
+                    raise ValueError("Target path is not a file.")
+                target.write_text(content, encoding="utf-8")
+                return self.send_json(200, {"written": True, "path": str(target), "bytes": len(content.encode("utf-8"))})
+            except (ValueError, OSError) as e:
+                return self.send_json(400, {"error": str(e)})
+        if path == "/filesystem/mkdir":
+            try:
+                target = filesystem_path(body.get("path", ""))
+                target.mkdir(parents=False, exist_ok=False)
+                return self.send_json(201, {"created": True, "path": str(target)})
+            except (ValueError, OSError) as e:
+                return self.send_json(400, {"error": str(e)})
+        if path == "/create-repository":
+            try:
+                repo = create_github_repo(body.get("name", ""), body.get("description", ""), body.get("private", True))
+                project = {"name": repo["nameWithOwner"].split("/", 1)[1], "path": "github:" + repo["nameWithOwner"], "repository": repo["nameWithOwner"], "remote": True}
+                context = remote_repo_context(repo["nameWithOwner"])
+                return self.send_json(201, {"created": True, "repository": repo, "project": project, "context": context,
+                                            "message": "Repository created and initialized with README.md and VIBEBRIDGE_CONTEXT.md. Context is ready for this message."})
+            except ValueError as e:
+                return self.send_json(400, {"error": str(e)})
+            except RuntimeError as e:
+                return self.send_json(400, {"error": str(e)})
+        if path == "/update":
+            try:
+                script = Path(__file__).with_name("updater.py")
+                if not script.is_file():
+                    return self.send_json(501, {"error": "Updater helper is not installed in this checkout yet."})
+                log_file = SUPPORT / "update.log"
+                log_file.parent.mkdir(parents=True, exist_ok=True)
+                with log_file.open("a", encoding="utf-8") as handle:
+                    handle.write("\n[" + __import__("datetime").datetime.now().isoformat(timespec="seconds") + "] Update requested from extension.\n")
+                subprocess.Popen(
+                    [__import__("sys").executable, str(script)],
+                    cwd=str(ROOTS[2]),
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                    close_fds=True,
+                )
+                return self.send_json(202, {"started": True, "message": "Update started. Check Update status in a few seconds."})
+            except Exception as e:
+                return self.send_json(500, {"error": "Could not start updater: " + str(e)})
+        if path == "/context":
+            try:
+                project, reason = match_project(body.get("message", ""), body.get("active", ""))
+                if reason == "ambiguous":
+                    return self.send_json(200, {"matched": False, "ambiguous": True})
+                if not project:
+                    return self.send_json(200, {"matched": False})
+                return self.send_json(200, {"matched": True, "matchReason": reason, "project": project, "context": project_context(project["path"])})
+            except Exception as e:
+                return self.send_json(400, {"error": str(e)})
+        if path == "/clone":
+            slug = str(body.get("repository", "")).strip()
+            if not __import__("re").fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", slug):
+                return self.send_json(400, {"error": "Choose a valid owner/repository from GitHub."})
+            owner, repo_name = slug.split("/", 1)
+            target_root = Path.home() / "Projects"
+            target = (target_root / repo_name).resolve()
+            if target_root.resolve() not in target.parents:
+                return self.send_json(400, {"error": "Invalid clone destination."})
+            if target.exists():
+                return self.send_json(409, {"error": f"{target} already exists. Choose the existing local project instead."})
+            try:
+                target_root.mkdir(parents=True, exist_ok=True)
+                result = subprocess.run(
+                    ["gh", "repo", "clone", slug, str(target)],
+                    capture_output=True, text=True, timeout=180
+                )
+            except FileNotFoundError:
+                return self.send_json(400, {"error": "GitHub CLI (gh) is not installed."})
+            except subprocess.TimeoutExpired:
+                return self.send_json(408, {"error": "Clone timed out. Check whether the repository finished cloning before retrying."})
+            if result.returncode != 0:
+                message = (result.stderr or result.stdout or "Clone failed").strip()
+                return self.send_json(400, {"error": message[-1500:]})
+            return self.send_json(200, {"cloned": True, "repository": slug, "project": {"name": repo_name, "path": str(target)}})
+        if path == "/remember":
+            try:
+                root = project_path(body.get("project", ""))
+            except (ValueError, OSError):
+                return self.send_json(403, {"error": "Project not found or not allowed"})
+            note = str(body.get("note", "")).strip()
+            if not note:
+                return self.send_json(400, {"error": "note is required"})
+            if len(note) > 3000:
+                return self.send_json(413, {"error": "Note is too long (max 3000 characters)"})
+            memory_file = MEMORY_DIR / (hashlib.sha256(str(root).encode()).hexdigest() + ".md")
+            with memory_file.open("a", encoding="utf-8") as handle:
+                handle.write("\n- " + note.replace("\n", " ") + "\n")
+            return self.send_json(200, {"saved": True, "project": root.name})
+        if path not in ("/diagnostics", "/run"):
+            return self.send_json(404, {"error": "Not found"})
+        try:
+            root = project_path(body.get("project", ""))
+        except (ValueError, OSError):
+            return self.send_json(403, {"error": "Project not found or not allowed. Use the Projects list to select a discovered folder."})
+        if path == "/diagnostics":
+            commands = [["git", "status", "--short", "--branch"], ["git", "log", "-1", "--oneline"]]
+            results = []
+            for cmd in commands:
+                try:
+                    r = subprocess.run(cmd, cwd=str(root), capture_output=True, text=True, timeout=15)
+                    results.append({"command": cmd, "exitCode": r.returncode, "stdout": r.stdout[-12000:], "stderr": r.stderr[-4000:]})
+                except Exception as e:
+                    results.append({"command": cmd, "error": str(e)})
+            return self.send_json(200, {"project": str(root), "results": results})
+        cmd = body.get("command", [])
+        if not isinstance(cmd, list) or not cmd or not all(isinstance(x, str) for x in cmd):
+            return self.send_json(400, {"error": "command must be a non-empty argument array"})
+        try:
+            r = subprocess.run(cmd, cwd=str(root), capture_output=True, text=True, timeout=120)
+            return self.send_json(200, {"project": str(root), "exitCode": r.returncode, "stdout": r.stdout[-20000:], "stderr": r.stderr[-8000:]})
+        except subprocess.TimeoutExpired:
+            return self.send_json(408, {"error": "Command timed out"})
+        except OSError as e:
+            return self.send_json(400, {"error": str(e)})
+
+    def log_message(self, fmt, *args):
+        print("VibeBridge:", fmt % args)
+
+
+
+# Remote task queue: GitHub Issues are treated as a strict task enum, never as shell input.
+# Only issues opened by the repository owner and titled exactly "VibeBridge task: <task>"
+# are eligible. Results are posted to the issue and the issue is closed after processing.
+REMOTE_TASK_REPO = "YamaHaroJ/VibeBridge"
+REMOTE_TASK_OWNER = "YamaHaroJ"
+REMOTE_TASKS = {"validate", "test", "diagnostics"}
+REMOTE_TASK_POLL_SECONDS = 30
+_remote_task_seen = set()
+
+
 def run_remote_task(task):
     """Run one predefined, bounded task; never execute issue text as a command."""
     root = Path.home() / "VibeBridge"

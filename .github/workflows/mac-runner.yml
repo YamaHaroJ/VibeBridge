@@ -3,8 +3,6 @@ name: VibeBridge Mac runner
 on:
   push:
     branches: [master]
-  issues:
-    types: [opened, reopened]
   workflow_dispatch:
     inputs:
       task:
@@ -19,7 +17,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 concurrency:
   group: vibebridge-mac-runner
@@ -30,23 +27,8 @@ jobs:
     runs-on: [self-hosted, macOS]
     timeout-minutes: 15
     env:
-      TASK: ${{ github.event_name == 'issues' && startsWith(github.event.issue.title, 'VibeBridge task: ') && github.event.issue.title || inputs.task || 'test' }}
+      TASK: ${{ inputs.task || 'test' }}
     steps:
-      - name: Ignore unrelated issues
-        if: github.event_name == 'issues' && !startsWith(github.event.issue.title, 'VibeBridge task: ')
-        run: exit 0
-
-      - name: Normalize issue task title
-        if: github.event_name == 'issues'
-        shell: bash
-        run: |
-          case "$TASK" in
-            "VibeBridge task: diagnostics") echo "TASK=diagnostics" >> "$GITHUB_ENV" ;;
-            "VibeBridge task: test") echo "TASK=test" >> "$GITHUB_ENV" ;;
-            "VibeBridge task: validate") echo "TASK=validate" >> "$GITHUB_ENV" ;;
-            *) echo "Unsupported VibeBridge task title: $TASK"; exit 1 ;;
-          esac
-
       - name: Verify checkout
         uses: actions/checkout@v4
 
@@ -115,21 +97,6 @@ jobs:
             echo "== Recent updater log =="
             tail -n 120 "$HOME/Library/Application Support/VibeBridge/updater-error.log" 2>/dev/null || true
           } | tee runner-results/diagnostics.txt
-
-      - name: Post Mac result to task issue
-        if: always() && github.event_name == 'issues' && startsWith(github.event.issue.title, 'VibeBridge task: ')
-        uses: actions/github-script@v7
-        env:
-          TASK: ${{ env.TASK }}
-        with:
-          script: |
-            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const outcome = job.status === "success" ? "PASS" : "FAIL";
-            await github.rest.issues.createComment({
-              ...context.repo,
-              issue_number: context.issue.number,
-              body: `**VibeBridge Mac diagnostics — ${outcome}**\n\nTask: ${process.env.TASK}\nRunner: ${process.env.RUNNER_NAME || "self-hosted macOS"}\n[Workflow logs](${runUrl})\n\nThe attached artifact contains the local process and log snapshot when diagnostics was requested.`
-            });
 
       - name: Upload Mac-run results
         if: always()

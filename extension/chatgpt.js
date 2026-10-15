@@ -17,6 +17,7 @@
   const knownCheckpointNodes = new WeakSet();
   const pendingCheckpoints = new Map();
   let checkpointTimer = null;
+  let checkpointFlushRunning = false;
   document.querySelectorAll('[data-message-author-role="user"], [data-message-author-role="assistant"]').forEach(node => knownCheckpointNodes.add(node));
 
   function conversationKey() {
@@ -44,20 +45,30 @@
   }
 
   async function flushMessageCheckpoints() {
+    if (checkpointFlushRunning || !pendingCheckpoints.size) return;
+    checkpointFlushRunning = true;
     const entries = Array.from(pendingCheckpoints.values());
     pendingCheckpoints.clear();
     const conversation = conversationKey();
-    for (const item of entries) {
-      const text = item.text.trim();
-      if (!text) continue;
-      try {
-        const result = await chrome.runtime.sendMessage({
-          type: "VIBEBRIDGE_CHECKPOINT_MESSAGE",
-          payload: {role: item.role, text, conversation}
-        });
-        if (!result?.saved) showNotice("Automatic GitHub checkpoint failed: " + (result?.error || "unknown error"));
-      } catch (error) {
-        showNotice("Automatic GitHub checkpoint failed: " + error.message);
+    try {
+      for (const item of entries) {
+        const text = item.text.trim();
+        if (!text) continue;
+        try {
+          const result = await chrome.runtime.sendMessage({
+            type: "VIBEBRIDGE_CHECKPOINT_MESSAGE",
+            payload: {role: item.role, text, conversation}
+          });
+          if (!result?.saved) showNotice("Automatic GitHub checkpoint failed: " + (result?.error || "unknown error"));
+        } catch (error) {
+          showNotice("Automatic GitHub checkpoint failed: " + error.message);
+        }
+      }
+    } finally {
+      checkpointFlushRunning = false;
+      if (pendingCheckpoints.size) {
+        clearTimeout(checkpointTimer);
+        checkpointTimer = setTimeout(flushMessageCheckpoints, 500);
       }
     }
   }

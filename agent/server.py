@@ -818,18 +818,10 @@ def run_remote_task(task):
         ]
     elif task == "test":
         commands = [["python3", "-m", "unittest", "discover", "-s", "tests", "-v"]]
-    else:
-        commands = [
-            ["git", "status", "--short", "--branch"],
-            ["git", "log", "-1", "--oneline"],
-            ["git", "remote", "-v"],
-            ["git", "rev-parse", "HEAD"],
-            ["git", "ls-remote", "https://github.com/YamaHaroJ/VibeBridge.git", "refs/heads/master"],
-            ["launchctl", "print", "gui/" + str(__import__("os").getuid()) + "/com.vibebridge.agent"],
-            ["launchctl", "print", "gui/" + str(__import__("os").getuid()) + "/com.vibebridge.updater"],
-            ["tail", "-n", "100", str(Path.home() / "Library/Application Support/VibeBridge/update.log")],
-            ["tail", "-n", "60", str(Path.home() / "Library/Application Support/VibeBridge/updater-error.log")],
-        ]
+    elif task == "diagnostics":
+        # Diagnostics is a fixed, allowlisted snapshot. Never dump general process
+        # arguments or local logs into a GitHub issue.
+        return True, "Local VibeBridge service snapshot:\\n" + json.dumps(local_diagnostics(), indent=2)
     if not root.is_dir():
         raise RuntimeError("Expected checkout is missing: " + str(root))
     output = []

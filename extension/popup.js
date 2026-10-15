@@ -203,13 +203,47 @@ checkUpdate.addEventListener("click", async () => {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not start updater.");
-    logOutput.textContent = data.message || "Update started.";
-    checkUpdate.textContent = "Update started";
-    window.setTimeout(async () => {
-      await loadUpdateLogs();
-      checkUpdate.disabled = false;
-      checkUpdate.textContent = "Check for updates";
-    }, 4500);
+    logOutput.textContent = data.message || "Update started. Waiting for GitHub sync…";
+    checkUpdate.textContent = "Updating…";
+    let finished = false;
+    let lastStatus = null;
+    for (let attempt = 0; attempt < 36; attempt++) {
+      await new Promise(resolve => window.setTimeout(resolve, 2000));
+      try {
+        const statusResponse = await fetch("http://127.0.0.1:43127/update-status", {
+          headers: {Authorization: "Bearer " + saved.token},
+          cache: "no-store"
+        });
+        if (statusResponse.ok) {
+          lastStatus = await statusResponse.json();
+          const lines = (lastStatus.logs?.["update.log"] || []).join("\\n");
+          logOutput.textContent = [
+            "Local checkout: " + (lastStatus.currentRevision || "unknown"),
+            "GitHub master: " + (lastStatus.remoteRevision || "unknown"),
+            "",
+            lines
+          ].join("\\n");
+          if (/Update complete\\.|Update validated\\./i.test(lines)) {
+            finished = true;
+            break;
+          }
+          if (/UPDATE FAILED:/i.test(lines)) {
+            throw new Error("Updater reported a failure. See the log output above.");
+          }
+        }
+      } catch (pollError) {
+        // The agent briefly disconnects while its process restarts; keep polling.
+        if (attempt === 35) throw pollError;
+      }
+    }
+    checkUpdate.disabled = false;
+    checkUpdate.textContent = "Check for updates";
+    if (finished) {
+      logOutput.textContent += "\\n\\nUpdate complete. Reloading VibeBridge from the updated extension files…";
+      window.setTimeout(() => chrome.runtime.reload(), 800);
+    } else {
+      logOutput.textContent += "\\n\\nUpdate is still running. Check again in a moment; the extension was not reloaded.";
+    }
   } catch (error) {
     logOutput.textContent = "Update could not start: " + error.message;
     checkUpdate.disabled = false;

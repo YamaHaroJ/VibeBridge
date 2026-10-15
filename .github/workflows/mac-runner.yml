@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   run-on-mac:
-    runs-on: [self-hosted, macOS, vibebridge]
+    runs-on: [self-hosted, macOS]
     timeout-minutes: 15
     steps:
       - name: Verify checkout

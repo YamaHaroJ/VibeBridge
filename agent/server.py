@@ -817,7 +817,10 @@ def remote_task_worker():
                 REMOTE_TASK_LIST_ARGS,
                 capture_output=True, text=True, timeout=8
             )
-            if listed.returncode == 0:
+            if listed.returncode != 0:
+                detail = (listed.stderr or listed.stdout or "").strip()
+                print("VibeBridge task queue poll failed (exit " + str(listed.returncode) + "): " + detail[:1000], flush=True)
+            else:
                 issues = json.loads(listed.stdout or "[]")
                 for issue in issues:
                     number = issue.get("number")

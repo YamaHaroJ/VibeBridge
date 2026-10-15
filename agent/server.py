@@ -756,6 +756,7 @@ REMOTE_TASK_REPO = "YamaHaroJ/VibeBridge"
 REMOTE_TASK_OWNER = "YamaHaroJ"
 REMOTE_TASKS = {"validate", "test", "diagnostics"}
 REMOTE_TASK_POLL_SECONDS = 2
+REMOTE_TASK_LIST_ARGS = ["gh", "issue", "list", "--repo", REMOTE_TASK_REPO, "--state", "open", "--json", "number,title,body,author", "--sort", "created", "--limit", "5"]
 _remote_task_seen = set()
 
 
@@ -813,8 +814,7 @@ def remote_task_worker():
     while True:
         try:
             listed = subprocess.run(
-                ["gh", "issue", "list", "--repo", REMOTE_TASK_REPO, "--state", "open",
-                 "--json", "number,title,body,author", "--sort", "created", "--limit", "5"],
+                REMOTE_TASK_LIST_ARGS,
                 capture_output=True, text=True, timeout=8
             )
             if listed.returncode == 0:

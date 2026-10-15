@@ -43,7 +43,7 @@ class ProjectSwitchTests(unittest.TestCase):
         context = server.remote_repo_context("YamaHaroJ/Autofill")
         self.assertIn("\n\nREADME (README.md):", context)
         self.assertIn("PERSISTENT PROJECT MEMORY (VIBEBRIDGE_CONTEXT.md):", context)
-        self.assertIn("## Most recent discussion\\nResume the latest implementation task.", context)
+        self.assertIn("## Most recent discussion\nResume the latest implementation task.", context)
         self.assertNotIn("\\n\\nREADME", context)
 
     @patch.object(server.subprocess, "run")

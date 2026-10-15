@@ -10,7 +10,7 @@ import server
 
 class FilesystemAccessTests(unittest.TestCase):
     def test_lists_files_inside_home(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(dir=Path.home()) as tmp:
             root = Path(tmp).resolve()
             (root / "example.txt").write_text("hello", encoding="utf-8")
             with patch.object(server, "HOME_ROOT", root):
@@ -19,8 +19,8 @@ class FilesystemAccessTests(unittest.TestCase):
             self.assertTrue(any(item["name"] == "example.txt" for item in result["items"]))
 
     def test_reads_text_file(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
+        with tempfile.TemporaryDirectory(dir=Path.home()) as tmp:
+            root = Path(tmp).resolve()
             file = root / "example.txt"
             file.write_text("hello", encoding="utf-8")
             with patch.object(server, "HOME_ROOT", root):
@@ -28,7 +28,7 @@ class FilesystemAccessTests(unittest.TestCase):
                 self.assertEqual(resolved.read_text(encoding="utf-8"), "hello")
 
     def test_rejects_paths_outside_home(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(dir=Path.home()) as tmp:
             root = Path(tmp) / "home"
             root.mkdir()
             outside = Path(tmp) / "outside.txt"

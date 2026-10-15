@@ -24,6 +24,7 @@ if not TOKEN_FILE.exists():
     TOKEN_FILE.write_text(secrets.token_urlsafe(32))
     TOKEN_FILE.chmod(0o600)
 TOKEN = TOKEN_FILE.read_text().strip()
+PAIRING_FILE = SUPPORT / "paired_extension_origin"
 
 
 def discover_projects():
@@ -559,6 +560,25 @@ class Handler(BaseHTTPRequestHandler):
         return self.send_json(404, {"error": "Not found"})
 
     def do_POST(self):
+        path = urlparse(self.path).path
+        if path == "/pair":
+            origin = self.headers.get("Origin", "")
+            if not re.fullmatch(r"chrome-extension://[a-p]{32}", origin):
+                return self.send_json(403, {"error": "A valid Chrome extension origin is required."})
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                body = json.loads(self.rfile.read(length)) if 0 < length <= 4096 else {}
+            except Exception:
+                return self.send_json(400, {"error": "Invalid pairing request."})
+            if body.get("approved") is not True:
+                return self.send_json(400, {"error": "Explicit approval is required."})
+            paired_origin = PAIRING_FILE.read_text().strip() if PAIRING_FILE.exists() else ""
+            if paired_origin and paired_origin != origin:
+                return self.send_json(403, {"error": "This agent is already paired with another extension. Reset pairing from the installer to change it."})
+            if not paired_origin:
+                PAIRING_FILE.write_text(origin)
+                PAIRING_FILE.chmod(0o600)
+            return self.send_json(200, {"ok": True, "token": TOKEN})
         if not self.authorized():
             return self.send_json(401, {"error": "Unauthorized"})
         try:

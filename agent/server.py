@@ -204,6 +204,50 @@ def create_github_repo(name, description="", private=True):
             detail = (seeded.stderr or seeded.stdout or "GitHub API rejected the file creation").strip()[-700:]
             raise RuntimeError(f"Repository {slug} was created, but initializing {path} failed: {detail}")
     return {"nameWithOwner": slug, "url": "https://github.com/" + slug, "private": bool(private), "initialized": True}
+
+
+# Filesystem access is intentionally scoped to the authenticated user's home
+# directory. macOS privacy controls still apply to protected folders.
+HOME_ROOT = Path.home().resolve()
+MAX_FILE_BYTES = 2 * 1024 * 1024
+
+
+def filesystem_path(raw):
+    value = str(raw or "").strip()
+    if not value:
+        raise ValueError("A filesystem path is required.")
+    candidate = Path(value).expanduser()
+    if not candidate.is_absolute():
+        candidate = HOME_ROOT / candidate
+    resolved = candidate.resolve()
+    if resolved != HOME_ROOT and HOME_ROOT not in resolved.parents:
+        raise ValueError("Filesystem access is limited to your home folder.")
+    # Block sensitive system-managed directories even if path handling changes.
+    blocked = (Path("/System"), Path("/Library"), Path("/private"), Path("/usr"), Path("/bin"), Path("/sbin"), Path("/Applications"))
+    if any(resolved == item or item in resolved.parents for item in blocked):
+        raise ValueError("This system-managed location is not accessible through VibeBridge.")
+    return resolved
+
+
+def filesystem_listing(raw):
+    path = filesystem_path(raw or str(HOME_ROOT))
+    if not path.exists() or not path.is_dir():
+        raise ValueError("Folder does not exist.")
+    items = []
+    for child in sorted(path.iterdir(), key=lambda item: (not item.is_dir(), item.name.lower()))[:500]:
+        try:
+            items.append({
+                "name": child.name,
+                "path": str(child),
+                "type": "folder" if child.is_dir() else "file",
+                "hidden": child.name.startswith("."),
+                "size": child.stat().st_size if child.is_file() else None,
+            })
+        except OSError:
+            continue
+    return {"path": str(path), "parent": str(path.parent) if path != HOME_ROOT else None, "items": items}
+
+
 def project_path(raw):
     value = str(raw or "").strip()
     projects = discover_projects()
@@ -386,6 +430,23 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(200, {"repositories": github_projects()})
             except RuntimeError as e:
                 return self.send_json(400, {"error": str(e)})
+        if path == "/filesystem/list":
+            query = parse_qs(urlparse(self.path).query)
+            try:
+                return self.send_json(200, filesystem_listing(query.get("path", [str(HOME_ROOT)])[0]))
+            except (ValueError, OSError) as e:
+                return self.send_json(400, {"error": str(e)})
+        if path == "/filesystem/read":
+            query = parse_qs(urlparse(self.path).query)
+            try:
+                target = filesystem_path(query.get("path", [""])[0])
+                if not target.is_file():
+                    raise ValueError("Path is not a file.")
+                if target.stat().st_size > MAX_FILE_BYTES:
+                    raise ValueError("File exceeds the 2 MB read limit.")
+                return self.send_json(200, {"path": str(target), "content": target.read_text(encoding="utf-8", errors="replace")})
+            except (ValueError, OSError) as e:
+                return self.send_json(400, {"error": str(e)})
         if path == "/update-status":
             log_file = SUPPORT / "update.log"
             try:
@@ -419,6 +480,29 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             return self.send_json(400, {"error": "Invalid JSON"})
         path = urlparse(self.path).path
+        if path == "/filesystem/write":
+            try:
+                target = filesystem_path(body.get("path", ""))
+                content = body.get("content")
+                if not isinstance(content, str):
+                    raise ValueError("content must be a string.")
+                if len(content.encode("utf-8")) > MAX_FILE_BYTES:
+                    return self.send_json(413, {"error": "File exceeds the 2 MB write limit."})
+                if not target.parent.is_dir():
+                    raise ValueError("Parent folder does not exist.")
+                if target.exists() and not target.is_file():
+                    raise ValueError("Target path is not a file.")
+                target.write_text(content, encoding="utf-8")
+                return self.send_json(200, {"written": True, "path": str(target), "bytes": len(content.encode("utf-8"))})
+            except (ValueError, OSError) as e:
+                return self.send_json(400, {"error": str(e)})
+        if path == "/filesystem/mkdir":
+            try:
+                target = filesystem_path(body.get("path", ""))
+                target.mkdir(parents=False, exist_ok=False)
+                return self.send_json(201, {"created": True, "path": str(target)})
+            except (ValueError, OSError) as e:
+                return self.send_json(400, {"error": str(e)})
         if path == "/create-repository":
             try:
                 repo = create_github_repo(body.get("name", ""), body.get("description", ""), body.get("private", True))

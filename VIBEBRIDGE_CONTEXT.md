@@ -100,3 +100,10 @@ Important setup distinction: ChatGPT's GitHub connector is optional for VibeBrid
 - Popup styling is a compact, cool-feeling, light/dark adaptive card with a single power switch, concise connection statuses, and a one-time consent dialog.
 - Commit `d66809c` adds a second subtle status line for GitHub. Commit `96e1f19` makes initialization check the local agent's `/health` endpoint and then `/github-projects`; the switch is enabled only if both succeed. GitHub status reports the repository count. This verifies the Mac's GitHub CLI authentication, not ChatGPT's separate GitHub connector.
 - Critical incomplete setup dependency remains: secure one-time pairing to populate the extension's token storage is not implemented. The consent dialog does not itself pair; when no token exists it explains pairing is still needed. Do not claim first-run setup is complete or that this has been tested on the user's Mac.
+
+## Token pairing investigation (2026-10-15)
+- User wants the local agent token to be transferred automatically into extension storage after explicit approval, with no manual token entry.
+- A first draft briefly added an unauthenticated `POST /pair` token response. It was rejected as unsafe because any installed Chrome extension could potentially request the bearer token; a client-supplied `approved: true` flag is not proof of user approval.
+- Follow-up commits `955edf2` and `fc27bb3` disable that route and remove the extension's token-fetch behavior. Existing authenticated connections still work; brand-new installs still need secure pairing.
+- Next design: use a trusted native approval step (for example a macOS confirmation dialog initiated by the local agent) or Chrome Native Messaging with a fixed, trusted extension ID. Do not expose the bearer token from an unauthenticated HTTP endpoint. Keep the UI low-friction and never ask the user to type the token.
+- Latest pairing commits are source changes only and have not been tested on the user's Mac.

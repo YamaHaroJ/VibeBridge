@@ -150,18 +150,17 @@ def remote_repo_context(slug):
     if not loaded:
         detail = "; ".join(errors) if errors else "The repository has no readable README.md or VIBEBRIDGE_CONTEXT.md."
         raise RuntimeError(f"Could not load useful context from GitHub repository {slug}. {detail}")
-    if slug.lower() == "yamaharoJ/vibebridge".lower():
-        try:
-            checkpoint = subprocess.run(
-                ["gh", "api", "repos/YamaHaroJ/VibeBridge/contents/memory/AUTO_CHECKPOINT.md", "--jq", ".content"],
-                capture_output=True, text=True, timeout=15
-            )
-            if checkpoint.returncode == 0 and checkpoint.stdout.strip():
-                checkpoint_text = base64.b64decode("".join(checkpoint.stdout.split()), validate=True).decode("utf-8", errors="replace").strip()
-                if checkpoint_text:
-                    parts.append("ROLLING CONVERSATION CHECKPOINTS (GitHub):\n" + checkpoint_text[:5000])
-        except (subprocess.TimeoutExpired, ValueError, base64.binascii.Error):
-            pass
+    try:
+        checkpoint = subprocess.run(
+            ["gh", "api", f"repos/{slug}/contents/memory/AUTO_CHECKPOINT.md", "--jq", ".content"],
+            capture_output=True, text=True, timeout=15
+        )
+        if checkpoint.returncode == 0 and checkpoint.stdout.strip():
+            checkpoint_text = base64.b64decode("".join(checkpoint.stdout.split()), validate=True).decode("utf-8", errors="replace").strip()
+            if checkpoint_text:
+                parts.append("ROLLING CONVERSATION CHECKPOINTS (GitHub):\\n" + checkpoint_text[:5000])
+    except (subprocess.TimeoutExpired, ValueError, base64.binascii.Error):
+        pass
     if errors:
         parts.append("REMOTE CONTEXT WARNINGS: " + "; ".join(errors))
     return "\n\n".join(parts)[:18000]
@@ -169,37 +168,78 @@ def remote_repo_context(slug):
 def sync_message_checkpoint(summary, conversation):
     import base64
     from datetime import datetime
-    repo = "YamaHaroJ/VibeBridge"
-    summary = str(summary or "").strip()
-    if not summary:
+
+    raw = str(summary or "").strip()
+    if not raw:
         raise ValueError("The assistant summary is empty.")
-    summary = summary[:12000]
+    try:
+        document = json.loads(raw)
+    except json.JSONDecodeError:
+        document = {"projects": [{"repository": "YamaHaroJ/VibeBridge", "summary": raw}]}
+    projects = document.get("projects", [])
+    if not isinstance(projects, list) or not projects:
+        raise ValueError("No project summaries were provided.")
+
     conv = re.sub(r"[^A-Za-z0-9_.-]", "", str(conversation or "chat"))[:80] or "chat"
-    path = "memory/AUTO_CHECKPOINT.md"
-    for attempt in range(3):
-        get = subprocess.run(["gh", "api", f"repos/{repo}/contents/{path}"], capture_output=True, text=True, timeout=20)
-        sha, existing = None, ""
-        if get.returncode == 0:
-            item = json.loads(get.stdout)
-            sha = item.get("sha")
-            existing = base64.b64decode(item.get("content", "")).decode("utf-8", errors="replace")
-        elif "404" not in (get.stderr + get.stdout):
-            raise RuntimeError((get.stderr or get.stdout or "Could not read checkpoint file").strip()[:700])
-        sections = re.findall(r"(?ms)^## Conversation: ([^\n]+)\n(.*?)(?=^## Conversation: |\Z)", existing)
-        stamp = datetime.now().astimezone().isoformat(timespec="seconds")
-        section = "## Conversation: " + conv + "\n_Last updated: " + stamp + "_\n\n" + summary
-        others = ["## Conversation: " + key + "\n" + body.strip() for key, body in sections if key != conv]
-        updated = "# VibeBridge Conversation Checkpoints\n\n" + section + "\n\n" + "\n\n".join(others[:40]) + "\n"
-        payload = {"message": "Save ChatGPT project checkpoint " + conv + " " + stamp, "content": base64.b64encode(updated.encode()).decode()}
-        if sha:
-            payload["sha"] = sha
-        result = subprocess.run(["gh", "api", "--method", "PUT", f"repos/{repo}/contents/{path}", "--input", "-"], input=json.dumps(payload), capture_output=True, text=True, timeout=30)
-        if result.returncode == 0:
-            return {"saved": True, "path": path, "conversation": conv, "timestamp": stamp}
-        error = (result.stderr or result.stdout or "GitHub checkpoint update failed").strip()
-        if "409" not in error and "sha" not in error.lower():
-            raise RuntimeError(error[:1000])
-    raise RuntimeError("GitHub checkpoint changed repeatedly; retry the save.")
+    saved, errors = [], []
+    for entry in projects[:12]:
+        if not isinstance(entry, dict):
+            continue
+        slug = str(entry.get("repository", "")).strip()
+        summary_text = str(entry.get("summary", "")).strip()[:9000]
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", slug) or not summary_text:
+            errors.append("Skipped an invalid repository or empty summary.")
+            continue
+        check = subprocess.run(
+            ["gh", "repo", "view", slug, "--json", "nameWithOwner", "--jq", ".nameWithOwner"],
+            capture_output=True, text=True, timeout=20
+        )
+        if check.returncode != 0 or check.stdout.strip().lower() != slug.lower():
+            errors.append("Could not verify access to " + slug)
+            continue
+        path = "memory/AUTO_CHECKPOINT.md"
+        wrote = False
+        for attempt in range(3):
+            get = subprocess.run(
+                ["gh", "api", f"repos/{slug}/contents/{path}"],
+                capture_output=True, text=True, timeout=20
+            )
+            sha, existing = None, ""
+            if get.returncode == 0:
+                item = json.loads(get.stdout)
+                sha = item.get("sha")
+                existing = base64.b64decode(item.get("content", "")).decode("utf-8", errors="replace")
+            elif "404" not in (get.stderr + get.stdout):
+                errors.append(slug + ": " + (get.stderr or get.stdout or "Could not read checkpoint").strip()[:250])
+                break
+            sections = re.findall(r"(?ms)^## Conversation: ([^\n]+)\n(.*?)(?=^## Conversation: |\Z)", existing)
+            stamp = datetime.now().astimezone().isoformat(timespec="seconds")
+            section = "## Conversation: " + conv + "\n_Last updated: " + stamp + "_\n\n" + summary_text
+            others = ["## Conversation: " + key + "\n" + body.strip() for key, body in sections if key != conv]
+            updated_text = "# Project Conversation Checkpoints\n\n" + section + "\n\n" + "\n\n".join(others[:40]) + "\n"
+            payload = {
+                "message": "Update ChatGPT checkpoint " + conv + " " + stamp,
+                "content": base64.b64encode(updated_text.encode()).decode()
+            }
+            if sha:
+                payload["sha"] = sha
+            put = subprocess.run(
+                ["gh", "api", "--method", "PUT", f"repos/{slug}/contents/{path}", "--input", "-"],
+                input=json.dumps(payload), capture_output=True, text=True, timeout=30
+            )
+            if put.returncode == 0:
+                saved.append({"repository": slug, "path": path})
+                wrote = True
+                break
+            error = (put.stderr or put.stdout or "GitHub checkpoint update failed").strip()
+            if "409" not in error and "sha" not in error.lower():
+                errors.append(slug + ": " + error[:250])
+                break
+        if not wrote and not any(slug in item for item in errors):
+            errors.append(slug + ": repeated concurrent updates prevented saving")
+    if not saved:
+        raise RuntimeError("; ".join(errors) or "No project checkpoints were saved.")
+    return {"saved": True, "projects": saved, "errors": errors}
 
 
 

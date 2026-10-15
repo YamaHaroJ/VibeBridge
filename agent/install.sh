@@ -6,6 +6,9 @@ PYTHON="$(command -v python3 || true)"
 SUPPORT="$HOME/Library/Application Support/VibeBridge"
 PLIST="$HOME/Library/LaunchAgents/com.vibebridge.agent.plist"
 UPDATER_PLIST="$HOME/Library/LaunchAgents/com.vibebridge.updater.plist"
+NATIVE_HOST_DIR="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts"
+NATIVE_HOST_MANIFEST="$NATIVE_HOST_DIR/com.vibebridge.agent.json"
+EXTENSION_ID="meedpihcbldnlcahpeijakginpjdkghp"
 mkdir -p "$SUPPORT" "$HOME/Library/LaunchAgents"
 if [ -z "$PYTHON" ]; then echo "ERROR: Python 3 is required."; exit 1; fi
 "$PYTHON" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3,9) else 1)' || { echo "ERROR: Python 3.9 or newer is required."; exit 1; }
@@ -14,6 +17,23 @@ if [ ! -f "$SUPPORT/token" ]; then
 fi
 chmod 600 "$SUPPORT/token"
 chmod 700 "$SUPPORT"
+
+# Register the Native Messaging host for the pinned VibeBridge extension ID.
+mkdir -p "$NATIVE_HOST_DIR"
+"$PYTHON" - "$NATIVE_HOST_MANIFEST" "$PYTHON" "$ROOT/agent/native_host.py" "$EXTENSION_ID" <<'PY_HOST'
+import json, pathlib, sys
+manifest_path, python, host_script, extension_id = sys.argv[1:]
+manifest = {
+    "name": "com.vibebridge.agent",
+    "description": "VibeBridge secure token bootstrap",
+    "path": str(pathlib.Path(host_script).resolve()),
+    "type": "stdio",
+    "allowed_origins": ["chrome-extension://" + extension_id + "/"],
+}
+path = pathlib.Path(manifest_path)
+path.write_text(json.dumps(manifest, indent=2) + "\\n", encoding="utf-8")
+path.chmod(0o600)
+PY_HOST
 cat > "$PLIST" <<EOF_PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

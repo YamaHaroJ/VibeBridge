@@ -197,10 +197,10 @@
           if (automatic) {
             const composer = document.querySelector("#prompt-textarea") || document.querySelector('textarea[placeholder]') || document.querySelector('[contenteditable="true"][role="textbox"]');
             if (!composer) throw new Error("Command ran, but ChatGPT prompt field was not found. Result is shown below.");
-            const addition = "\\n\\nVIBEBRIDGE COMMAND RESULT\\nCommand: " + payload.command.join(" ") + "\\nResult JSON:\\n" + resultText + "\\n\\nInspect this result and continue development. If another local command is needed, emit another VIBEBRIDGE LOCAL COMMAND block.";
+            const addition = "\n\nVIBEBRIDGE COMMAND RESULT\nCommand: " + payload.command.join(" ") + "\nResult JSON:\n" + resultText + "\n\nInspect this result and continue development. If another local command is needed, emit another VIBEBRIDGE LOCAL COMMAND block.";
             writeComposer(composer, readComposer(composer).trim() + addition);
             const send = document.querySelector('button[data-testid="send-button"]') || document.querySelector('button[aria-label*="Send"]');
-            if (send && !send.disabled) { send.click(); } else { showNotice("Command result is ready in the prompt; send it to continue."); }
+            if (send && !send.disabled) { bypassNextSend = true; send.click(); setTimeout(() => { bypassNextSend = false; }, 800); } else { showNotice("Command result is ready in the prompt; send it to continue."); }
           }
         } catch (error) {
           output.textContent = error.message;

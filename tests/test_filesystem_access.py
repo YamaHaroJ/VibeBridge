@@ -11,7 +11,7 @@ import server
 class FilesystemAccessTests(unittest.TestCase):
     def test_lists_files_inside_home(self):
         with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            root = Path(tmp).resolve()
             (root / "example.txt").write_text("hello", encoding="utf-8")
             with patch.object(server, "HOME_ROOT", root):
                 result = server.filesystem_listing(str(root))

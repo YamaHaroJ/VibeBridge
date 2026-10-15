@@ -181,3 +181,12 @@ Important setup distinction: ChatGPT's GitHub connector is optional for VibeBrid
 - Commits: `53d15ef` (agent endpoint), `4499b15` (extension bridge), `5ce88f7` (tests).
 - The self-hosted GitHub Actions workflow was changed to manual dispatch only. Normal issue creation/pushes no longer queue jobs on a potentially offline self-hosted runner; hosted Actions remains responsible for source tests, while local service state is read by the local agent.
 - Not yet verified on the user's installed Mac. Next: run hosted tests, confirm workflow dispatch syntax, then trigger local diagnostics through the extension once the latest agent source is deployed.
+
+
+## Local process diagnostics verified (2026-10-15)
+- The authenticated local endpoint `GET /diagnostics/local` is now used by the existing Mac task worker for the predefined `diagnostics` task. The task no longer dumps general process output or log contents into a GitHub issue.
+- Mac task issue `#63` returned a live snapshot from macOS 15.8.2: `com.vibebridge.agent` was loaded/running (PID 79353, port 43127) and `com.vibebridge.updater` was loaded/running (PID 79366). This is real Mac-agent output, not a GitHub-hosted simulation. The result contains only VibeBridge service metadata.
+- Mac task issue `#64` passed the full local suite: **35 tests passed** in 0.033 seconds. Hosted validation and checks also passed for commit `b6169d0`: [validation run](https://github.com/YamaHaroJ/VibeBridge/actions/runs/38799979481), [checks run](https://github.com/YamaHaroJ/VibeBridge/actions/runs/38799979467).
+- The extension popup's existing **Maintenance & diagnostics → View logs** view now also requests the scoped service snapshot and displays the agent/updater state and PIDs. The popup source change is committed, but visual verification inside the running Chrome extension has not been performed in this session; Chrome must reload the updated extension files before the new display appears.
+- The self-hosted Actions workflow is manual-dispatch-only so normal pushes/issues do not queue on an offline Mac runner. Local Mac process inspection is handled by the already-installed VibeBridge agent instead.
+- Latest relevant commits: `53d15ef` agent endpoint; `4499b15` extension message bridge; `5ce88f7` endpoint tests; `a12c17c` popup display; `1254ec0` Mac diagnostics task; `0f41248` regression test; `b6169d0` output formatting fix.

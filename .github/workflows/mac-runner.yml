@@ -1,12 +1,15 @@
 name: VibeBridge Mac runner
 
 on:
+  push:
+    branches: [master]
   workflow_dispatch:
     inputs:
       task:
         description: "Predefined task to run on the trusted Mac runner"
         required: true
         type: choice
+        default: test
         options:
           - validate
           - test
@@ -23,6 +26,8 @@ jobs:
   run-on-mac:
     runs-on: [self-hosted, macOS]
     timeout-minutes: 15
+    env:
+      TASK: ${{ inputs.task || 'test' }}
     steps:
       - name: Verify checkout
         uses: actions/checkout@v4
@@ -39,11 +44,11 @@ jobs:
             echo "python=$(python3 --version 2>&1)"
             echo "node=$(node --version 2>&1 || true)"
             echo "git=$(git rev-parse --short HEAD)"
-            echo "task=${{ inputs.task }}"
+            echo "task=$TASK"
           } | tee runner-results/runner-info.txt
 
       - name: Validate source
-        if: inputs.task == 'validate' || inputs.task == 'test'
+        if: env.TASK == 'validate' || env.TASK == 'test'
         shell: bash
         run: |
           set -euo pipefail
@@ -58,14 +63,14 @@ jobs:
           echo "Source validation passed." | tee runner-results/validation.txt
 
       - name: Run unit tests
-        if: inputs.task == 'test'
+        if: env.TASK == 'test'
         shell: bash
         run: |
           set -o pipefail
           python3 -m unittest discover -s tests -v 2>&1 | tee runner-results/unit-tests.txt
 
       - name: Capture local-agent diagnostics
-        if: inputs.task == 'diagnostics'
+        if: env.TASK == 'diagnostics'
         shell: bash
         run: |
           set -euo pipefail
@@ -97,7 +102,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: vibebridge-mac-${{ inputs.task }}-${{ github.run_id }}
+          name: vibebridge-mac-${{ env.TASK }}-${{ github.run_id }}
           path: runner-results/
           if-no-files-found: warn
           retention-days: 7

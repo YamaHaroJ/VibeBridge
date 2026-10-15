@@ -10,8 +10,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     "VIBEBRIDGE_FILESYSTEM_READ",
     "VIBEBRIDGE_FILESYSTEM_WRITE",
     "VIBEBRIDGE_FILESYSTEM_MKDIR",
-    "VIBEBRIDGE_CHECKPOINT_MESSAGE",
-    "VIBEBRIDGE_CHECKPOINT_CONFIG"
+    "VIBEBRIDGE_CHECKPOINT_MESSAGE"
   ];
   if (!supported.includes(message?.type)) return;
 
@@ -22,25 +21,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     const active = saved.activeProject || saved.project || "";
 
-    if (message.type === "VIBEBRIDGE_CHECKPOINT_CONFIG") {
-      const response = await fetch(API + "/checkpoint-config", {
-        method: "POST",
-        headers: {"Authorization": "Bearer " + saved.token, "Content-Type": "application/json"},
-        body: JSON.stringify({api_key: message.apiKey || ""})
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Could not save AI summary settings");
-      return data;
-    }
-
     if (message.type === "VIBEBRIDGE_CHECKPOINT_MESSAGE") {
       const payload = message.payload || {};
       const response = await fetch(API + "/checkpoint", {
         method: "POST",
         headers: {"Authorization": "Bearer " + saved.token, "Content-Type": "application/json"},
         body: JSON.stringify({
-          role: payload.role,
-          text: payload.text,
+          summary: payload.summary,
           conversation: payload.conversation || "chat"
         })
       });

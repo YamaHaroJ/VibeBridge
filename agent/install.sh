@@ -41,16 +41,26 @@ fi
 chmod 600 "$SUPPORT/token"
 chmod 700 "$SUPPORT"
 
+# Use a stable executable wrapper as Chrome's native host entry point.
+# Chrome launches this file directly; the wrapper records startup failures while
+# preserving stdout exclusively for the Native Messaging framed protocol.
+NATIVE_HOST_LAUNCHER="$SUPPORT/native-host-launcher"
+cat > "$NATIVE_HOST_LAUNCHER" <<EOF_NATIVE_LAUNCHER
+#!/bin/bash
+exec "$PYTHON" "$ROOT/agent/native_host.py" 2>>"$SUPPORT/native-host-error.log"
+EOF_NATIVE_LAUNCHER
+chmod 700 "$NATIVE_HOST_LAUNCHER"
+
 # Register the Native Messaging host for the pinned VibeBridge extension ID.
 mkdir -p "$NATIVE_HOST_DIR"
-"$PYTHON" - "$NATIVE_HOST_MANIFEST" "$PYTHON" "$ROOT/agent/native_host.py" "$EXTENSION_ID" <<'PY_HOST'
+"$PYTHON" - "$NATIVE_HOST_MANIFEST" "$NATIVE_HOST_LAUNCHER" "$EXTENSION_ID" <<'PY_HOST'
 import json, pathlib, sys
-manifest_path, python, host_script, extension_id = sys.argv[1:]
+manifest_path, host_launcher, extension_id = sys.argv[1:]
 manifest = {
     "name": "com.vibebridge.agent",
     "description": "VibeBridge secure token bootstrap",
-    "path": str(pathlib.Path(python).resolve()),
-    "args": [str(pathlib.Path(host_script).resolve())],
+    "path": str(pathlib.Path(host_launcher).resolve()),
+    "args": [],
     "type": "stdio",
     "allowed_origins": ["chrome-extension://" + extension_id + "/"],
 }
@@ -62,7 +72,7 @@ loaded = json.loads(path.read_text(encoding="utf-8"))
 assert loaded["name"] == "com.vibebridge.agent"
 assert loaded["type"] == "stdio"
 assert pathlib.Path(loaded["path"]).is_file(), "Native host interpreter does not exist"
-assert pathlib.Path(loaded["args"][0]).is_file(), "Native host script does not exist"
+assert not loaded["args"], "Native host launcher should not need arguments"
 assert loaded["allowed_origins"] == ["chrome-extension://" + extension_id + "/"]
 print("Native Messaging manifest verified:", path)
 PY_HOST
@@ -103,6 +113,7 @@ echo
 echo "VibeBridge agent installed and launched."
 echo "Chrome extension ID derived from manifest key: $EXTENSION_ID"
 echo "Chrome Native Messaging host: $NATIVE_HOST_MANIFEST"
+echo "Native host launcher: $NATIVE_HOST_LAUNCHER"
 echo "GitHub updater installed (checks every 5 seconds)."
 echo "Private local token created with owner-only permissions; the extension pairs securely during first-run setup."
 echo "Logs are stored under: $SUPPORT"

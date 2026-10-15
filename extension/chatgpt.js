@@ -130,15 +130,19 @@
       const code = pre.querySelector("code");
       const className = (code?.className || "") + " " + (pre.className || "");
       const rawBlock = (code?.textContent || pre.textContent || "").trim();
-      // ChatGPT sometimes strips custom fence-language classes. Support an explicit
-      // marker in the code itself so the relay does not depend on syntax highlighting.
-      const markedBlock = rawBlock.startsWith(commandMarker);
+      // ChatGPT may strip custom fence-language classes and preserve whitespace around
+      // the marker. Match the marker at the start of the rendered code, then tolerate
+      // an optional JSON code fence so the relay never asks the user to paste it in Terminal.
+      const normalizedBlock = rawBlock.replace(/^\\s+/, "");
+      const markedBlock = normalizedBlock.startsWith(commandMarker);
       if (!/language-vibebridge-run|vibebridge-run/i.test(className) && !markedBlock) continue;
       processedBlocks.add(pre);
 
       let payload;
       try {
-        payload = JSON.parse(markedBlock ? rawBlock.slice(commandMarker.length).trim() : rawBlock);
+        let jsonText = markedBlock ? normalizedBlock.slice(commandMarker.length).trim() : rawBlock;
+        jsonText = jsonText.replace(/^```(?:json)?\\s*/i, "").replace(/\\s*```$/, "").trim();
+        payload = JSON.parse(jsonText);
       } catch {
         const warning = document.createElement("div");
         warning.textContent = "VibeBridge command block is not valid JSON.";

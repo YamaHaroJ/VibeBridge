@@ -86,20 +86,23 @@ async function initialize() {
       return;
     }
     await callAgent("/health", saved.token);
-    renderStatus(status, statusText, "ready", "Local agent connected");
+
+    // Local pairing and GitHub CLI authentication are separate connections.
+    // Once the local health check passes, keep the extension connected even if
+    // the optional GitHub repository lookup fails.
+    ready = true;
+    renderStatus(status, statusText, "ready", "Connected to this Mac");
+    renderEnabled(saved.enabled !== false);
+    toggle.disabled = false;
+    connect.classList.add("hidden");
+
     try {
       const data = await callAgent("/github-projects", saved.token);
       const count = (data.repositories || []).length;
       renderStatus(githubStatus, githubStatusText, "ready", "GitHub connected · " + count + " repositories");
-      ready = true;
-      renderEnabled(saved.enabled !== false);
-      toggle.disabled = false;
-    } catch {
-      ready = false;
-      renderEnabled(false);
-      copy.textContent = "Sign in to GitHub on this Mac to finish setup.";
+    } catch (error) {
       renderStatus(githubStatus, githubStatusText, "setup", "GitHub sign-in required");
-      connect.classList.remove("hidden");
+      copy.textContent = "VibeBridge is connected to this Mac. Sign in to GitHub on this Mac to enable repository features.";
     }
   } catch {
     ready = false;

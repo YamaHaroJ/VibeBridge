@@ -4,6 +4,10 @@ A local Mac agent and Chrome extension that attaches local project context to Ch
 
 ## Install on your Mac
 
+### Current setup
+
+This version still needs an initial bootstrap. The current installer is a shell script, not yet a signed macOS `.pkg`. It assumes Python 3 and GitHub CLI (`gh`) are installed and signed in. The Chrome extension is currently loaded unpacked from the repository folder.
+
 1. Clone the repository into `~/VibeBridge` (the installer currently expects that exact location):
    ```bash
    gh repo clone YamaHaroJ/VibeBridge ~/VibeBridge
@@ -17,6 +21,12 @@ A local Mac agent and Chrome extension that attaches local project context to Ch
 6. Click **Find GitHub repositories** to list repositories accessible to the authenticated GitHub CLI account, including older and newly created repositories. Select a repository and click **Clone selected repository to Mac** to clone it into `~/Projects`. Cloning requires GitHub CLI (`gh`) to be installed and signed in (`gh auth status`).
 7. In ChatGPT, mention a discovered project by name. VibeBridge will attach its README, saved notes, Git remote, branch, latest commit, and working-tree status to relevant development prompts.
 8. To save a durable fact, write `Remember for this project: ...` in a ChatGPT message after the correct project is active.
+## GitHub connections: two separate connections
+
+- **Local VibeBridge GitHub access** uses GitHub CLI (`gh`) authenticated on your Mac. The extension connection check tests this separately.
+- **ChatGPT GitHub access** is managed in ChatGPT Settings → Apps/Connectors. VibeBridge cannot read, enable, or grant permissions for a ChatGPT connector. Connect GitHub there if you want ChatGPT to browse repository contents directly. VibeBridge can still attach context through the local agent when the local GitHub CLI has access.
+- The extension on/off switch pauses automatic context injection; it does not disable the background macOS agent.
+
 ## Project memory
 
 - `VIBEBRIDGE_CONTEXT.md` stores durable project goals, architecture, user workflow preferences, implementation status, decisions, limitations, and prioritized next steps. The local agent automatically includes it in project context when the file exists.

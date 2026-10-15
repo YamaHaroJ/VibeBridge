@@ -215,19 +215,19 @@ reloadExtension?.addEventListener("click", async () => {
         });
         if (!statusResponse.ok) continue;
         lastStatus = await statusResponse.json();
-        const lines = (lastStatus.logs?.["update.log"] || []).join("\\n");
+        const lines = (lastStatus.logs?.["update.log"] || []).join("\n");
         logOutput.textContent = [
           "Local checkout: " + (lastStatus.currentRevision || "unknown"),
           "GitHub master: " + (lastStatus.remoteRevision || "unknown"),
           "",
           lines
-        ].join("\\n");
+        ].join("\n");
         if (/UPDATE FAILED:|Update validation failed|Update failed/i.test(lines)) {
           throw new Error("GitHub sync failed. See diagnostics.");
         }
         if (lastStatus.currentRevision && lastStatus.remoteRevision &&
             lastStatus.currentRevision === lastStatus.remoteRevision &&
-            (/Update complete\\.|Already up to date\\./i.test(lines))) {
+            (/Update complete\.|Already up to date\\./i.test(lines))) {
           done = true;
           break;
         }
@@ -236,10 +236,10 @@ reloadExtension?.addEventListener("click", async () => {
       }
     }
     if (!done) throw new Error("GitHub sync did not confirm completion. Chrome was not reloaded.");
-    logOutput.textContent += "\\n\\nGitHub sync complete. Reloading Chrome extension…";
+    logOutput.textContent += "\n\nGitHub sync complete. Reloading Chrome extension…";
     window.setTimeout(() => chrome.runtime.reload(), 500);
   } catch (error) {
-    logOutput.textContent += "\\n\\nReload stopped: " + error.message;
+    logOutput.textContent += "\n\nReload stopped: " + error.message;
     reloadExtension.disabled = false;
     reloadExtension.textContent = "Reload";
   }

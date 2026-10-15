@@ -158,7 +158,6 @@ def create_github_repo(name, description="", private=True):
     name = str(name or "").strip()
     if not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", name):
         raise ValueError("Repository name must use only letters, numbers, periods, hyphens, or underscores.")
-    # Create the remote repository only; never push this checkout into another project.
     args = ["gh", "repo", "create", name] + (["--private"] if private else ["--public"])
     if description:
         args += ["--description", str(description)[:300]]
@@ -167,15 +166,44 @@ def create_github_repo(name, description="", private=True):
     except FileNotFoundError:
         raise RuntimeError("GitHub CLI (gh) is not installed.")
     except subprocess.TimeoutExpired:
-        raise RuntimeError("Creating the repository timed out.")
+        raise RuntimeError("Creating the GitHub repository timed out.")
     if result.returncode != 0:
         raise RuntimeError((result.stderr or result.stdout or "GitHub repository creation failed").strip()[-1000:])
-    url = (result.stdout or "").strip().splitlines()[-1] if (result.stdout or "").strip() else ""
-    slug = url.rstrip("/").split("github.com/")[-1] if "github.com/" in url else ""
+    output = (result.stdout or "").strip().splitlines()
+    url = next((line.strip() for line in reversed(output) if "github.com/" in line), "")
+    slug = url.rstrip("/").split("github.com/", 1)[-1] if url else ""
     if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", slug):
-        raise RuntimeError("GitHub reported success but the repository URL could not be resolved: " + url)
-    return {"nameWithOwner": slug, "url": "https://github.com/" + slug}
+        raise RuntimeError("GitHub created a repository, but its owner/name could not be read from the command output. Output: " + (result.stdout or "").strip()[-500:])
 
+    import base64
+    starter_files = {
+        "README.md": (
+            "# " + slug.rsplit("/", 1)[-1] + "\n\n"
+            "Project repository created by VibeBridge. Replace this README with the project's purpose, setup, architecture, and usage.\n"
+        ),
+        "VIBEBRIDGE_CONTEXT.md": (
+            "# Project Memory\n\n"
+            "## Goal\nDescribe what this project should do.\n\n"
+            "## Architecture\nRecord the important components and how they fit together.\n\n"
+            "## Decisions\nRecord durable decisions here.\n\n"
+            "## Current state\nRepository created by VibeBridge; implementation has not started. Verify code before assuming features exist.\n\n"
+            "## Next task\nAsk ChatGPT to define the minimum viable implementation and begin with tests.\n"
+        ),
+    }
+    for path, text in starter_files.items():
+        encoded = base64.b64encode(text.encode("utf-8")).decode("ascii")
+        try:
+            seeded = subprocess.run(
+                ["gh", "api", f"repos/{slug}/contents/{path}", "-X", "PUT",
+                 "-f", "message=Initialize VibeBridge project memory", "-f", f"content={encoded}"],
+                capture_output=True, text=True, timeout=45
+            )
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"Repository {slug} was created, but initializing {path} timed out. The repository exists; retry initialization after checking GitHub.")
+        if seeded.returncode != 0:
+            detail = (seeded.stderr or seeded.stdout or "GitHub API rejected the file creation").strip()[-700:]
+            raise RuntimeError(f"Repository {slug} was created, but initializing {path} failed: {detail}")
+    return {"nameWithOwner": slug, "url": "https://github.com/" + slug, "private": bool(private), "initialized": True}
 def project_path(raw):
     value = str(raw or "").strip()
     projects = discover_projects()

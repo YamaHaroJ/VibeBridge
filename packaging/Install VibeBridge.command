@@ -62,8 +62,7 @@ git reset --hard origin/master >/dev/null
 bash "$DEST/agent/install.sh"
 
 open -a "Google Chrome" "chrome://extensions/"
-/usr/bin/osascript -e 'display dialog "VibeBridge agent is installed. In Chrome, enable Developer mode and click Load unpacked, then select ~/VibeBridge/extension. Open the VibeBridge extension, paste the local token shown in Terminal, and click Save settings. GitHub repository-management features can be enabled later by installing GitHub CLI and signing in." with title "VibeBridge Setup" buttons {"OK"} default button "OK"'
+/usr/bin/osascript -e 'display dialog "VibeBridge agent and hourly updater are installed.\\n\\nIn Chrome, enable Developer mode, click Load unpacked, and select ~/VibeBridge/extension. Then open the VibeBridge popup and click Connect this Mac. Approve the native macOS connection prompt when it appears; the token transfers securely without copying it from Terminal.\\n\\nThe extension includes Maintenance & diagnostics to request updates and inspect local logs. Chrome must still be reloaded after extension files change.\\n\\nRequired approvals: this installer, the Chrome extension, and the one-time native connection prompt. No broad Full Disk Access permission is requested." with title "VibeBridge Setup" buttons {"OK"} default button "OK"'
 echo
 echo "Setup files installed at $DEST"
-echo "Copy the local token above into the VibeBridge extension popup, then save settings."
-read -r -p "Press Return after saving your token to close this window."
+echo "Next: connect the extension in Chrome; no token copying or Terminal commands are needed."

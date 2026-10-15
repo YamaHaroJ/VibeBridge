@@ -152,3 +152,10 @@ Important setup distinction: ChatGPT's GitHub connector is optional for VibeBrid
 - Mac runner task issue `#49` passed the unit suite: 31 tests in 0.014 seconds. Issue `#50` passed Python compilation, manifest JSON, installer shell syntax, and all three JavaScript syntax checks. These are genuine Mac-runner results.
 - The two-second interval is the polling target after the updated `agent/server.py` reaches the Mac and restarts. Detection latency is typically about 0–2 seconds plus GitHub CLI/API overhead; it is not a guarantee of end-to-end completion in two seconds. Task execution itself is separate.
 - Remaining verification: confirm the running Mac agent has deployed the latest `8c49020` source and that issue `#49`/`#50` close after comments. The successful tasks show the runner was active on the checkout it tested, but do not by themselves prove it is running the newest polling optimization.
+
+
+## Runner follow-up: queue polling regression found (2026-10-15)
+- The runner's task poll interval is two seconds, and the updater is configured for five-second checks plus `RunAtLoad`.
+- Diagnostics issues `#51` and `#52` and verification issues `#55` and `#56` remained unanswered. Investigation found the queue command added in `8c49020` used `gh issue list --order desc`, which may not be supported by the installed GitHub CLI. A failed list command is silently retried, explaining why task pickup can stop after that change.
+- Fixed by removing `--order desc`, retaining supported `--sort created --limit 5`, and centralizing the command in `REMOTE_TASK_LIST_ARGS`. Commits: `b1a47d7`, `67900f8`; regression assertion in `e5a9050`.
+- This is committed but not yet verified on the live Mac runner. Once the updater deploys this server version, queued tasks should resume. If no task results arrive, the installed updater/agent process itself needs manual restart or installation from the Mac, which cannot be triggered from GitHub alone.

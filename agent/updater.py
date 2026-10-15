@@ -75,11 +75,11 @@ def main():
         if plist.exists():
             with plist.open("rb") as handle:
                 config = plistlib.load(handle)
-            if config.get("StartInterval") != 60:
-                config["StartInterval"] = 60
+            if config.get("StartInterval") != 5:
+                config["StartInterval"] = 5
                 with plist.open("wb") as handle:
                     plistlib.dump(config, handle)
-                log("Changed installed updater interval to 60 seconds; reloading its LaunchAgent.")
+                log("Changed installed updater interval to 5 seconds; reloading its LaunchAgent.")
                 uid = str(__import__("os").getuid())
                 subprocess.run(["/bin/launchctl", "bootout", f"gui/{uid}", str(plist)],
                                capture_output=True, text=True, timeout=10)

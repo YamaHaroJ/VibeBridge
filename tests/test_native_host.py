@@ -47,7 +47,9 @@ class NativeHostTests(unittest.TestCase):
             for nibble in (byte >> 4, byte & 0x0F)
         )
         installer = (Path(__file__).resolve().parents[1] / "agent" / "install.sh").read_text(encoding="utf-8")
-        self.assertIn('EXTENSION_ID="' + extension_id + '"', installer)
+        self.assertIn("hashlib.sha256(base64.b64decode(key, validate=True)).digest()[:16]", installer)
+        self.assertIn('print("".join(alphabet[b >> 4] + alphabet[b & 15] for b in digest))', installer)
+        self.assertNotIn('EXTENSION_ID="' + extension_id + '"', installer)
 
 
     def test_main_emits_framed_token_response(self):

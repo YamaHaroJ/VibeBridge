@@ -180,6 +180,7 @@ def sync_message_checkpoint(role, text, conversation):
         capture_output=True, text=True, timeout=20
     )
     sha = None
+    existing = ""
     entries = []
     if get.returncode == 0:
         try:

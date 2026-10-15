@@ -219,8 +219,16 @@
         });
         if (!created?.ok || !created.repository?.nameWithOwner) throw new Error(created?.error || "Repository creation did not complete.");
         createdRepository = created.repository;
-        showNotice("Created " + createdRepository.nameWithOwner + " and loading its project context…");
-        result = await chrome.runtime.sendMessage({type: "VIBEBRIDGE_RESOLVE_CONTEXT", text: "switch to " + createdRepository.nameWithOwner});
+        result = {
+          matched: true,
+          context: created.context,
+          project: created.project,
+          matchReason: "created"
+        };
+        if (!result.context || !result.project) {
+          showNotice("Created " + createdRepository.nameWithOwner + ". Loading its context…");
+          result = await chrome.runtime.sendMessage({type: "VIBEBRIDGE_RESOLVE_CONTEXT", text: "switch to " + createdRepository.nameWithOwner});
+        }
       } else {
         result = await chrome.runtime.sendMessage({type: "VIBEBRIDGE_RESOLVE_CONTEXT", text: original});
       }

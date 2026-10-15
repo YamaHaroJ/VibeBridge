@@ -83,3 +83,6 @@ VibeBridge is a local-first Mac agent plus Chrome extension that carries relevan
 - ChatGPT UI compatibility is fragile because the content script relies on DOM selectors and click interception.
 - The local agent's /run endpoint can execute commands without per-command approval if called directly by a valid bearer-token client; do not expose it to the network or broaden project access.
 - The extension command relay requires a visible user approval for every command and does not silently execute assistant-generated instructions.
+
+## Most recent discussion (2026-10-14)
+The user was discussing preparing VibeBridge for Chrome Web Store publication, including the one-time developer registration fee and how a paid version could be introduced later. Current direction: get the core product and distribution working first, then add monetization through an external payment and licensing system rather than relying on Chrome Web Store built-in payments.

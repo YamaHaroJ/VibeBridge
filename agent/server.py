@@ -582,6 +582,11 @@ class Handler(BaseHTTPRequestHandler):
                     logs[name] = (SUPPORT / name).read_text(errors="replace").splitlines()[-35:]
                 except OSError:
                     logs[name] = []
+            deployed_revision = ""
+            try:
+                deployed_revision = (SUPPORT / "last-synced-revision").read_text(encoding="utf-8").strip()
+            except OSError:
+                pass
             current = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOTS[2],
                                      capture_output=True, text=True, timeout=5)
             remote = subprocess.run(["git", "ls-remote", "https://github.com/YamaHaroJ/VibeBridge.git", "refs/heads/master"],
@@ -590,7 +595,11 @@ class Handler(BaseHTTPRequestHandler):
                                     capture_output=True, text=True, timeout=5)
             return self.send_json(200, {
                 "logs": logs,
-                "currentRevision": current.stdout.strip()[:12] if current.returncode == 0 else "unknown",
+                # Archive deployment deliberately leaves Git HEAD unchanged when the
+                # checkout has local edits. Report the deployed marker first so the
+                # extension can verify the files actually installed, not stale HEAD.
+                "currentRevision": (deployed_revision[:12] if deployed_revision else
+                                    current.stdout.strip()[:12] if current.returncode == 0 else "unknown"),
                 "remoteRevision": remote.stdout.split()[0][:12] if remote.returncode == 0 and remote.stdout.split() else "unavailable",
                 "updaterLoaded": loaded.returncode == 0 and "Could not find service" not in loaded.stderr,
             })

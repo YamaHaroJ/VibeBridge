@@ -190,3 +190,10 @@ Important setup distinction: ChatGPT's GitHub connector is optional for VibeBrid
 - The extension popup's existing **Maintenance & diagnostics → View logs** view now also requests the scoped service snapshot and displays the agent/updater state and PIDs. The popup source change is committed, but visual verification inside the running Chrome extension has not been performed in this session; Chrome must reload the updated extension files before the new display appears.
 - The self-hosted Actions workflow is manual-dispatch-only so normal pushes/issues do not queue on an offline Mac runner. Local Mac process inspection is handled by the already-installed VibeBridge agent instead.
 - Latest relevant commits: `53d15ef` agent endpoint; `4499b15` extension message bridge; `5ce88f7` endpoint tests; `a12c17c` popup display; `1254ec0` Mac diagnostics task; `0f41248` regression test; `b6169d0` output formatting fix.
+
+
+## Chrome extension persistence (2026-10-15)
+- The unpacked extension must be loaded from the stable path `~/VibeBridge/extension` (not `~/VibeBridge/agent`, a temporary download, or the installer package's temporary folder).
+- Chrome normally retains a loaded unpacked extension across browser restarts as long as the same Chrome profile and folder path remain available. The updater replaces files within `~/VibeBridge/extension` and does not intentionally delete or relocate that directory. Reload the extension after updates.
+- Updated `agent/install.sh` to verify required extension files, fail clearly if the payload is missing, print the stable path/persistence explanation, and reopen `chrome://extensions` after a successful health check.
+- Chrome Web Store distribution is still the eventual way to make install/update behavior seamless for ordinary users; a local unpacked install is still a developer-mode setup.

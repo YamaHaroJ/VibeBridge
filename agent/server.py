@@ -188,7 +188,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(413, {"error": "Note is too long (max 3000 characters)"})
             memory_file = MEMORY_DIR / (hashlib.sha256(str(root).encode()).hexdigest() + ".md")
             with memory_file.open("a", encoding="utf-8") as handle:
-                handle.write("\\n- " + note.replace("\\n", " ") + "\\n")
+                handle.write("\n- " + note.replace("\n", " ") + "\n")
             return self.send_json(200, {"saved": True, "project": root.name})
         if path not in ("/diagnostics", "/run"):
             return self.send_json(404, {"error": "Not found"})

@@ -1,3 +1,4 @@
+import hashlib
 import json
 import secrets
 import subprocess
@@ -84,7 +85,7 @@ def project_context(project):
     memory = read_text(p / "VIBEBRIDGE_CONTEXT.md", 6500)
     if memory:
         parts.append("PERSISTENT PROJECT MEMORY:\n" + memory)
-    memory_file = MEMORY_DIR / (str(abs(hash(str(p)))) + ".md")
+    memory_file = MEMORY_DIR / (hashlib.sha256(str(p).encode()).hexdigest() + ".md")
     local_memory = read_text(memory_file, 6500)
     if local_memory:
         parts.append("VIBEBRIDGE SAVED NOTES:\n" + local_memory)
@@ -175,6 +176,20 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(200, {"matched": True, "matchReason": reason, "project": project, "context": project_context(project["path"])})
             except Exception as e:
                 return self.send_json(400, {"error": str(e)})
+        if path == "/remember":
+            try:
+                root = project_path(body.get("project", ""))
+            except (ValueError, OSError):
+                return self.send_json(403, {"error": "Project not found or not allowed"})
+            note = str(body.get("note", "")).strip()
+            if not note:
+                return self.send_json(400, {"error": "note is required"})
+            if len(note) > 3000:
+                return self.send_json(413, {"error": "Note is too long (max 3000 characters)"})
+            memory_file = MEMORY_DIR / (hashlib.sha256(str(root).encode()).hexdigest() + ".md")
+            with memory_file.open("a", encoding="utf-8") as handle:
+                handle.write("\\n- " + note.replace("\\n", " ") + "\\n")
+            return self.send_json(200, {"saved": True, "project": root.name})
         if path not in ("/diagnostics", "/run"):
             return self.send_json(404, {"error": "Not found"})
         try:

@@ -2,19 +2,24 @@
 <html>
 <head><meta charset="utf-8"><title>VibeBridge</title><style>
 body{font:14px system-ui;width:320px;padding:14px;background:#111827;color:#f9fafb}
-input,button,textarea{box-sizing:border-box;width:100%;margin:6px 0;padding:9px;border-radius:7px}
-input,textarea{background:#1f2937;color:white;border:1px solid #4b5563}
+input,button{box-sizing:border-box;width:100%;margin:6px 0;padding:9px;border-radius:7px}
+input{background:#1f2937;color:white;border:1px solid #4b5563}
 button{background:#60a5fa;color:#111827;border:0;font-weight:600;cursor:pointer}
 pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:180px;overflow:auto}
+small{color:#cbd5e1}
 </style></head>
 <body>
 <h2>VibeBridge</h2>
 <p>Local development agent</p>
 <input id="token" type="password" placeholder="Local agent token">
-<input id="project" placeholder="Project path, e.g. ~/VibeBridge">
+<label for="project">Active project</label>
+<input id="project" list="project-list" placeholder="Choose a project or enter its path">
+<datalist id="project-list"></datalist>
+<button id="discover">Find local projects</button>
 <button id="save">Save settings</button>
 <button id="health">Check connection</button>
-<button id="diagnostics">Collect Git diagnostics</button>
+<button id="diagnostics">Run Git diagnostics</button>
+<small>Project names work once discovered. ChatGPT conversation auto-routing is still being built.</small>
 <pre id="result">Agent not checked.</pre>
 <script src="popup.js"></script>
 </body></html>

@@ -11,6 +11,9 @@
   const marker = "VIBEBRIDGE PROJECT CONTEXT";
   const commandMarker = "VIBEBRIDGE LOCAL COMMAND";
   const processedBlocks = new WeakSet();
+  // Never replay commands embedded in conversation history when a tab opens.
+  // Hands-off execution is reserved for command blocks that appear after startup.
+  let allowAutomaticExecution = false;
 
   // Save only explicit checkpoint blocks; never upload raw messages.
   const processedMemoryBlocks = new WeakSet();
@@ -123,7 +126,7 @@
     node.style.display = "block";
   }
 
-  function addCommandControls() {
+  function addCommandControls(allowAutoRun = false) {
     const blocks = document.querySelectorAll('[data-message-author-role="assistant"] pre');
     for (const pre of blocks) {
       if (processedBlocks.has(pre)) continue;
@@ -210,7 +213,7 @@
       };
       run.addEventListener("click", () => executeCommand(false));
       chrome.storage.local.get(["autoRunCommands"], settings => {
-        if (settings.autoRunCommands === true) {
+        if (allowAutoRun && allowAutomaticExecution && settings.autoRunCommands === true) {
           description.textContent = "Hands-off mode is enabled: this command will run automatically on your Mac, then its result will be sent back to ChatGPT.";
           run.textContent = "Run automatically";
           executeCommand(true);
@@ -238,11 +241,14 @@
   }
 
   const observer = new MutationObserver(() => {
-    addCommandControls();
+    addCommandControls(true);
     saveAssistantCheckpoints();
   });
   observer.observe(document.documentElement, {childList: true, subtree: true, characterData: true});
-  addCommandControls();
+  // Existing assistant messages are rendered first and only receive manual Run controls.
+  // Subsequent command blocks can use hands-off mode.
+  addCommandControls(false);
+  allowAutomaticExecution = true;
 
   document.addEventListener("click", async event => {
     const button = event.target.closest('button[data-testid="send-button"], button[aria-label*="Send"], button[type="submit"]');

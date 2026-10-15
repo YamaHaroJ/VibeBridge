@@ -159,3 +159,10 @@ Important setup distinction: ChatGPT's GitHub connector is optional for VibeBrid
 - Diagnostics issues `#51` and `#52` and verification issues `#55` and `#56` remained unanswered. Investigation found the queue command added in `8c49020` used `gh issue list --order desc`, which may not be supported by the installed GitHub CLI. A failed list command is silently retried, explaining why task pickup can stop after that change.
 - Fixed by removing `--order desc`, retaining supported `--sort created --limit 5`, and centralizing the command in `REMOTE_TASK_LIST_ARGS`. Commits: `b1a47d7`, `67900f8`; regression assertion in `e5a9050`.
 - This is committed but not yet verified on the live Mac runner. Once the updater deploys this server version, queued tasks should resume. If no task results arrive, the installed updater/agent process itself needs manual restart or installation from the Mac, which cannot be triggered from GitHub alone.
+
+
+## Runner queue starvation fix (2026-10-15)
+- Found another concrete flaw: task polling scanned only the first five open issues. Since the queue had older unprocessed task issues, GitHub CLI ordering could keep returning stale issues and starve newer tasks indefinitely.
+- Commit `a6e7506` changes the worker to scan up to 100 open issues per poll and select every unseen issue whose exact title, author, and task enum are allowed. Regression assertion is in `3a91b82`.
+- Verification request `#58` opened after this fix.
+- This fix prevents old queue entries from starving new requests, but still requires the Mac agent to deploy it. No response from issues `#51`-`#57` means the running Mac process is still not confirmed.

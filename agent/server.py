@@ -756,7 +756,7 @@ REMOTE_TASK_REPO = "YamaHaroJ/VibeBridge"
 REMOTE_TASK_OWNER = "YamaHaroJ"
 REMOTE_TASKS = {"validate", "test", "diagnostics"}
 REMOTE_TASK_POLL_SECONDS = 2
-REMOTE_TASK_LIST_ARGS = ["gh", "issue", "list", "--repo", REMOTE_TASK_REPO, "--state", "open", "--json", "number,title,body,author", "--sort", "created", "--limit", "5"]
+REMOTE_TASK_LIST_ARGS = ["gh", "issue", "list", "--repo", REMOTE_TASK_REPO, "--state", "open", "--json", "number,title,body,author", "--limit", "100"]
 _remote_task_seen = set()
 
 

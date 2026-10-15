@@ -47,11 +47,13 @@ def main():
     try:
         run([sys.executable, "-m", "py_compile", "agent/server.py"])
         run([sys.executable, "-m", "json.tool", "extension/manifest.json"])
-        for script in ("extension/background.js", "extension/chatgpt.js", "extension/popup.js"):
-            if subprocess.run(["/usr/bin/env", "node", "--check", script], cwd=ROOT, capture_output=True).returncode != 0:
-                # Node is optional on some Macs; JavaScript syntax is checked in GitHub Actions.
-                log("Node unavailable or syntax check failed for " + script + "; relying on CI JavaScript checks.")
-                break
+        if shutil.which("node"):
+            for script in ("extension/background.js", "extension/chatgpt.js", "extension/popup.js"):
+                check = subprocess.run(["node", "--check", script], cwd=ROOT, capture_output=True, text=True)
+                if check.returncode:
+                    raise RuntimeError("JavaScript syntax check failed for " + script + ": " + (check.stderr or check.stdout).strip())
+        else:
+            log("Node is not installed locally; JavaScript syntax is covered by GitHub Actions.")
     except Exception as exc:
         log("Validation failed; rolling back to " + previous + ": " + str(exc))
         run(["git", "reset", "--hard", previous])

@@ -8,6 +8,8 @@ PLIST="$HOME/Library/LaunchAgents/com.vibebridge.agent.plist"
 UPDATER_PLIST="$HOME/Library/LaunchAgents/com.vibebridge.updater.plist"
 NATIVE_HOST_DIR="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts"
 NATIVE_HOST_MANIFEST="$NATIVE_HOST_DIR/com.vibebridge.agent.json"
+# Chrome extension ID (derived from the pinned public key in extension/manifest.json).
+EXTENSION_ID="meedpihcbldnlcahpeijakginpjdkghp"
 mkdir -p "$SUPPORT" "$HOME/Library/LaunchAgents"
 if [ -z "$PYTHON" ]; then echo "ERROR: Python 3 is required."; exit 1; fi
 if [ ! -f "$ROOT/agent/native_host.py" ]; then
@@ -34,7 +36,7 @@ chmod 700 "$SUPPORT"
 
 # Register the Native Messaging host for the pinned VibeBridge extension ID.
 mkdir -p "$NATIVE_HOST_DIR"
-"$PYTHON" - "$NATIVE_HOST_MANIFEST" "$PYTHON" "$ROOT/agent/native_host.py" "$EXTENSION_ID_FROM_MANIFEST" <<'PY_HOST'
+"$PYTHON" - "$NATIVE_HOST_MANIFEST" "$PYTHON" "$ROOT/agent/native_host.py" "$EXTENSION_ID" <<'PY_HOST'
 import json, pathlib, sys
 manifest_path, python, host_script, extension_id = sys.argv[1:]
 manifest = {

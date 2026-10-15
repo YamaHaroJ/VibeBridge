@@ -58,10 +58,8 @@ class NativeHostTests(unittest.TestCase):
         framed = struct.pack("<I", len(payload)) + payload
         output = io.BytesIO()
         with patch.object(native_host, "TOKEN_FILE") as token_file, \
-             patch.object(native_host.sys, "stdin", io.TextIOWrapper(io.BytesIO(framed), encoding="utf-8")):
-            # Native host reads binary stdin; provide a binary-compatible stdin object.
-            native_host.sys.stdin = type("Input", (), {"buffer": io.BytesIO(framed)})()
-            native_host.sys.stdout = type("Output", (), {"buffer": output})()
+             patch.object(native_host.sys, "stdin", type("Input", (), {"buffer": io.BytesIO(framed)})()), \
+             patch.object(native_host.sys, "stdout", type("Output", (), {"buffer": output})()):
             token_file.read_text.return_value = "test-token"
             self.assertEqual(native_host.main(), 0)
         output.seek(0)

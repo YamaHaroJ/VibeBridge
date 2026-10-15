@@ -1,17 +1,32 @@
 {
   "manifest_version": 3,
   "name": "VibeBridge",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Persistent local project context for ChatGPT development workflows.",
-  "permissions": ["storage", "tabs"],
-  "host_permissions": ["http://127.0.0.1:43127/*"],
-  "background": { "service_worker": "background.js" },
+  "permissions": [
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:43127/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
-      "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"],
-      "js": ["chatgpt.js"],
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
+      "js": [
+        "chatgpt.js"
+      ],
       "run_at": "document_idle"
     }
   ],
-  "action": { "default_title": "VibeBridge", "default_popup": "popup.html" }
+  "action": {
+    "default_title": "VibeBridge",
+    "default_popup": "popup.html"
+  }
 }

@@ -16,6 +16,16 @@ if [ ! -f "$ROOT/agent/native_host.py" ]; then
   echo "Update the VibeBridge checkout, then rerun this installer."
   exit 1
 fi
+if [ ! -f "$ROOT/extension/manifest.json" ] || [ ! -f "$ROOT/extension/popup.html" ]; then
+  echo "ERROR: Chrome extension files are missing from $ROOT/extension."
+  echo "The extension must be loaded from this stable folder, not from agent/ or a temporary download."
+  exit 1
+fi
+EXTENSION_ID_FROM_MANIFEST="$("$PYTHON" -c 'import json,pathlib; m=json.loads(pathlib.Path("'"$ROOT"'/extension/manifest.json").read_text()); print(m.get("key",""))' 2>/dev/null || true)"
+if [ -z "$EXTENSION_ID_FROM_MANIFEST" ]; then
+  echo "ERROR: extension/manifest.json has no stable extension key."
+  exit 1
+fi
 "$PYTHON" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3,9) else 1)' || { echo "ERROR: Python 3.9 or newer is required."; exit 1; }
 if [ ! -f "$SUPPORT/token" ]; then
   "$PYTHON" -c 'import secrets,pathlib; p=pathlib.Path.home()/"Library/Application Support/VibeBridge/token"; p.parent.mkdir(parents=True,exist_ok=True); p.write_text(secrets.token_urlsafe(32))'
@@ -119,4 +129,9 @@ if [ "$HEALTH_OK" -ne 1 ]; then
 fi
 echo
 echo "VibeBridge agent health check passed."
-echo "Next: open chrome://extensions, enable Developer mode, click Load unpacked, select $ROOT/extension"
+echo
+echo "Chrome extension install location: $ROOT/extension"
+echo "Persistence: Chrome remembers this unpacked extension across restarts while this folder remains in place."
+echo "The updater replaces files inside this folder; it does not move or delete the extension folder."
+echo "Do not load $ROOT/agent. In Chrome, use Load unpacked and select exactly $ROOT/extension."
+open -a "Google Chrome" "chrome://extensions/" >/dev/null 2>&1 || true

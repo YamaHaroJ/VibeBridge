@@ -814,7 +814,7 @@ def remote_task_worker():
         try:
             listed = subprocess.run(
                 ["gh", "issue", "list", "--repo", REMOTE_TASK_REPO, "--state", "open",
-                 "--json", "number,title,body,author", "--limit", "30"],
+                 "--json", "number,title,body,author", "--sort", "created", "--order", "desc", "--limit", "5"],
                 capture_output=True, text=True, timeout=8
             )
             if listed.returncode == 0:

@@ -6,7 +6,7 @@ A local Mac agent and Chrome extension that attaches local project context to Ch
 
 ### Current setup
 
-The installer fetches the latest public `master` code after you approve setup, installs the Mac background agent, configures hourly updates, and copies the local connection token to your clipboard. It does not require a GitHub login to install or update the public agent. Python 3.9+ and Git must be present. GitHub CLI is optional for installation but required for GitHub repository discovery/creation features.
+The installer fetches the latest public `master` code after you approve setup, installs the Mac background agent, configures hourly updates, and registers a Chrome Native Messaging host for secure token bootstrap. It does not require a GitHub login to install or update the public agent. Python 3.9+ and Git must be present. GitHub CLI is optional for installation but required for GitHub repository discovery/creation features.
 
 **What you need to approve:** first, approve running the downloaded installer; then approve Chrome's extension setup. Because VibeBridge is not yet published in the Chrome Web Store, Chrome requires the manual Developer mode → Load unpacked step below. After Web Store publication, that becomes a standard **Add to Chrome** approval. No installer can bypass Chrome's security controls.
 
@@ -16,10 +16,9 @@ The installer fetches the latest public `master` code after you approve setup, i
    cd ~/VibeBridge
    bash agent/install.sh
    ```
-2. The installer copies the local bearer token to your clipboard automatically. Keep it private: anyone with this token can execute commands in the configured project folders.
-3. Open `chrome://extensions`, enable Developer mode, select **Load unpacked**, and choose `~/VibeBridge/extension` (the installer opens the relevant pages/folder for you).
-4. Open the VibeBridge extension, paste the copied token, enter a project path such as `~/VibeBridge`, and click **Save settings**.
-5. Click **Check connection**, then **Find local projects** to discover repositories already on this Mac.
+2. Open `chrome://extensions`, enable Developer mode, select **Load unpacked**, and choose `~/VibeBridge/extension` (the installer opens the relevant pages/folder for you).
+3. Open VibeBridge and use its Connect/onboarding flow. Approve the explanation in the extension and then approve the native macOS dialog. The extension requests the token through Chrome Native Messaging; it is not copied to the clipboard or typed manually.
+4. After pairing, confirm the local agent and GitHub status indicators report connected.
 6. Click **Find GitHub repositories** to list repositories accessible to the authenticated GitHub CLI account, including older and newly created repositories. Select a repository and click **Clone selected repository to Mac** to clone it into `~/Projects`. Cloning requires GitHub CLI (`gh`) to be installed and signed in (`gh auth status`).
 7. In ChatGPT, mention a discovered project by name. VibeBridge will attach its README, saved notes, Git remote, branch, latest commit, and working-tree status to relevant development prompts.
 8. To save a durable fact, write `Remember for this project: ...` in a ChatGPT message after the correct project is active.
@@ -33,7 +32,7 @@ The installer fetches the latest public `master` code after you approve setup, i
 
 The macOS installer workflow builds a disk image and a separate Chrome extension ZIP on each push to `master`. Open the repository's **Actions** tab, select **macOS installer package**, open the latest successful run, and download the artifact named `VibeBridge-macOS-installer-...`. The disk image contains a guided installer and the local project files. The artifact is currently unsigned and not notarized, so macOS may show a warning. Do not bypass warnings unless you trust the source and have verified the repository.
 
-The installer checks prerequisites, asks for approval before installing the local background agent, fetches the latest public code, enables hourly agent updates, copies the local token to the clipboard, and opens the extension setup. It cannot silently enable Chrome Developer mode, install an unpublished extension, grant macOS permissions, or connect ChatGPT Apps. The user must approve browser permissions. The remaining distribution blockers for a normal one-click experience are Chrome Web Store publication and signed/notarized macOS packaging.
+The installer checks prerequisites, asks for approval before installing the local background agent, fetches the latest public code, enables hourly agent updates, registers the Native Messaging host, and opens the extension setup. It cannot silently enable Chrome Developer mode, install an unpublished extension, grant macOS permissions, or connect ChatGPT Apps. The user must approve browser permissions. The remaining distribution blockers for a normal one-click experience are Chrome Web Store publication and signed/notarized macOS packaging.
 
 ## Automatic project switching and repository creation
 
@@ -66,7 +65,7 @@ The installer checks prerequisites, asks for approval before installing the loca
 launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.vibebridge.agent.plist
 ```
 
-Remove the LaunchAgent plist to prevent it from being loaded again. The token is stored in `~/Library/Application Support/VibeBridge/token`.
+Remove the LaunchAgent plist to prevent it from being loaded again. The token is stored in `~/Library/Application Support/VibeBridge/token` and is delivered to the extension through the registered Native Messaging host after the pairing flow. Do not copy or share it.
 
 
 ## Public distribution and updates

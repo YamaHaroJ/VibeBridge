@@ -148,7 +148,7 @@ document.querySelector("#update").onclick = async () => {
 document.querySelector("#update-status").onclick = async () => {
   try {
     const data = await call("/update-status");
-    result.textContent = data.log?.length ? data.log.join("\\n") : "No update log yet.";
+    result.textContent = data.log?.length ? data.log.join("\n") : "No update log yet.";
   } catch (e) {
     result.textContent = "Could not read update status: " + e.message;
   }

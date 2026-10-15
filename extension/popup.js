@@ -17,9 +17,9 @@ document.querySelector("#connection-guide").onclick = async () => {
   try {
     const health = await call("/health");
     const repos = await call("/github-projects");
-    result.textContent = "Local agent: connected (" + health.port + ").\\nGitHub CLI: connected; " + (repos.repositories || []).length + " repositories visible.\\nChatGPT GitHub connector is separate: open ChatGPT Settings → Apps/Connectors and connect GitHub there if you want ChatGPT itself to browse repositories. VibeBridge cannot inspect or change that setting.";
+    result.textContent = "Local agent: connected (" + health.port + ").\nGitHub CLI: connected; " + (repos.repositories || []).length + " repositories visible.\nChatGPT GitHub connector is separate: open ChatGPT Settings → Apps/Connectors and connect GitHub there if you want ChatGPT itself to browse repositories. VibeBridge cannot inspect or change that setting.";
   } catch (e) {
-    result.textContent = "Setup check failed: " + e.message + "\\nCheck the local agent/token and make sure GitHub CLI is installed and authenticated with `gh auth status`.";
+    result.textContent = "Setup check failed: " + e.message + "\nCheck the local agent/token and make sure GitHub CLI is installed and authenticated with `gh auth status`.";
   }
 };
 

@@ -17,6 +17,7 @@ const consentCheck = document.querySelector("#consent-check");
 const confirmConnect = document.querySelector("#confirm");
 const checkUpdate = document.querySelector("#check-update");
 const showLogs = document.querySelector("#show-logs");
+const autoRun = document.querySelector("#auto-run");
 const logOutput = document.querySelector("#log-output");
 let ready = false;
 
@@ -62,6 +63,10 @@ async function requestBackgroundUpdate() {
   }
 }
 
+autoRun?.addEventListener("change", async () => {
+  await chrome.storage.local.set({autoRunCommands: autoRun.checked});
+});
+
 async function initialize() {
   toggle.disabled = true;
   connect.classList.add("hidden");
@@ -69,7 +74,8 @@ async function initialize() {
   renderStatus(status, statusText, "checking", "Checking local connection");
   renderStatus(githubStatus, githubStatusText, "checking", "Checking GitHub connection");
   try {
-    const saved = await chrome.storage.local.get(["token", "enabled"]);
+    const saved = await chrome.storage.local.get(["token", "enabled", "autoRunCommands"]);
+    autoRun.checked = saved.autoRunCommands === true;
     if (!saved.token) {
       ready = false;
       renderEnabled(false);

@@ -161,7 +161,7 @@ def remote_repo_context(slug):
         if checkpoint.returncode == 0 and checkpoint.stdout.strip():
             checkpoint_text = base64.b64decode("".join(checkpoint.stdout.split()), validate=True).decode("utf-8", errors="replace").strip()
             if checkpoint_text:
-                parts.append("ROLLING CONVERSATION CHECKPOINTS (GitHub):\\n" + checkpoint_text[:5000])
+                parts.append("ROLLING CONVERSATION CHECKPOINTS (GitHub):\n" + checkpoint_text[:5000])
     except (subprocess.TimeoutExpired, ValueError, base64.binascii.Error):
         pass
     if errors:
@@ -806,18 +806,18 @@ def run_remote_task(task):
     for command in commands:
         try:
             result = subprocess.run(command, cwd=str(root), capture_output=True, text=True, timeout=180)
-            output.append("$ " + " ".join(command) + "\\n" +
+            output.append("$ " + " ".join(command) + "\n" +
                           (result.stdout or "")[-7000:] +
-                          (("\\nSTDERR:\\n" + result.stderr[-3000:]) if result.stderr else "") +
-                          "\\nexit=" + str(result.returncode))
+                          (("\nSTDERR:\n" + result.stderr[-3000:]) if result.stderr else "") +
+                          "\nexit=" + str(result.returncode))
             if result.returncode != 0:
                 success = False
                 break
         except (OSError, subprocess.TimeoutExpired) as exc:
-            output.append("$ " + " ".join(command) + "\\nERROR: " + str(exc))
+            output.append("$ " + " ".join(command) + "\nERROR: " + str(exc))
             success = False
             break
-    return success, "\\n\\n".join(output)[-12000:]
+    return success, "\n\n".join(output)[-12000:]
 
 
 def remote_task_worker():
@@ -844,7 +844,7 @@ def remote_task_worker():
                     _remote_task_seen.add(number)
                     ok, detail = run_remote_task(task)
                     state = "PASS" if ok else "FAIL"
-                    body = "Mac runner task **" + task + "**: **" + state + "**\\n\\n" + detail
+                    body = "Mac runner task **" + task + "**: **" + state + "**\n\n" + detail
                     # GitHub CLI uses the authenticated local account; issue content is never evaluated.
                     subprocess.run(
                         ["gh", "issue", "comment", str(number), "--repo", REMOTE_TASK_REPO, "--body", body],
@@ -861,7 +861,8 @@ def remote_task_worker():
 
 def main():
     print("VibeBridge listening on http://127.0.0.1:%d" % PORT)
-    threading.Thread(target=remote_task_worker, name="vibebridge-remote-tasks", daemon=True).start()\n    HTTPServer((HOST, PORT), Handler).serve_forever()
+    threading.Thread(target=remote_task_worker, name="vibebridge-remote-tasks", daemon=True).start()
+    HTTPServer((HOST, PORT), Handler).serve_forever()
 
 
 if __name__ == "__main__":

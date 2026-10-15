@@ -33,6 +33,13 @@ The macOS installer workflow builds a disk image and a separate Chrome extension
 
 The initial installer checks prerequisites, asks before installing the local background agent, and opens the Chrome extension and ChatGPT settings pages. It cannot silently enable Chrome Developer mode, install an unpacked extension, grant macOS permissions, or connect ChatGPT Apps for you. The user must approve these steps. For a broadly distributable one-click install, VibeBridge will still need signed/notarized macOS packaging and a Chrome Web Store release.
 
+## Automatic project switching and repository creation
+
+- In ChatGPT, explicitly say **"Switch to Autofill Insurance Extension"** or include an exact `owner/repository` slug. If an explicit switch fails, VibeBridge should display the reason instead of silently continuing with the previous project's context.
+- To create a repository and start using it in the same message, say **"Create a new repository called SampleApp and build a simple starter app."** VibeBridge asks for confirmation, defaults the repository to private, creates README.md and VIBEBRIDGE_CONTEXT.md, and attaches the new project's context to that prompt. It requires your local GitHub CLI account to have repository-creation access.
+- The extension popup also has **Create a new GitHub repository** and **Test repository switching** actions. The test checks both directions using the local agent; it does not create or modify a repository.
+- Use the **Enable VibeBridge** switch to pause or resume automatic context attachment. This does not stop the local agent.
+
 ## Project memory
 
 - `VIBEBRIDGE_CONTEXT.md` stores durable project goals, architecture, user workflow preferences, implementation status, decisions, limitations, and prioritized next steps. The local agent automatically includes it in project context when the file exists.

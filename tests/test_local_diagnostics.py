@@ -1,4 +1,5 @@
 import sys
+import subprocess
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -18,7 +19,7 @@ class LocalDiagnosticsTests(unittest.TestCase):
             if label == "com.vibebridge.agent":
                 return type("Completed", (), {
                     "returncode": 0,
-                    "stdout": "state = running\\npid = 1234\\nSECRET_SHOULD_NOT_LEAK\\n",
+                    "stdout": "state = running\npid = 1234\nSECRET_SHOULD_NOT_LEAK\n",
                     "stderr": ""
                 })()
             return type("Completed", (), {
@@ -51,7 +52,7 @@ class LocalDiagnosticsTests(unittest.TestCase):
     @patch.object(server.platform, "system", return_value="Darwin")
     @patch.object(server.platform, "mac_ver", return_value=("15.0", ("", "", ""), ""))
     @patch.object(server.os, "getuid", return_value=501)
-    @patch.object(server.subprocess, "run", side_effect=__import__("subprocess").TimeoutExpired("launchctl", 3))
+    @patch.object(server.subprocess, "run", side_effect=subprocess.TimeoutExpired("launchctl", 3))
     def test_launchctl_timeout_is_reported_without_failing_endpoint(self, _run, _uid, _mac, _system):
         result = server.local_diagnostics()
         self.assertEqual(result["agent"]["state"], "query-failed")

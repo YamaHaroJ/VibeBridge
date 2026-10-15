@@ -4,7 +4,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const supported = [
     "VIBEBRIDGE_RESOLVE_CONTEXT",
     "VIBEBRIDGE_REMEMBER",
-    "VIBEBRIDGE_RUN_COMMAND"
+    "VIBEBRIDGE_RUN_COMMAND",
+    "VIBEBRIDGE_CREATE_REPOSITORY"
   ];
   if (!supported.includes(message?.type)) return;
 
@@ -14,6 +15,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return {matched: false, error: "VibeBridge token missing. Open the extension popup and save your token."};
     }
     const active = saved.activeProject || saved.project || "";
+
+    if (message.type === "VIBEBRIDGE_CREATE_REPOSITORY") {
+      const payload = message.payload || {};
+      const response = await fetch(API + "/create-repository", {
+        method: "POST",
+        headers: {"Authorization": "Bearer " + saved.token, "Content-Type": "application/json"},
+        body: JSON.stringify({name: payload.name, description: payload.description || "", private: payload.private !== false})
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not create GitHub repository");
+      const selected = data.project?.path || "github:" + data.repository.nameWithOwner;
+      await chrome.storage.local.set({activeProject: selected, project: selected});
+      return {ok: true, ...data};
+    }
 
     if (message.type === "VIBEBRIDGE_REMEMBER") {
       if (!active) return {saved: false, error: "No active project. Mention its name first."};

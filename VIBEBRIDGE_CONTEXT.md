@@ -173,3 +173,11 @@ Important setup distinction: ChatGPT's GitHub connector is optional for VibeBrid
 - Reporter test issue `#59` completed successfully via Actions run `38798365423`: **PASS**, unit suite. All 31 tests passed in 0.020 seconds. It posted a `VibeBridge fast reporter — PASS` comment to the issue. Link: https://github.com/YamaHaroJ/VibeBridge/actions/runs/38798365423
 - Separate issue `#60` also received a Mac runner validation PASS, demonstrating the Mac worker has now responded again. The new GitHub Actions validation run was queued at check time and still needs final confirmation.
 - Hosted reporter cannot inspect the actual Mac's local processes, but test/validation results now return through a separate workflow even if the Mac worker is offline.
+
+
+## Local diagnostics endpoint (2026-10-15)
+- Added authenticated `GET /diagnostics/local` to `agent/server.py`. It returns an allowlisted snapshot of the VibeBridge agent/updater LaunchAgent state, PIDs, OS version, timestamp, and the current request PID. It deliberately excludes unrelated process names, process arguments, environment variables, and logs.
+- Added extension background message `VIBEBRIDGE_LOCAL_DIAGNOSTICS` to call the endpoint using the existing bearer token. Added focused unit tests in `tests/test_local_diagnostics.py` for service metadata filtering, non-macOS behavior, and launchctl timeout handling.
+- Commits: `53d15ef` (agent endpoint), `4499b15` (extension bridge), `5ce88f7` (tests).
+- The self-hosted GitHub Actions workflow was changed to manual dispatch only. Normal issue creation/pushes no longer queue jobs on a potentially offline self-hosted runner; hosted Actions remains responsible for source tests, while local service state is read by the local agent.
+- Not yet verified on the user's installed Mac. Next: run hosted tests, confirm workflow dispatch syntax, then trigger local diagnostics through the extension once the latest agent source is deployed.

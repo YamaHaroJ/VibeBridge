@@ -144,3 +144,11 @@ Important setup distinction: ChatGPT's GitHub connector is optional for VibeBrid
 - The README setup steps were stale and still instructed users to paste a clipboard token. It has now been updated to describe Native Messaging and native approval instead.
 - Remote Mac task issues `#38` through `#43` were created to request validation/tests, but no runner comments had arrived at the last check. Do not claim these latest tests passed until a fresh runner comment confirms it.
 - Next: commit this checkpoint, then request fresh Mac validation and test tasks. If the runner still does not process tasks, diagnose the local poller/agent deployment instead of repeatedly creating issues. Do not ask the user to run terminal commands unless the remote task path is demonstrably unavailable.
+
+
+## Fast Mac runner update (2026-10-15)
+- The remote Mac task worker was restored in commit `250522d`; it was missing from the newer `agent/server.py` despite prior project notes saying it existed. The current worker accepts only fixed owner-authored task titles and never executes issue body text.
+- Commit `f942193` reduced task polling from 30 seconds to 2 seconds, shortened the GitHub issue-list timeout to 8 seconds, and bounded individual commands to 45 seconds. Commit `75fa6f7` adds a regression assertion for the two-second polling interval. Commit `8c49020` prioritizes the newest issues and scans only five at a time, avoiding stale queued tasks blocking new requests.
+- Mac runner task issue `#49` passed the unit suite: 31 tests in 0.014 seconds. Issue `#50` passed Python compilation, manifest JSON, installer shell syntax, and all three JavaScript syntax checks. These are genuine Mac-runner results.
+- The two-second interval is the polling target after the updated `agent/server.py` reaches the Mac and restarts. Detection latency is typically about 0–2 seconds plus GitHub CLI/API overhead; it is not a guarantee of end-to-end completion in two seconds. Task execution itself is separate.
+- Remaining verification: confirm the running Mac agent has deployed the latest `8c49020` source and that issue `#49`/`#50` close after comments. The successful tasks show the runner was active on the checkout it tested, but do not by themselves prove it is running the newest polling optimization.

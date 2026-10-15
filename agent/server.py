@@ -158,7 +158,7 @@ def create_github_repo(name, description="", private=True):
     name = str(name or "").strip()
     if not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", name):
         raise ValueError("Repository name must use only letters, numbers, periods, hyphens, or underscores.")
-    # Create the remote repository only. Never push this checkout into a new project.
+    # Create the remote repository only; never push this checkout into another project.
     args = ["gh", "repo", "create", name] + (["--private"] if private else ["--public"])
     if description:
         args += ["--description", str(description)[:300]]

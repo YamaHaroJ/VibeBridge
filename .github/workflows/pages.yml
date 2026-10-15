@@ -5,6 +5,7 @@ on:
     branches: [master]
     paths:
       - 'index.html'
+      - 'privacy.html'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 

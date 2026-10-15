@@ -37,6 +37,19 @@ class FilesystemAccessTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "limited to your home folder"):
                     server.filesystem_path(str(outside))
 
+
+    def test_rejects_symlink_that_escapes_home(self):
+        with tempfile.TemporaryDirectory(dir=Path.home()) as tmp:
+            root = Path(tmp) / "home"
+            root.mkdir()
+            outside = Path(tmp) / "outside.txt"
+            outside.write_text("no", encoding="utf-8")
+            link = root / "escape.txt"
+            link.symlink_to(outside)
+            with patch.object(server, "HOME_ROOT", root.resolve()):
+                with self.assertRaisesRegex(ValueError, "limited to your home folder"):
+                    server.filesystem_path(str(link))
+
     def test_rejects_empty_path(self):
         with self.assertRaisesRegex(ValueError, "path is required"):
             server.filesystem_path("")

@@ -159,18 +159,25 @@ document.querySelector("#create-repo").onclick = async () => {
   if (!name) return;
   const description = prompt("Short description (optional):") || "";
   const isPrivate = confirm("Make this repository PRIVATE? Choose Cancel for PUBLIC.");
-  if (!confirm("Create GitHub repository '" + name + "' as " + (isPrivate ? "PRIVATE" : "PUBLIC") + "?")) return;
+  if (!confirm("Create GitHub repository \"" + name + "\" as " + (isPrivate ? "PRIVATE" : "PUBLIC") + "?")) return;
   try {
     result.textContent = "Creating GitHub repository…";
     const data = await call("/create-repository", {name, description, private: isPrivate});
-    result.textContent = data.message + "\n" + data.repository.url + "\n\nThe new repository is ready for project switching. For local code edits, clone it to this Mac.";
-    await chrome.storage.local.set({lastCreatedRepository: data.repository.nameWithOwner});
-    await navigator.clipboard?.writeText(data.repository.nameWithOwner).catch(() => {});
+    const selected = data.project?.path || "github:" + data.repository.nameWithOwner;
+    project.value = selected;
+    await chrome.storage.local.set({project: selected, activeProject: selected, lastCreatedRepository: data.repository.nameWithOwner});
+    const select = document.querySelector("#github-repo");
+    const option = document.createElement("option");
+    option.value = data.repository.nameWithOwner;
+    option.textContent = data.repository.nameWithOwner + " — created · " + (isPrivate ? "private" : "public") + " · not cloned";
+    option.selected = true;
+    select.prepend(option);
+    result.textContent = data.message + "\n" + data.repository.url + "\n\nSelected as the active project. You can now describe changes directly in ChatGPT."; 
+    try { await navigator.clipboard.writeText(data.repository.nameWithOwner); } catch {}
   } catch (e) {
     result.textContent = "Could not create repository: " + e.message;
   }
 };
-
 document.querySelector("#test-switch").onclick = async () => {
   const name = prompt("Enter a repository name or owner/repository to test switching:");
   if (!name) return;

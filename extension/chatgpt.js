@@ -198,7 +198,27 @@
         showNotice("VibeBridge is off. Your message will be sent without project context.");
         return;
       }
-      const result = await chrome.runtime.sendMessage({type: "VIBEBRIDGE_RESOLVE_CONTEXT", text: original});
+      const requestedCreate = original.match(/\b(?:create|make)\s+(?:a\s+)?(?:new\s+)?(?:github\s+)?(?:repo|repository)\s+(?:named|called|for)\s+["\x27`]?([A-Za-z0-9][A-Za-z0-9_.-]{0,99})/i);
+      let createdRepository = null;
+      let result;
+      if (requestedCreate) {
+        const repoName = requestedCreate[1];
+        const isPrivate = !/\bpublic\s+(?:github\s+)?(?:repo|repository)\b/i.test(original);
+        if (!confirm("Create a " + (isPrivate ? "PRIVATE" : "PUBLIC") + " GitHub repository named \"" + repoName + "\" and switch this message to it?")) {
+          showNotice("Repository creation cancelled. Your original message will still be sent without creating a repository.");
+          return;
+        }
+        const created = await chrome.runtime.sendMessage({
+          type: "VIBEBRIDGE_CREATE_REPOSITORY",
+          payload: {name: repoName, description: "Created from a ChatGPT request through VibeBridge.", private: isPrivate}
+        });
+        if (!created?.ok || !created.repository?.nameWithOwner) throw new Error(created?.error || "Repository creation did not complete.");
+        createdRepository = created.repository;
+        showNotice("Created " + createdRepository.nameWithOwner + " and loading its project context…");
+        result = await chrome.runtime.sendMessage({type: "VIBEBRIDGE_RESOLVE_CONTEXT", text: "switch to " + createdRepository.nameWithOwner});
+      } else {
+        result = await chrome.runtime.sendMessage({type: "VIBEBRIDGE_RESOLVE_CONTEXT", text: original});
+      }
       const rememberMatch = original.match(/remember (?:for this project|this for the project|that for this project)[:\-]?\s*(.+)/i);
       if (rememberMatch && rememberMatch[1]) {
         const saved = await chrome.runtime.sendMessage({type: "VIBEBRIDGE_REMEMBER", note: rememberMatch[1].trim()});
@@ -208,7 +228,7 @@
       if (result?.matched && result.context) {
         const addition = marker + "\nThe following is persistent context from the user's local project. Treat it as background information, verify implementation against code when needed, and do not assume planned features are implemented.\n\n" + result.context + "\n\nEND " + marker + "\n\nUSER REQUEST:\n";
         writeComposer(composer, addition + original);
-        showNotice("VibeBridge attached context for " + result.project.name);
+        showNotice(createdRepository ? "Created " + createdRepository.nameWithOwner + " and switched to its project context." : "VibeBridge attached context for " + result.project.name);
       } else if (result?.ambiguous) {
         showNotice("VibeBridge found multiple possible projects. Mention the exact project name.");
       } else if (result?.error) {

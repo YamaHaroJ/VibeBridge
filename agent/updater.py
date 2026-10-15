@@ -53,13 +53,27 @@ def validate():
         log("Node is not installed; JavaScript syntax validation is covered by GitHub Actions.")
 
 
-def sync_extension_tree(source, destination):
-    """Update the unpacked extension in place without removing its registered root.
+def atomic_copy(source, destination):
+    """Publish one file atomically so Chrome cannot read a partially copied file."""
+    source = Path(source)
+    destination = Path(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(destination.name + ".vibebridge-tmp")
+    try:
+        shutil.copy2(source, temporary)
+        # Same-directory replace is atomic on the same filesystem.
+        temporary.replace(destination)
+    finally:
+        temporary.unlink(missing_ok=True)
 
-    Chrome stores the unpacked extension's path in its profile. Briefly deleting
-    that path during an automatic update can make Chrome treat the extension as
-    missing and drop it from the profile. Keep the root directory present and
-    publish manifest.json last so Chrome never sees a missing root/manifest.
+
+def sync_extension_tree(source, destination):
+    """Update the unpacked extension without ever removing its registered root.
+
+    Chrome stores an unpacked extension's absolute path in its profile. A
+    delete-and-recreate update can make Chrome discard that registration if it
+    starts during the gap. Each file is now atomically published, with the
+    manifest published last, and the root directory is never removed.
     """
     source = Path(source)
     destination = Path(destination)
@@ -70,18 +84,16 @@ def sync_extension_tree(source, destination):
     if manifest_rel not in source_files:
         raise RuntimeError("Staged extension is missing manifest.json.")
 
-    # Copy payload files first; keep the currently valid manifest until last.
+    # Publish payload files atomically; retain the old valid manifest meanwhile.
     for rel in sorted(source_files, key=lambda p: str(p)):
         if rel == manifest_rel:
             continue
-        target = destination / rel
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source / rel, target)
+        atomic_copy(source / rel, destination / rel)
 
-    # Publish the validated manifest only after all referenced files are present.
-    shutil.copy2(source / manifest_rel, destination / manifest_rel)
+    # The manifest is the commit marker: publish only after every payload file.
+    atomic_copy(source / manifest_rel, destination / manifest_rel)
 
-    # Remove files no longer present in the release, without deleting the root.
+    # Remove obsolete files only after the new manifest is valid and present.
     for path in sorted(destination.rglob("*"), key=lambda p: len(p.parts), reverse=True):
         if path.is_file() and path.relative_to(destination) not in source_files:
             path.unlink()

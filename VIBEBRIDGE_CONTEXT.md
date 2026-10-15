@@ -128,3 +128,11 @@ Important setup distinction: ChatGPT's GitHub connector is optional for VibeBrid
 - Every change to the Chrome extension that should be tested on the user's Mac MUST bump `extension/manifest.json` version before asking the user to reload it. Never ask the user to reload an extension without providing the expected build number.
 - The popup's `Extension build: vX.Y.Z · loaded` stamp is generated from Chrome's loaded manifest. Use it as the confirmation that the new extension files are loaded; GitHub commit success alone is not installation proof.
 - Bump patch versions for ordinary test fixes (for example, 0.2.1 -> 0.2.2); reserve minor/major bumps for planned releases. Mention the expected version and relevant commit in the reload instruction.
+
+
+## Remote Mac task queue (2026-10-15)
+- Commit `6d2ea34` adds a background issue poller to `agent/server.py`. It polls the authenticated GitHub CLI account every 30 seconds for open issues in `YamaHaroJ/VibeBridge` titled exactly `VibeBridge task: validate`, `VibeBridge task: test`, or `VibeBridge task: diagnostics`.
+- The poller only accepts issues authored by `YamaHaroJ`; issue bodies are never executed. It runs fixed argument-array commands, comments bounded results on the issue, then closes it. Arbitrary shell/command text is deliberately unsupported.
+- Commit `6903f88` adds unit tests for the closed task enum and fixed-command execution.
+- This is a source change. The existing Mac updater checks hourly, so the poller is not active until the updated `agent/server.py` reaches the Mac and the agent restarts. Once deployed, ChatGPT can request one of the predefined tasks by opening an issue with the exact title; the agent reports results as an issue comment.
+- Remaining verification: run CI, verify `agent/server.py` compiles, run unit tests, and verify the Mac issue poller processes an owner-authored test task. Do not claim end-to-end Mac execution until the issue comment proves it.

@@ -65,3 +65,12 @@ launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.vibebridge.agent.plist
 ```
 
 Remove the LaunchAgent plist to prevent it from being loaded again. The token is stored in `~/Library/Application Support/VibeBridge/token`.
+
+
+## Public distribution and updates
+
+- The public source of truth is this repository: https://github.com/YamaHaroJ/VibeBridge.
+- Every push to `master` creates a preview installer artifact in GitHub Actions. These artifacts expire and are for testing, not permanent downloads.
+- The new release workflow publishes a versioned macOS installer disk image, Chrome extension ZIP, and SHA-256 checksums to GitHub Releases when a version tag such as `v0.3.0` is pushed: https://github.com/YamaHaroJ/VibeBridge/releases.
+- The current in-app updater follows the `master` branch and validates changes before restarting the local agent. It is not yet a release-channel updater.
+- VibeBridge is not yet a fully hands-off consumer product: the Chrome extension still must be loaded unpacked, and the macOS package is unsigned and not notarized. A simplified popup, signed/notarized packaging, and Chrome Web Store distribution remain productization work.

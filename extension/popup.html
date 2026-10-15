@@ -1,40 +1,41 @@
 <!doctype html>
 <html>
-<head><meta charset="utf-8"><title>VibeBridge</title><style>
-body{font:14px system-ui;width:320px;padding:14px;background:#111827;color:#f9fafb}
-input,button{box-sizing:border-box;width:100%;margin:6px 0;padding:9px;border-radius:7px}
-input{background:#1f2937;color:white;border:1px solid #4b5563}
-button{background:#60a5fa;color:#111827;border:0;font-weight:600;cursor:pointer}
-pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:180px;overflow:auto}
-small{color:#cbd5e1}
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VibeBridge</title><style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{font:13px/1.45 system-ui,sans-serif;width:340px;padding:14px;margin:0;background:#111827;color:#f9fafb}h2{font-size:19px;margin:0}header{display:flex;align-items:center;justify-content:space-between;margin-bottom:3px}.sub{margin:0 0 12px;color:#cbd5e1;font-size:12px}label{display:block;margin:10px 0 4px;color:#e5e7eb}input,select,button{width:100%;padding:9px;border-radius:7px;border:1px solid #4b5563;font:inherit}input,select{background:#1f2937;color:white}button{margin:6px 0 0;background:#60a5fa;color:#111827;border:0;font-weight:650;cursor:pointer}button.secondary{background:#374151;color:#f9fafb;border:1px solid #4b5563}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #93c5fd;outline-offset:2px}.toggle{display:flex;align-items:center;gap:8px;padding:10px;background:#1f2937;border:1px solid #374151;border-radius:8px;margin:12px 0}.toggle input{width:auto;margin:0;accent-color:#60a5fa}section{padding:11px;background:#1f2937;border:1px solid #374151;border-radius:9px;margin:10px 0}details{border-top:1px solid #374151;margin-top:12px;padding-top:10px}summary{cursor:pointer;font-weight:650;color:#d1d5db;padding:4px 0}small{display:block;color:#cbd5e1;font-size:11px;margin-top:8px}#result{white-space:pre-wrap;overflow-wrap:anywhere;max-height:150px;overflow:auto;padding:10px;border-radius:8px;background:#030712;border:1px solid #374151;min-height:42px;margin:10px 0 0}#github-repo{margin-top:5px}.note{font-size:11px;color:#cbd5e1;margin:6px 0}
 </style></head>
 <body>
-<h2>VibeBridge</h2>
-<p>Project context for ChatGPT</p>
-<label style="display:flex;align-items:center;gap:8px;margin:8px 0"><input id="enabled" type="checkbox" checked style="width:auto;margin:0"> Enable VibeBridge</label>
-<p style="padding:8px;background:#1f2937;border-radius:7px;font-size:12px;line-height:1.45">ChatGPT GitHub connection: for ChatGPT to use the GitHub connector, connect it in ChatGPT Settings → Apps (or Connectors, depending on your interface). VibeBridge cannot read or change that setting. Its local repository access uses GitHub CLI on this Mac.</p>
-<button id="github-settings">Open ChatGPT settings</button>
-<button id="connection-guide">Check connection setup</button>
-<input id="token" type="password" placeholder="Local agent token">
+<header><h2>VibeBridge</h2></header>
+<p class="sub">Keep your ChatGPT projects in context.</p>
+<label class="toggle"><input id="enabled" type="checkbox" checked> <span><strong>Enable VibeBridge</strong><small>Attach project context to relevant prompts</small></span></label>
+<section>
+<label for="token">Local agent token</label>
+<input id="token" type="password" autocomplete="off" placeholder="Paste token from installer">
 <label for="project">Active project</label>
-<input id="project" list="project-list" placeholder="Choose a project or enter its path">
+<input id="project" list="project-list" placeholder="Project name or folder path">
 <datalist id="project-list"></datalist>
-<button id="discover">Find local projects</button>
-<label for="github-repo">GitHub repositories (new and old)</label>
-<select id="github-repo" style="box-sizing:border-box;width:100%;margin:6px 0;padding:9px;border-radius:7px;background:#1f2937;color:white;border:1px solid #4b5563">
-<option value="">Load your GitHub repositories first</option>
-</select>
-<button id="github-discover">Find GitHub repositories</button>
-<button id="create-repo">Create a new GitHub repository</button>
-<button id="test-switch">Test repository switching</button>
-
-<button id="clone-repo">Clone selected repository to Mac</button>
+<button id="discover" class="secondary">Find local projects</button>
 <button id="save">Save settings</button>
-<button id="health">Check connection</button>
-<button id="diagnostics">Run Git diagnostics</button>
+<button id="health" class="secondary">Check connection</button>
+</section>
+<section>
+<strong>Updates</strong>
+<p class="note">Updates the local agent from GitHub. The update stops if local files have uncommitted changes.</p>
 <button id="update">Update VibeBridge safely</button>
-<button id="update-status">Check update status</button>
-<small>Local projects are folders on this Mac. GitHub repositories include older and new repos. Update checks the GitHub version, validates files, and restarts the agent only if checks pass.</small>
-<pre id="result">Agent not checked.</pre>
+<button id="update-status" class="secondary">Check update status</button>
+</section>
+<details>
+<summary>GitHub & project tools</summary>
+<p class="note">Local repository access uses GitHub CLI on this Mac. ChatGPT’s own GitHub connector is separate and must be connected in ChatGPT Settings.</p>
+<button id="github-settings" class="secondary">Open ChatGPT settings</button>
+<button id="connection-guide" class="secondary">Check connection setup</button>
+<label for="github-repo">GitHub repository</label>
+<select id="github-repo"><option value="">Load your repositories first</option></select>
+<button id="github-discover" class="secondary">Find GitHub repositories</button>
+<button id="clone-repo" class="secondary">Clone selected repository to Mac</button>
+<button id="create-repo" class="secondary">Create a new GitHub repository</button>
+<button id="test-switch" class="secondary">Test repository switching</button>
+<button id="diagnostics" class="secondary">Run Git diagnostics</button>
+</details>
+<pre id="result" role="status" aria-live="polite">Agent not checked.</pre>
 <script src="popup.js"></script>
 </body></html>

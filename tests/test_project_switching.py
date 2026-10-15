@@ -49,6 +49,32 @@ class ProjectSwitchTests(unittest.TestCase):
         run.return_value = type("Completed", (), {"returncode": 1, "stdout": "", "stderr": "HTTP 401: authentication failed"})()
         with self.assertRaisesRegex(RuntimeError, "Could not load useful context"):
             server.remote_repo_context("YamaHaroJ/PrivateRepo")
+ 
+    @patch.object(server, "discover_projects", return_value=[{"name": "VibeBridge", "path": "/Users/test/VibeBridge"}])
+    @patch.object(server, "github_projects")
+    def test_explicit_full_slug_wins_over_same_named_local_project(self, github_projects, _local):
+        github_projects.return_value = [
+            {"name": "VibeBridge", "nameWithOwner": "someone/VibeBridge", "localPath": None},
+            {"name": "Autofill", "nameWithOwner": "YamaHaroJ/Autofill-Insurance-Extension", "localPath": None},
+        ]
+        project, reason = server.match_project(
+            "Switch to YamaHaroJ/Autofill-Insurance-Extension",
+            "/Users/test/VibeBridge",
+        )
+        self.assertEqual(reason, "message")
+        self.assertEqual(project["repository"], "YamaHaroJ/Autofill-Insurance-Extension")
+
+    @patch.object(server, "discover_projects", return_value=[{"name": "VibeBridge", "path": "/Users/test/VibeBridge"}])
+    @patch.object(server, "github_projects", side_effect=RuntimeError("GitHub CLI is not authenticated"))
+    def test_failed_explicit_switch_never_falls_back_to_active_project(self, _github, _local):
+        with self.assertRaisesRegex(RuntimeError, "Could not search GitHub"):
+            server.match_project("Switch to Autofill", "/Users/test/VibeBridge")
+
+    @patch.object(server, "discover_projects", return_value=[])
+    @patch.object(server, "github_projects", return_value=[])
+    def test_unknown_explicit_switch_is_reported_as_error(self, _github, _local):
+        with self.assertRaisesRegex(RuntimeError, "requested project could not be resolved"):
+            server.match_project("Switch to TotallyMissingProject", "github:YamaHaroJ/VibeBridge")
 
 
 if __name__ == "__main__":

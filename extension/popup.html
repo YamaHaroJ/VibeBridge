@@ -10,7 +10,11 @@ small{color:#cbd5e1}
 </style></head>
 <body>
 <h2>VibeBridge</h2>
-<p>Local development agent</p>
+<p>Project context for ChatGPT</p>
+<label style="display:flex;align-items:center;gap:8px;margin:8px 0"><input id="enabled" type="checkbox" checked style="width:auto;margin:0"> Enable VibeBridge</label>
+<p style="padding:8px;background:#1f2937;border-radius:7px;font-size:12px;line-height:1.45">ChatGPT GitHub connection: for ChatGPT to use the GitHub connector, connect it in ChatGPT Settings → Apps (or Connectors, depending on your interface). VibeBridge cannot read or change that setting. Its local repository access uses GitHub CLI on this Mac.</p>
+<button id="github-settings">Open ChatGPT settings</button>
+<button id="connection-guide">Check connection setup</button>
 <input id="token" type="password" placeholder="Local agent token">
 <label for="project">Active project</label>
 <input id="project" list="project-list" placeholder="Choose a project or enter its path">

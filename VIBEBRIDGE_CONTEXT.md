@@ -197,3 +197,10 @@ Important setup distinction: ChatGPT's GitHub connector is optional for VibeBrid
 - Chrome normally retains a loaded unpacked extension across browser restarts as long as the same Chrome profile and folder path remain available. The updater replaces files within `~/VibeBridge/extension` and does not intentionally delete or relocate that directory. Reload the extension after updates.
 - Updated `agent/install.sh` to verify required extension files, fail clearly if the payload is missing, print the stable path/persistence explanation, and reopen `chrome://extensions` after a successful health check.
 - Chrome Web Store distribution is still the eventual way to make install/update behavior seamless for ordinary users; a local unpacked install is still a developer-mode setup.
+
+
+## Popup connection-state fix (2026-10-15)
+- Commit `0ff035d` changes `extension/popup.js` so a successful local `/health` check immediately marks VibeBridge connected, enables the main on/off switch, and hides “Connect this Mac.”
+- GitHub CLI/repository lookup is now a separate status. If it fails, the popup retains the local connected state and explains that only GitHub repository features need sign-in; it no longer resets the main switch and asks to connect the Mac again.
+- Validation run: https://github.com/YamaHaroJ/VibeBridge/actions/runs/38802894618 (running at checkpoint time).
+- Local Chrome runtime verification is still required after the updater syncs the latest popup.js and the extension is reloaded.

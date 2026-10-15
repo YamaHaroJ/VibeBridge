@@ -15,7 +15,7 @@ VibeBridge is a local-first Mac agent plus Chrome extension that carries relevan
 - GitHub repository: https://github.com/YamaHaroJ/VibeBridge
 - Local macOS checkout: ~/VibeBridge
 - Main branch: master
-- Active development branch: fix/project-memory-selection
+- Main branch: master; current extension and installer work is committed directly to master.
 - Separate project: MacOptimizer. Do not mix its code or state with VibeBridge.
 - Local agent: agent/server.py
 - LaunchAgent installer: agent/install.sh
@@ -42,6 +42,10 @@ VibeBridge is a local-first Mac agent plus Chrome extension that carries relevan
 - POST /run: execute an argument-array command in an allowed project folder. This is powerful; keep the bearer token private and only authorize use on a machine/projects the user controls.
 
 ## Important behavior and limitations
+- The extension popup has an on/off toggle for automatic project context attachment, a separate GitHub CLI/local-agent connection check, a link to ChatGPT Settings -> Apps/Connectors, a GitHub repository creation action, and a two-way project-switch test. These changes are committed but still need a real Mac runtime test.
+- When a user explicitly asks in a ChatGPT message to create a repository with a name (for example, “create a new repository called SampleApp”), the content script asks for confirmation, defaults to private unless the request explicitly says public, creates the GitHub repository through authenticated gh, seeds README.md and VIBEBRIDGE_CONTEXT.md, and attempts to attach that context before sending the same message. This needs end-to-end validation on the user's Mac.
+- GitHub CLI on the Mac and ChatGPT's GitHub App/connector are separate connections. The extension cannot inspect or change ChatGPT connector settings and cannot silently grant browser or operating-system permissions.
+- A macOS DMG installer and Chrome extension ZIP are built by .github/workflows/macos-installer.yml. This is a guided, unsigned/not-notarized package; Chrome still requires the user to load the extension or a future Web Store release must be prepared.
 - Project matching first checks local project names, then attempts to resolve explicit GitHub repository names/slugs using the authenticated GitHub CLI. Repositories not cloned locally are represented as github:owner/repo and should load README/context memory remotely. This behavior has not yet been end-to-end verified on the user's Mac.
 - If multiple project names match, it reports ambiguity rather than choosing one.
 - The extension does not read previous private ChatGPT conversation histories. Continuity comes from repository files, Git metadata, this memory document, and notes explicitly saved through VibeBridge.
@@ -60,12 +64,11 @@ VibeBridge is a local-first Mac agent plus Chrome extension that carries relevan
 - Normal workflow should not require the user to paste terminal commands. Prefer code changes through GitHub and a local agent update/restart triggered from the extension.
 
 ## Next work, in priority order
-1. Verify the command relay end to end: reload extension, approve a harmless command such as `python3 --version` (or another safe read-only command) in the active project, confirm output appears, then insert and send the result back to ChatGPT.
-2. Implement and verify safe self-update through the local agent so remote code changes can be pulled, validated, restarted, and reported without Terminal use. Preserve a rollback path and stop on uncommitted local changes.
-3. Add automated tests and CI for project resolution, remote README/memory loading, ambiguous repository names, command payload validation, and failed lookups preserving the original message.
-4. Verify automatic switching in real ChatGPT threads and prevent cross-project memory leakage.
+1. Verify CI for repository creation, context seeding, extension syntax, and the macOS installer build.
+2. Have the user safely update and reload the extension, then test automatic switching and same-message named-repository creation on the actual Mac.
+3. Package and publish a signed/notarized macOS installer and Chrome Web Store extension to eliminate manual unpacked-extension loading.
+4. Verify the local command relay end to end and improve project-context continuity/diagnostics.
 5. Improve memory management: distinguish durable decisions from temporary notes, prevent duplicates, and allow stale notes to be corrected or removed.
-6. Add clear status/diagnostics so the user can tell which project was selected and whether context was attached.
 
 ## Current known gaps
 - End-to-end continuity and the new command relay have not been verified on the user's Mac.

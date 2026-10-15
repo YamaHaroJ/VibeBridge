@@ -32,7 +32,7 @@ manifest = {
     "allowed_origins": ["chrome-extension://" + extension_id + "/"],
 }
 path = pathlib.Path(manifest_path)
-path.write_text(json.dumps(manifest, indent=2) + "\\n", encoding="utf-8")
+path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 path.chmod(0o600)
 PY_HOST
 cat > "$PLIST" <<EOF_PLIST

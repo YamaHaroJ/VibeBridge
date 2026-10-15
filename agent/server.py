@@ -494,3 +494,124 @@ def request_pairing(origin):
     }
 
 
+def run_remote_task(task):
+    """Run one predefined, bounded task; never execute issue text as a command."""
+    root = Path.home() / "VibeBridge"
+    if task not in REMOTE_TASKS:
+        raise ValueError("Unsupported remote task.")
+    if task == "validate":
+        commands = [
+            ["python3", "-m", "py_compile", "agent/server.py", "agent/updater.py"],
+            ["python3", "-m", "json.tool", "extension/manifest.json"],
+            ["bash", "-n", "agent/install.sh"],
+            ["node", "--check", "extension/background.js"],
+            ["node", "--check", "extension/chatgpt.js"],
+            ["node", "--check", "extension/popup.js"],
+        ]
+    elif task == "test":
+        commands = [["python3", "-m", "unittest", "discover", "-s", "tests", "-v"]]
+    else:
+        commands = [
+            ["git", "status", "--short", "--branch"],
+            ["git", "log", "-1", "--oneline"],
+            ["git", "remote", "-v"],
+            ["git", "rev-parse", "HEAD"],
+            ["git", "ls-remote", "https://github.com/YamaHaroJ/VibeBridge.git", "refs/heads/master"],
+            ["launchctl", "print", "gui/" + str(__import__("os").getuid()) + "/com.vibebridge.agent"],
+            ["launchctl", "print", "gui/" + str(__import__("os").getuid()) + "/com.vibebridge.updater"],
+            ["tail", "-n", "100", str(Path.home() / "Library/Application Support/VibeBridge/update.log")],
+            ["tail", "-n", "60", str(Path.home() / "Library/Application Support/VibeBridge/updater-error.log")],
+        ]
+    if not root.is_dir():
+        raise RuntimeError("Expected checkout is missing: " + str(root))
+    output = []
+    success = True
+    for command in commands:
+        try:
+            result = subprocess.run(command, cwd=str(root), capture_output=True, text=True, timeout=180)
+            output.append("$ " + " ".join(command) + "\n" +
+                          (result.stdout or "")[-7000:] +
+                          (("\nSTDERR:\n" + result.stderr[-3000:]) if result.stderr else "") +
+                          "\nexit=" + str(result.returncode))
+            if result.returncode != 0:
+                success = False
+                break
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            output.append("$ " + " ".join(command) + "\nERROR: " + str(exc))
+            success = False
+            break
+    return success, "\n\n".join(output)[-12000:]
+
+
+def remote_task_worker():
+    """Poll authenticated GitHub issue metadata and run only owner-authored enum tasks."""
+    while True:
+        try:
+            listed = subprocess.run(
+                ["gh", "issue", "list", "--repo", REMOTE_TASK_REPO, "--state", "open",
+                 "--json", "number,title,body,author", "--limit", "30"],
+                capture_output=True, text=True, timeout=30
+            )
+            if listed.returncode == 0:
+                issues = json.loads(listed.stdout or "[]")
+                for issue in issues:
+                    number = issue.get("number")
+                    title = str(issue.get("title", ""))
+                    author = issue.get("author") or {}
+                    login = str(author.get("login", ""))
+                    task = title.removeprefix("VibeBridge task: ").strip()
+                    if (not isinstance(number, int) or login.lower() != REMOTE_TASK_OWNER.lower()
+                            or title != "VibeBridge task: " + task or task not in REMOTE_TASKS
+                            or number in _remote_task_seen):
+                        continue
+                    _remote_task_seen.add(number)
+                    ok, detail = run_remote_task(task)
+                    state = "PASS" if ok else "FAIL"
+                    body = "Mac runner task **" + task + "**: **" + state + "**\n\n" + detail
+                    # GitHub CLI uses the authenticated local account; issue content is never evaluated.
+                    subprocess.run(
+                        ["gh", "issue", "comment", str(number), "--repo", REMOTE_TASK_REPO, "--body", body],
+                        capture_output=True, text=True, timeout=30
+                    )
+                    subprocess.run(
+                        ["gh", "issue", "close", str(number), "--repo", REMOTE_TASK_REPO],
+                        capture_output=True, text=True, timeout=30
+                    )
+        except Exception as exc:
+            print("VibeBridge remote-task worker:", str(exc)[:500])
+        time.sleep(REMOTE_TASK_POLL_SECONDS)
+
+
+def configure_fast_updates():
+    """Configure GitHub polling so Chrome's normal Reload sees recent source updates."""
+    plist = Path.home() / "Library/LaunchAgents/com.vibebridge.updater.plist"
+    try:
+        import plistlib
+        if not plist.is_file():
+            return
+        with plist.open("rb") as handle:
+            config = plistlib.load(handle)
+        if config.get("StartInterval") == 5:
+            return
+        config["StartInterval"] = 5
+        with plist.open("wb") as handle:
+            plistlib.dump(config, handle)
+        uid = str(__import__("os").getuid())
+        subprocess.run(["/bin/launchctl", "bootout", f"gui/{uid}", str(plist)],
+                       capture_output=True, text=True, timeout=10)
+        subprocess.run(["/bin/launchctl", "bootstrap", f"gui/{uid}", str(plist)],
+                       capture_output=True, text=True, timeout=10)
+        print("VibeBridge GitHub updater configured for 5-second polling.")
+    except Exception as exc:
+        print("Could not configure 5-second GitHub polling:", str(exc)[:300])
+
+
+def main():
+    configure_fast_updates()
+    print("VibeBridge listening on http://127.0.0.1:%d" % PORT)
+    threading.Thread(target=remote_task_worker, name="vibebridge-remote-tasks", daemon=True).start()
+    HTTPServer((HOST, PORT), Handler).serve_forever()
+
+
+if __name__ == "__main__":
+    main()

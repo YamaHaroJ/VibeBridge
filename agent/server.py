@@ -45,6 +45,54 @@ def discover_projects():
     return sorted(found.values(), key=lambda item: item["name"].lower())
 
 
+def local_repo_map():
+    found = {}
+    for project in discover_projects():
+        try:
+            remote = subprocess.run(
+                ["git", "remote", "get-url", "origin"],
+                cwd=project["path"], capture_output=True, text=True, timeout=5
+            )
+            if remote.returncode == 0:
+                url = remote.stdout.strip().removesuffix(".git")
+                if url.startswith("git@github.com:"):
+                    slug = url[len("git@github.com:"):]
+                elif "github.com/" in url:
+                    slug = url.split("github.com/", 1)[1]
+                else:
+                    slug = ""
+                if slug:
+                    found[slug.lower()] = project["path"]
+        except Exception:
+            pass
+    return found
+
+
+def github_projects():
+    try:
+        result = subprocess.run(
+            ["gh", "repo", "list", "--limit", "1000", "--json",
+             "name,nameWithOwner,description,url,isPrivate,isArchived,updatedAt,defaultBranchRef"],
+            capture_output=True, text=True, timeout=45
+        )
+    except FileNotFoundError:
+        raise RuntimeError("GitHub CLI (gh) is not installed. Install GitHub CLI and sign in first.")
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("GitHub repository listing timed out. Try again.")
+    if result.returncode != 0:
+        message = (result.stderr or result.stdout or "GitHub CLI could not list repositories").strip()
+        raise RuntimeError(message[:1000])
+    try:
+        repositories = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        raise RuntimeError("GitHub CLI returned an unreadable repository list.")
+    local = local_repo_map()
+    for repo in repositories:
+        repo["localPath"] = local.get(str(repo.get("nameWithOwner", "")).lower())
+    repositories.sort(key=lambda item: (item.get("nameWithOwner", "").lower()))
+    return repositories
+
+
 def project_path(raw):
     value = str(raw or "").strip()
     projects = discover_projects()
@@ -140,6 +188,11 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(200, {"ok": True, "service": "VibeBridge", "port": PORT})
         if path == "/projects":
             return self.send_json(200, {"projects": discover_projects()})
+        if path == "/github-projects":
+            try:
+                return self.send_json(200, {"repositories": github_projects()})
+            except RuntimeError as e:
+                return self.send_json(400, {"error": str(e)})
         if path == "/context":
             query = parse_qs(urlparse(self.path).query)
             message = query.get("message", [""])[0]
@@ -176,6 +229,31 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(200, {"matched": True, "matchReason": reason, "project": project, "context": project_context(project["path"])})
             except Exception as e:
                 return self.send_json(400, {"error": str(e)})
+        if path == "/clone":
+            slug = str(body.get("repository", "")).strip()
+            if not __import__("re").fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", slug):
+                return self.send_json(400, {"error": "Choose a valid owner/repository from GitHub."})
+            owner, repo_name = slug.split("/", 1)
+            target_root = Path.home() / "Projects"
+            target = (target_root / repo_name).resolve()
+            if target_root.resolve() not in target.parents:
+                return self.send_json(400, {"error": "Invalid clone destination."})
+            if target.exists():
+                return self.send_json(409, {"error": f"{target} already exists. Choose the existing local project instead."})
+            try:
+                target_root.mkdir(parents=True, exist_ok=True)
+                result = subprocess.run(
+                    ["gh", "repo", "clone", slug, str(target)],
+                    capture_output=True, text=True, timeout=180
+                )
+            except FileNotFoundError:
+                return self.send_json(400, {"error": "GitHub CLI (gh) is not installed."})
+            except subprocess.TimeoutExpired:
+                return self.send_json(408, {"error": "Clone timed out. Check whether the repository finished cloning before retrying."})
+            if result.returncode != 0:
+                message = (result.stderr or result.stdout or "Clone failed").strip()
+                return self.send_json(400, {"error": message[-1500:]})
+            return self.send_json(200, {"cloned": True, "repository": slug, "project": {"name": repo_name, "path": str(target)}})
         if path == "/remember":
             try:
                 root = project_path(body.get("project", ""))

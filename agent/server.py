@@ -483,6 +483,41 @@ def match_project(message, active=""):
             pass
     return None, "none"
 
+
+
+def request_pairing(origin):
+    """Pair a Chrome extension only after an explicit native macOS approval."""
+    if not re.fullmatch(r"chrome-extension://[a-p]{32}", origin or ""):
+        return 403, {"error": "Pairing must be requested from the VibeBridge Chrome extension."}
+    paired_origin = PAIRING_FILE.read_text().strip() if PAIRING_FILE.exists() else ""
+    if paired_origin and paired_origin != origin:
+        return 403, {"error": "This Mac is paired with a different extension. Reinstall VibeBridge using its supported installer to reset pairing."}
+    if not paired_origin:
+        prompt = (
+            "VibeBridge wants to connect its Chrome extension to the local VibeBridge agent on this Mac.\n\n"
+            "Approving shares the local VibeBridge access token with this extension. It can then read and write project files in the configured workspace and use your signed-in GitHub CLI for repository operations.\n\n"
+            "Only approve if you just clicked Connect in the VibeBridge extension."
+        )
+        script = (
+            "on run argv\n"
+            "display dialog (item 1 of argv) with title \"VibeBridge Connection Approval\" "
+            "buttons {\"Cancel\", \"Approve\"} default button \"Approve\" "
+            "cancel button \"Cancel\" with icon caution\n"
+            "end run"
+        )
+        try:
+            result = subprocess.run(
+                ["/usr/bin/osascript", "-e", script, prompt],
+                capture_output=True, text=True, timeout=120
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return 503, {"error": "Could not show the macOS approval dialog. Make sure you are logged into the Mac desktop and try again."}
+        if result.returncode != 0 or "button returned:Approve" not in result.stdout:
+            return 403, {"error": "Connection was not approved. No token was transferred."}
+        PAIRING_FILE.write_text(origin)
+        PAIRING_FILE.chmod(0o600)
+    return 200, {"ok": True, "token": TOKEN}
+
 class Handler(BaseHTTPRequestHandler):
     def send_json(self, status, obj):
         data = json.dumps(obj).encode()
@@ -562,35 +597,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = urlparse(self.path).path
         if path == "/pair":
-            # Only a Chrome extension origin can request pairing. A native macOS
-            # dialog provides the actual user approval before the token is returned.
-            if not re.fullmatch(r"chrome-extension://[a-p]{32}", self.headers.get("Origin", "")):
-                return self.send_json(403, {"error": "Pairing must be requested from the VibeBridge Chrome extension."})
-            origin = self.headers.get("Origin", "")
-            paired_origin = PAIRING_FILE.read_text().strip() if PAIRING_FILE.exists() else ""
-            if paired_origin and paired_origin != origin:
-                return self.send_json(403, {"error": "This Mac is paired with a different extension. Reinstall VibeBridge using its supported installer to reset pairing."})
-            if not paired_origin:
-                prompt = (
-                    'VibeBridge wants to connect its Chrome extension to the local VibeBridge agent on this Mac.\\n\\n'
-                    'Approving shares the local VibeBridge access token with this extension. It can then read and write project files in the configured workspace and use your signed-in GitHub CLI for repository operations.\\n\\n'
-                    'Only approve if you just clicked Connect in the VibeBridge extension.'
-                )
-                try:
-                    result = subprocess.run(
-                        ["/usr/bin/osascript", "-e",
-                         'display dialog ' + json.dumps(prompt) +
-                         ' with title "VibeBridge Connection Approval" buttons {"Cancel", "Approve"} '
-                         'default button "Approve" cancel button "Cancel" with icon caution'],
-                        capture_output=True, text=True, timeout=120
-                    )
-                except (OSError, subprocess.TimeoutExpired):
-                    return self.send_json(503, {"error": "Could not show the macOS approval dialog. Make sure you are logged into the Mac desktop and try again."})
-                if result.returncode != 0 or "button returned:Approve" not in result.stdout:
-                    return self.send_json(403, {"error": "Connection was not approved. No token was transferred."})
-                PAIRING_FILE.write_text(origin)
-                PAIRING_FILE.chmod(0o600)
-            return self.send_json(200, {"ok": True, "token": TOKEN})
+            status, payload = request_pairing(self.headers.get("Origin", ""))
+            return self.send_json(status, payload)
         if not self.authorized():
             return self.send_json(401, {"error": "Unauthorized"})
         try:

@@ -52,7 +52,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/extension-zip"
           cp -R extension/. "$RUNNER_TEMP/extension-zip/"
           (cd "$RUNNER_TEMP/extension-zip" && zip -qr "$OUT/VibeBridge-Chrome-Extension.zip" .)
-          shasum -a 256 "$OUT/VibeBridge-macOS-Installer.dmg" "$OUT/VibeBridge-Chrome-Extension.zip" > "$OUT/SHA256SUMS.txt"
+          (cd "$OUT" && shasum -a 256 "VibeBridge-macOS-Installer.dmg" "VibeBridge-Chrome-Extension.zip" > "SHA256SUMS.txt")
       - uses: actions/upload-artifact@v4
         with:
           name: VibeBridge-macOS-installer-${{ github.sha }}

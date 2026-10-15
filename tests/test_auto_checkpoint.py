@@ -27,8 +27,8 @@ class AutomaticCheckpointTests(unittest.TestCase):
     @patch("server.subprocess.run")
     def test_saves_each_project_separately(self, run):
         run.side_effect = [
-            Result(stdout="owner/alpha\\n"), Result(1, stderr="404 Not Found"), Result(),
-            Result(stdout="owner/beta\\n"), Result(1, stderr="404 Not Found"), Result(),
+            Result(stdout="owner/alpha" + chr(10)), Result(1, stderr="404 Not Found"), Result(),
+            Result(stdout="owner/beta" + chr(10)), Result(1, stderr="404 Not Found"), Result(),
         ]
         payload = {"projects": [
             {"repository": "owner/alpha", "summary": "Alpha state"},

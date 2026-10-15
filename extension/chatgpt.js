@@ -129,12 +129,16 @@
       if (processedBlocks.has(pre)) continue;
       const code = pre.querySelector("code");
       const className = (code?.className || "") + " " + (pre.className || "");
-      if (!/language-vibebridge-run|vibebridge-run/i.test(className)) continue;
+      const rawBlock = (code?.textContent || pre.textContent || "").trim();
+      // ChatGPT sometimes strips custom fence-language classes. Support an explicit
+      // marker in the code itself so the relay does not depend on syntax highlighting.
+      const markedBlock = rawBlock.startsWith("VIBEBRIDGE LOCAL COMMAND\\n");
+      if (!/language-vibebridge-run|vibebridge-run/i.test(className) && !markedBlock) continue;
       processedBlocks.add(pre);
 
       let payload;
       try {
-        payload = JSON.parse((code?.textContent || pre.textContent || "").trim());
+        payload = JSON.parse(markedBlock ? rawBlock.slice("VIBEBRIDGE LOCAL COMMAND".length).trim() : rawBlock);
       } catch {
         const warning = document.createElement("div");
         warning.textContent = "VibeBridge command block is not valid JSON.";

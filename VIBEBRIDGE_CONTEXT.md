@@ -67,16 +67,16 @@ VibeBridge is a local-first Mac agent plus Chrome extension that carries relevan
 
 - Latest GitHub work in this conversation: commit `e22b151` added authenticated filesystem endpoints to `agent/server.py`; commit `371ca02` added extension background-message forwarding for filesystem list/read/write/mkdir; commit `c4d3636` added `tests/test_filesystem_access.py`; commit `9db52a0` configured CI to run Python unit tests.
 - These are repository commits only. They have NOT been installed or verified on the user's Mac. Do not claim end-to-end filesystem access or passing CI until the latest workflow run and live agent are checked.
-- REQUIRED CONTINUITY BEHAVIOR: update the GitHub project checkpoint after every conversation message while working on VibeBridge, not merely after major milestones. Each checkpoint should summarize the latest message's meaning and update current task, decisions, completed work, blockers, and next step. Do not upload raw private conversation transcripts or secrets; write a concise summary. This must be done as an explicit GitHub commit by the assistant for each message until an automatic mechanism is implemented. Do not claim that the extension already does this automatically. The product-level goal is to automate this behavior so a sudden conversation limit cannot lose the latest state.
+- REQUIRED CONTINUITY BEHAVIOR: checkpoint each new user and assistant message automatically to `memory/AUTO_CHECKPOINT.md` in the VibeBridge GitHub repository. Code now exists in `extension/chatgpt.js` (observes newly rendered messages), `extension/background.js` (forwards checkpoint requests), and `agent/server.py` (`POST /checkpoint`, writes a bounded rolling file via authenticated GitHub CLI). It redacts some common token/API-key patterns and stores a 1,200-character excerpt per message; this is an automatic per-message message log, not an AI-generated semantic summary yet. Existing page history is ignored; new messages are sent after a short idle delay. Duplicate content is deduplicated. This is committed code only: the local agent must be updated and the Chrome extension reloaded before it runs. Verify CI and end-to-end behavior before calling it operational.
 - Immediate priority: repair a safe, reliable local update/deploy path, then verify the installed agent and extension and filesystem API end to end. Build automatic per-message checkpointing of durable project state to `VIBEBRIDGE_CONTEXT.md` (or a separate checkpoint file), triggered on every new user and assistant message, with concise summaries, deduplication, and secret filtering. Until that exists, the assistant must explicitly commit a checkpoint after every VibeBridge-related message.
 - Current limitation: this ChatGPT session cannot directly inspect or execute against the user's `127.0.0.1:43127` local agent. GitHub edits do not update the Mac by themselves.
 
 ## Next work, in priority order
-1. Verify CI for repository creation, context seeding, extension syntax, and the macOS installer build.
-2. Have the user safely update and reload the extension, then test automatic switching and same-message named-repository creation on the actual Mac.
+1. Verify CI and end-to-end behavior for automatic per-message GitHub checkpoints; get the updated local agent deployed and reload the extension.
+2. Test checkpoint creation after both user and assistant messages on the actual Mac, including redaction and GitHub write failures.
 3. Package and publish a signed/notarized macOS installer and Chrome Web Store extension to eliminate manual unpacked-extension loading.
 4. Verify the local command relay end to end and improve project-context continuity/diagnostics.
-5. Improve memory management: distinguish durable decisions from temporary notes, prevent duplicates, and allow stale notes to be corrected or removed.
+5. Upgrade per-message excerpts to concise semantic summaries and improve memory management.
 
 ## Current known gaps
 - End-to-end continuity and the new command relay have not been verified on the user's Mac.

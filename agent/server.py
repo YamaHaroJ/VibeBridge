@@ -158,12 +158,7 @@ def create_github_repo(name, description="", private=True):
     name = str(name or "").strip()
     if not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", name):
         raise ValueError("Repository name must use only letters, numbers, periods, hyphens, or underscores.")
-    args = ["gh", "repo", "create", name, "--source", str(Path.home() / "VibeBridge"),
-            "--remote", "origin", "--description", str(description or "")[:300],
-            "--disable-issues"]
-    args += ["--private"] if private else ["--public"]
-    # Never push the VibeBridge checkout when creating an unrelated repository.
-    # Create the remote only; repository initialization is done by GitHub.
+    # Create the remote repository only. Never push this checkout into a new project.
     args = ["gh", "repo", "create", name] + (["--private"] if private else ["--public"])
     if description:
         args += ["--description", str(description)[:300]]

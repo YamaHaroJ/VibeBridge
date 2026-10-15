@@ -8,8 +8,6 @@ PLIST="$HOME/Library/LaunchAgents/com.vibebridge.agent.plist"
 UPDATER_PLIST="$HOME/Library/LaunchAgents/com.vibebridge.updater.plist"
 NATIVE_HOST_DIR="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts"
 NATIVE_HOST_MANIFEST="$NATIVE_HOST_DIR/com.vibebridge.agent.json"
-# Chrome extension ID (derived from the pinned public key in extension/manifest.json).
-EXTENSION_ID="meedpihcbldnlcahpeijakginpjdkghp"
 mkdir -p "$SUPPORT" "$HOME/Library/LaunchAgents"
 if [ -z "$PYTHON" ]; then echo "ERROR: Python 3 is required."; exit 1; fi
 if [ ! -f "$ROOT/agent/native_host.py" ]; then
@@ -22,11 +20,20 @@ if [ ! -f "$ROOT/extension/manifest.json" ] || [ ! -f "$ROOT/extension/popup.htm
   echo "The extension must be loaded from this stable folder, not from agent/ or a temporary download."
   exit 1
 fi
-EXTENSION_ID_FROM_MANIFEST="$("$PYTHON" -c 'import json,pathlib; m=json.loads(pathlib.Path("'"$ROOT"'/extension/manifest.json").read_text()); print(m.get("key",""))' 2>/dev/null || true)"
-if [ -z "$EXTENSION_ID_FROM_MANIFEST" ]; then
-  echo "ERROR: extension/manifest.json has no stable extension key."
-  exit 1
-fi
+EXTENSION_ID="$("$PYTHON" - "$ROOT/extension/manifest.json" <<'PY_ID'
+import base64, hashlib, json, pathlib, sys
+manifest = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+key = manifest.get("key")
+if not isinstance(key, str) or not key:
+    raise SystemExit("ERROR: extension/manifest.json has no stable extension key.")
+try:
+    digest = hashlib.sha256(base64.b64decode(key, validate=True)).digest()[:16]
+except Exception as exc:
+    raise SystemExit("ERROR: extension key is not valid base64: " + str(exc))
+alphabet = "abcdefghijklmnop"
+print("".join(alphabet[b >> 4] + alphabet[b & 15] for b in digest))
+PY_ID
+)"
 "$PYTHON" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3,9) else 1)' || { echo "ERROR: Python 3.9 or newer is required."; exit 1; }
 if [ ! -f "$SUPPORT/token" ]; then
   "$PYTHON" -c 'import secrets,pathlib; p=pathlib.Path.home()/"Library/Application Support/VibeBridge/token"; p.parent.mkdir(parents=True,exist_ok=True); p.write_text(secrets.token_urlsafe(32))'
@@ -94,6 +101,7 @@ launchctl bootout "gui/$(id -u)" "$UPDATER_PLIST" >/dev/null 2>&1 || true
 launchctl bootstrap "gui/$(id -u)" "$UPDATER_PLIST"
 echo
 echo "VibeBridge agent installed and launched."
+echo "Chrome extension ID derived from manifest key: $EXTENSION_ID"
 echo "Chrome Native Messaging host: $NATIVE_HOST_MANIFEST"
 echo "GitHub updater installed (checks every 5 seconds)."
 echo "Private local token created with owner-only permissions; the extension pairs securely during first-run setup."

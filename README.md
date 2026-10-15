@@ -6,7 +6,7 @@ A local Mac agent and Chrome extension that attaches local project context to Ch
 
 ### Current setup
 
-This version still needs an initial bootstrap. The current installer is a shell script, not yet a signed macOS `.pkg`. It assumes Python 3 and GitHub CLI (`gh`) are installed and signed in. The Chrome extension is currently loaded unpacked from the repository folder.
+This version still needs an initial bootstrap. The current installer is a shell script, not yet a signed macOS `.pkg`. It requires Python 3.9+ and Git. GitHub CLI is optional for installation, but is required for repository discovery/creation features. The Chrome extension is currently loaded unpacked from the repository folder.
 
 1. Clone the repository into `~/VibeBridge` (the installer currently expects that exact location):
    ```bash
@@ -72,5 +72,5 @@ Remove the LaunchAgent plist to prevent it from being loaded again. The token is
 - The public source of truth is this repository: https://github.com/YamaHaroJ/VibeBridge.
 - Every push to `master` creates a preview installer artifact in GitHub Actions. These artifacts expire and are for testing, not permanent downloads.
 - The new release workflow publishes a versioned macOS installer disk image, Chrome extension ZIP, and SHA-256 checksums to GitHub Releases when a version tag such as `v0.3.0` is pushed: https://github.com/YamaHaroJ/VibeBridge/releases.
-- The current in-app updater follows the `master` branch and validates changes before restarting the local agent. It is not yet a release-channel updater.
-- VibeBridge is not yet a fully hands-off consumer product: the Chrome extension still must be loaded unpacked, and the macOS package is unsigned and not notarized. A simplified popup, signed/notarized packaging, and Chrome Web Store distribution remain productization work.
+- The installer registers a macOS LaunchAgent that checks the public GitHub `master` branch hourly, validates changes before restarting the local agent, and rolls back on validation failure. It does not require GitHub CLI authentication to update the public VibeBridge code.
+- The local agent and source code update automatically, but an unpacked Chrome extension may still require a reload in `chrome://extensions` to activate changed extension files. True consumer installation requires Chrome Web Store publication; macOS distribution also needs signing/notarization. The installer cannot silently grant Chrome or ChatGPT permissions.

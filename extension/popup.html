@@ -16,10 +16,16 @@ small{color:#cbd5e1}
 <input id="project" list="project-list" placeholder="Choose a project or enter its path">
 <datalist id="project-list"></datalist>
 <button id="discover">Find local projects</button>
+<label for="github-repo">GitHub repositories (new and old)</label>
+<select id="github-repo" style="box-sizing:border-box;width:100%;margin:6px 0;padding:9px;border-radius:7px;background:#1f2937;color:white;border:1px solid #4b5563">
+<option value="">Load your GitHub repositories first</option>
+</select>
+<button id="github-discover">Find GitHub repositories</button>
+<button id="clone-repo">Clone selected repository to Mac</button>
 <button id="save">Save settings</button>
 <button id="health">Check connection</button>
 <button id="diagnostics">Run Git diagnostics</button>
-<small>Project names work once discovered. ChatGPT conversation auto-routing is still being built.</small>
+<small>Local projects are folders on this Mac. GitHub repositories include older and new repos; clone one to work on it locally.</small>
 <pre id="result">Agent not checked.</pre>
 <script src="popup.js"></script>
 </body></html>

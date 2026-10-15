@@ -321,7 +321,7 @@ class Handler(BaseHTTPRequestHandler):
                 log_file = SUPPORT / "update.log"
                 log_file.parent.mkdir(parents=True, exist_ok=True)
                 with log_file.open("a", encoding="utf-8") as handle:
-                    handle.write("\\n[" + __import__("datetime").datetime.now().isoformat(timespec="seconds") + "] Update requested from extension.\\n")
+                    handle.write("\n[" + __import__("datetime").datetime.now().isoformat(timespec="seconds") + "] Update requested from extension.\n")
                 subprocess.Popen(
                     [__import__("sys").executable, str(script)],
                     cwd=str(ROOTS[2]),

@@ -34,7 +34,7 @@ class ProjectSwitchTests(unittest.TestCase):
     @patch.object(server.subprocess, "run")
     def test_remote_context_has_real_line_breaks_and_project_memory(self, run):
         readme = base64.b64encode(b"# Autofill\nRemote repository README").decode()
-        memory = base64.b64encode(b"# Project Memory\nAutofill-only instructions").decode()
+        memory = base64.b64encode(b"# Project Memory\nAutofill-only instructions\n\n## Most recent discussion\nResume the latest implementation task.").decode()
         run.side_effect = [
             type("Completed", (), {"returncode": 0, "stdout": readme + "\n", "stderr": ""})(),
             type("Completed", (), {"returncode": 0, "stdout": memory + "\n", "stderr": ""})(),
@@ -43,6 +43,7 @@ class ProjectSwitchTests(unittest.TestCase):
         context = server.remote_repo_context("YamaHaroJ/Autofill")
         self.assertIn("\n\nREADME (README.md):", context)
         self.assertIn("PERSISTENT PROJECT MEMORY (VIBEBRIDGE_CONTEXT.md):", context)
+        self.assertIn("## Most recent discussion\\nResume the latest implementation task.", context)
         self.assertNotIn("\\n\\nREADME", context)
 
     @patch.object(server.subprocess, "run")

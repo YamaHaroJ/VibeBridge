@@ -93,6 +93,44 @@ def github_projects():
     return repositories
 
 
+def github_repo_for_name(value):
+    value = str(value or "").strip().lower()
+    if value.startswith("github:"):
+        value = value[len("github:"):]
+    if not value:
+        return None
+    try:
+        repos = github_projects()
+    except RuntimeError:
+        return None
+    exact = [r for r in repos if str(r.get("nameWithOwner", "")).lower() == value]
+    if len(exact) == 1:
+        return exact[0]
+    short = value.rsplit("/", 1)[-1]
+    matches = [r for r in repos if str(r.get("name", "")).lower() == short]
+    return matches[0] if len(matches) == 1 else None
+
+
+def remote_repo_context(slug):
+    parts = [f"PROJECT: {slug.rsplit('/', 1)[-1]}", f"GITHUB REPOSITORY: {slug}",
+             "SOURCE: GitHub repository (not cloned locally). Local file edits and terminal commands require cloning."]
+    for filename in ("README.md", "VIBEBRIDGE_CONTEXT.md"):
+        try:
+            result = subprocess.run(
+                ["gh", "api", f"repos/{slug}/contents/{filename}", "--jq", ".content"],
+                capture_output=True, text=True, timeout=20
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                import base64
+                content = base64.b64decode("".join(result.stdout.split())).decode("utf-8", errors="replace").strip()
+                if content:
+                    label = "PERSISTENT PROJECT MEMORY" if filename == "VIBEBRIDGE_CONTEXT.md" else "README"
+                    parts.append(label + " (" + filename + "):\\n" + content[:6500])
+        except Exception:
+            pass
+    return "\\n\\n".join(parts)[:18000]
+
+
 def project_path(raw):
     value = str(raw or "").strip()
     projects = discover_projects()
@@ -113,6 +151,11 @@ def read_text(path, limit=9000):
 
 
 def project_context(project):
+    if str(project).startswith("github:"):
+        repo = github_repo_for_name(str(project))
+        if not repo:
+            raise ValueError("GitHub repository could not be resolved.")
+        return remote_repo_context(repo["nameWithOwner"])
     p = project_path(project)
     parts = [f"PROJECT: {p.name}", f"LOCAL PATH: {p}"]
     remote = subprocess.run(["git", "remote", "get-url", "origin"], cwd=str(p), capture_output=True, text=True, timeout=5)
@@ -148,9 +191,38 @@ def match_project(message, active=""):
         return explicit[0], "message"
     if len(explicit) > 1:
         return None, "ambiguous"
+    # Resolve GitHub repositories by full owner/name or unique repository name.
+    try:
+        repos = github_projects()
+    except RuntimeError:
+        repos = []
+    remote_explicit = []
+    for repo in repos:
+        full = str(repo.get("nameWithOwner", "")).lower()
+        name = str(repo.get("name", "")).lower()
+        if full and (full in text or (name and __import__("re").search(r"(?<![a-z0-9_.-])" + __import__("re").escape(name) + r"(?![a-z0-9_.-])", text))):
+            remote_explicit.append(repo)
+    # Prefer exact full slug mentions, otherwise only accept a unique short name.
+    exact_slug = [repo for repo in remote_explicit if str(repo.get("nameWithOwner", "")).lower() in text]
+    chosen = exact_slug if exact_slug else remote_explicit
+    unique = {str(repo.get("nameWithOwner", "")).lower(): repo for repo in chosen}
+    if len(unique) == 1:
+        repo = next(iter(unique.values()))
+        if repo.get("localPath"):
+            return {"name": repo["name"], "path": repo["localPath"]}, "message"
+        return {"name": repo["name"], "path": "github:" + repo["nameWithOwner"], "repository": repo["nameWithOwner"], "remote": True}, "message"
+    if len(unique) > 1:
+        return None, "ambiguous"
     if active:
+        if str(active).startswith("github:"):
+            repo = github_repo_for_name(active)
+            if repo:
+                if repo.get("localPath"):
+                    return {"name": repo["name"], "path": repo["localPath"]}, "active"
+                return {"name": repo["name"], "path": "github:" + repo["nameWithOwner"], "repository": repo["nameWithOwner"], "remote": True}, "active"
         try:
-            return {"name": project_path(active).name, "path": str(project_path(active))}, "active"
+            p = project_path(active)
+            return {"name": p.name, "path": str(p)}, "active"
         except (ValueError, OSError):
             pass
     return None, "none"

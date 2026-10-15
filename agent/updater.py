@@ -224,10 +224,14 @@ def main():
         except Exception:
             for path in MANAGED_PATHS:
                 destination = ROOT / path
-                if destination.exists():
-                    shutil.rmtree(destination)
-                if (backup / path).exists():
-                    shutil.copytree(backup / path, destination)
+                saved = backup / path
+                if path == "extension" and saved.exists():
+                    sync_extension_tree(saved, destination)
+                else:
+                    if destination.exists():
+                        shutil.rmtree(destination)
+                    if saved.exists():
+                        shutil.copytree(saved, destination)
             raise
         log("Managed runtime files updated from GitHub; unrelated local edits were preserved.")
         launch_agent()

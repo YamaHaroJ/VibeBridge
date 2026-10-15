@@ -210,3 +210,10 @@ Important setup distinction: ChatGPT's GitHub connector is optional for VibeBrid
 - User explicitly requires every extension reload associated with a code change to include a version bump, so both sides can verify they are running the same build.
 - Popup connection-state fix is versioned as **0.2.21** in `extension/manifest.json`; commit `74ad273`.
 - Before asking the user to reload, check that the local updater has synced the commit and tell them the exact version expected in `chrome://extensions`. Do not imply a GitHub commit changes the local extension until it has synced.
+
+
+## Connect-button loop fix (2026-10-15)
+- User reports the Connect this Mac consent flow closes and returns to the same connect button without a confirmation.
+- Commit `a2a51aa` changes pairing to always request a fresh token from Chrome Native Messaging (instead of reusing a potentially stale token), validates that token against `/health` before storing it, then immediately renders a visible connected state before refreshing the remaining status checks.
+- Commit `80b0690` bumps the extension manifest to **0.2.22** in accordance with the user's requirement: every extension reload must have a version bump so both sides can confirm the loaded build.
+- Must wait for updater to sync; user should see version 0.2.22 before reload. Then test Connect this Mac once. GitHub validation/runtime verification still pending at checkpoint.

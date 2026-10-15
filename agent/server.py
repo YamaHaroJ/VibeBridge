@@ -156,8 +156,8 @@ def remote_repo_context(slug):
 
 def redact_checkpoint_text(value):
     value = str(value or "")
-    value = re.sub(r"(?i)(bearer\\s+)[A-Za-z0-9._~+/-]+=*", r"\\1[REDACTED]", value)
-    value = re.sub(r"(?i)(api[_ -]?key|token|password|secret)\\s*[:=]\\s*[^\\s,;]+", r"\\1=[REDACTED]", value)
+    value = re.sub(r"(?i)(bearer\s+)[A-Za-z0-9._~+/-]+=*", r"\1[REDACTED]", value)
+    value = re.sub(r"(?i)(api[_ -]?key|token|password|secret)\s*[:=]\s*[^\s,;]+", r"\1=[REDACTED]", value)
     value = re.sub(r"(?i)sk-[A-Za-z0-9_-]{12,}", "[REDACTED_API_KEY]", value)
     return value[:1200].strip()
 

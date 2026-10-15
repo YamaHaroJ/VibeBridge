@@ -10,12 +10,15 @@ import shutil
 import subprocess
 import sys
 import time
+import fcntl
 from datetime import datetime
 from pathlib import Path
 
 ROOT = Path.home() / "VibeBridge"
 SUPPORT = Path.home() / "Library/Application Support/VibeBridge"
 LOG = SUPPORT / "update.log"
+SYNC_MARKER = SUPPORT / "last-synced-revision"
+LOCK_FILE = SUPPORT / "updater.lock"
 LABEL = "com.vibebridge.agent"
 REMOTE = "https://github.com/YamaHaroJ/VibeBridge.git"
 MANAGED_PATHS = ("agent", "extension", "tests")
@@ -92,8 +95,17 @@ def main():
     previous = run(["git", "rev-parse", "HEAD"])
     run(["git", "fetch", "--quiet", REMOTE, "master"], timeout=120)
     target = run(["git", "rev-parse", "FETCH_HEAD"])
-    if previous == target:
-        log("Already up to date.")
+    synced = SYNC_MARKER.read_text(encoding="utf-8").strip() if SYNC_MARKER.is_file() else ""
+    # Archive-syncing a dirty checkout intentionally leaves HEAD behind. Remember
+    # the deployed revision to prevent a five-second timer from rewriting files
+    # and restarting the agent on every poll.
+    if synced == target:
+        log("GitHub revision already deployed: " + target[:12] + ". No files changed.")
+        return
+    if previous == target and not status:
+        log("Checkout already at GitHub revision: " + target[:12] + ".")
+        SYNC_MARKER.parent.mkdir(parents=True, exist_ok=True)
+        SYNC_MARKER.write_text(target + "\n", encoding="utf-8")
         return
 
     if not status:
@@ -105,6 +117,8 @@ def main():
             run(["git", "reset", "--hard", previous], timeout=120)
             raise
         launch_agent()
+        SYNC_MARKER.parent.mkdir(parents=True, exist_ok=True)
+        SYNC_MARKER.write_text(target + "\n", encoding="utf-8")
         return
 
     # A dirty checkout should not block delivery of runtime updates if the
@@ -169,6 +183,8 @@ def main():
             raise
         log("Managed runtime files updated from GitHub; unrelated local edits were preserved.")
         launch_agent()
+        SYNC_MARKER.parent.mkdir(parents=True, exist_ok=True)
+        SYNC_MARKER.write_text(target + "\n", encoding="utf-8")
     finally:
         shutil.rmtree(stage, ignore_errors=True)
         shutil.rmtree(ROOT / ".vibebridge-update-backup", ignore_errors=True)
@@ -176,7 +192,13 @@ def main():
 
 if __name__ == "__main__":
     try:
-        main()
+        SUPPORT.mkdir(parents=True, exist_ok=True)
+        with LOCK_FILE.open("w", encoding="utf-8") as lock:
+            try:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                sys.exit(0)
+            main()
     except Exception as exc:
         log("UPDATE FAILED: " + str(exc))
         sys.exit(1)

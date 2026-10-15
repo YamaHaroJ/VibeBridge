@@ -193,21 +193,21 @@ def sync_message_checkpoint(role, text, conversation):
     elif "404" not in (get.stderr + get.stdout):
         raise RuntimeError((get.stderr or get.stdout or "Could not read checkpoint file").strip()[:700])
     stamp = datetime.now().astimezone().isoformat(timespec="seconds")
-    digest = hashlib.sha256((conv + "\\0" + role + "\\0" + safe_text).encode()).hexdigest()[:16]
+    digest = hashlib.sha256((conv + "\0" + role + "\0" + safe_text).encode()).hexdigest()[:16]
     if any(line.startswith("<!-- " + digest + " -->") for line in entries):
         return {"saved": True, "duplicate": True, "path": path}
     block = [
         "<!-- " + digest + " -->",
         "### " + stamp + " — " + role.title() + " message",
         "- Conversation: " + conv,
-        "- Checkpoint: " + safe_text.replace("\\n", " "),
+        "- Checkpoint: " + safe_text.replace("\n", " "),
         ""
     ]
-    updated = (existing.rstrip() + "\\n\\n" if sha else "# Automatic per-message checkpoints\\n\\n") + "\\n".join(block) + "\\n"
+    updated = (existing.rstrip() + "\n\n" if sha else "# Automatic per-message checkpoints\n\n") + "\n".join(block) + "\n"
     # Keep file bounded; preserve the heading and most recent 250 entries (five lines per entry).
     lines = updated.splitlines()
     if len(lines) > 1260:
-        updated = "\\n".join(lines[:2] + lines[-1250:]) + "\\n"
+        updated = "\n".join(lines[:2] + lines[-1250:]) + "\n"
     payload = {"message": "Auto-checkpoint " + role + " message " + stamp, "content": base64.b64encode(updated.encode()).decode()}
     if sha:
         payload["sha"] = sha

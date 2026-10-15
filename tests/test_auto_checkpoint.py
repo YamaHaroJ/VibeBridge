@@ -37,8 +37,8 @@ class AutomaticCheckpointTests(unittest.TestCase):
         result = server.sync_message_checkpoint(json.dumps(payload), "conversation-1")
         self.assertEqual([item["repository"] for item in result["projects"]], ["owner/alpha", "owner/beta"])
         calls = run.call_args_list
-        self.assertIn("repos/owner/alpha/contents/memory/AUTO_CHECKPOINT.md", calls[1].args[0][2])
-        self.assertIn("repos/owner/beta/contents/memory/AUTO_CHECKPOINT.md", calls[4].args[0][2])
+        self.assertIn("repos/owner/alpha/contents/memory/AUTO_CHECKPOINT.md", calls[2].args[0][2])
+        self.assertIn("repos/owner/beta/contents/memory/AUTO_CHECKPOINT.md", calls[5].args[0][2])
 
 
 if __name__ == "__main__":

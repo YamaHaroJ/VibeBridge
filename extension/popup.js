@@ -170,8 +170,19 @@ async function loadUpdateLogs() {
   try {
     const saved = await chrome.storage.local.get(["token"]);
     if (!saved.token) throw new Error("Connect VibeBridge first to view local diagnostics.");
-    const data = await callAgent("/update-status", saved.token);
-    const parts = [];
+    const [data, local] = await Promise.all([
+      callAgent("/update-status", saved.token),
+      callAgent("/diagnostics/local", saved.token)
+    ]);
+    const parts = [
+      "Local service diagnostics",
+      "macOS: " + (local.osVersion || "unknown"),
+      "Agent process PID: " + (local.agent?.requestPid ?? "unknown"),
+      "Agent LaunchAgent: " + (local.agent?.loaded ? local.agent.state + (local.agent.pid ? " (PID " + local.agent.pid + ")" : "") : local.agent?.state || "unknown"),
+      "Updater LaunchAgent: " + (local.updater?.loaded ? local.updater.state + (local.updater.pid ? " (PID " + local.updater.pid + ")" : "") : local.updater?.state || "unknown"),
+      "Snapshot: " + (local.timestamp || "unknown"),
+      ""
+    ];
     if (data.currentRevision) parts.push("Installed code: " + data.currentRevision);
     if (data.remoteRevision) parts.push("GitHub master: " + data.remoteRevision);
     if (data.updaterLoaded !== undefined) parts.push("Hourly updater loaded: " + (data.updaterLoaded ? "yes" : "no"));

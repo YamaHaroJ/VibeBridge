@@ -64,6 +64,16 @@ class NativePairingTests(unittest.TestCase):
         self.assertIn("A local program can imitate a browser origin", run.call_args.args[0][3])
 
     @patch.object(server.subprocess, "run")
+    def test_spoofed_repeat_request_cannot_get_token_when_native_prompt_is_cancelled(self, run):
+        self.pairing_file.write_text(self.origin)
+        run.return_value = self.cancelled
+        with patch.object(server, "PAIRING_FILE", self.pairing_file):
+            status, payload = server.request_pairing(self.origin)
+        self.assertEqual(status, 403)
+        self.assertNotIn("token", payload)
+        run.assert_called_once()
+
+    @patch.object(server.subprocess, "run")
     def test_different_extension_cannot_take_over_existing_pairing(self, run):
         self.pairing_file.write_text(self.origin)
         other_origin = "chrome-extension://" + ("b" * 32)

@@ -5,7 +5,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     "VIBEBRIDGE_RESOLVE_CONTEXT",
     "VIBEBRIDGE_REMEMBER",
     "VIBEBRIDGE_RUN_COMMAND",
-    "VIBEBRIDGE_CREATE_REPOSITORY"
+    "VIBEBRIDGE_CREATE_REPOSITORY",
+    "VIBEBRIDGE_FILESYSTEM_LIST",
+    "VIBEBRIDGE_FILESYSTEM_READ",
+    "VIBEBRIDGE_FILESYSTEM_WRITE",
+    "VIBEBRIDGE_FILESYSTEM_MKDIR"
   ];
   if (!supported.includes(message?.type)) return;
 
@@ -15,6 +19,61 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return {matched: false, error: "VibeBridge token missing. Open the extension popup and save your token."};
     }
     const active = saved.activeProject || saved.project || "";
+
+    if (message.type === "VIBEBRIDGE_FILESYSTEM_LIST") {
+      const target = message.path || "";
+      const url = new URL(API + "/filesystem/list");
+      if (target) url.searchParams.set("path", target);
+      const response = await fetch(url.toString(), {
+        headers: {"Authorization": "Bearer " + saved.token}
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not list folder");
+      return {ok: true, ...data};
+    }
+
+    if (message.type === "VIBEBRIDGE_FILESYSTEM_READ") {
+      if (typeof message.path !== "string" || !message.path) {
+        throw new Error("A file path is required.");
+      }
+      const url = new URL(API + "/filesystem/read");
+      url.searchParams.set("path", message.path);
+      const response = await fetch(url.toString(), {
+        headers: {"Authorization": "Bearer " + saved.token}
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not read file");
+      return {ok: true, ...data};
+    }
+
+    if (message.type === "VIBEBRIDGE_FILESYSTEM_WRITE") {
+      if (typeof message.path !== "string" || !message.path ||
+          typeof message.content !== "string") {
+        throw new Error("A file path and text content are required.");
+      }
+      const response = await fetch(API + "/filesystem/write", {
+        method: "POST",
+        headers: {"Authorization": "Bearer " + saved.token, "Content-Type": "application/json"},
+        body: JSON.stringify({path: message.path, content: message.content})
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not write file");
+      return {ok: true, ...data};
+    }
+
+    if (message.type === "VIBEBRIDGE_FILESYSTEM_MKDIR") {
+      if (typeof message.path !== "string" || !message.path) {
+        throw new Error("A folder path is required.");
+      }
+      const response = await fetch(API + "/filesystem/mkdir", {
+        method: "POST",
+        headers: {"Authorization": "Bearer " + saved.token, "Content-Type": "application/json"},
+        body: JSON.stringify({path: message.path})
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not create folder");
+      return {ok: true, ...data};
+    }
 
     if (message.type === "VIBEBRIDGE_CREATE_REPOSITORY") {
       const payload = message.payload || {};

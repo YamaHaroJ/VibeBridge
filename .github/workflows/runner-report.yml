@@ -1,0 +1,107 @@
+name: VibeBridge fast task reporter
+
+on:
+  issues:
+    types: [opened, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  report:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.event.issue.title, 'VibeBridge task: ')
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Validate task title
+        id: task
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "name=validate" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          case "$ISSUE_TITLE" in
+            "VibeBridge task: test") echo "name=test" >> "$GITHUB_OUTPUT" ;;
+            "VibeBridge task: validate") echo "name=validate" >> "$GITHUB_OUTPUT" ;;
+            "VibeBridge task: diagnostics") echo "name=diagnostics" >> "$GITHUB_OUTPUT" ;;
+            *) echo "Unsupported task title: $ISSUE_TITLE"; exit 1 ;;
+          esac
+
+      - uses: actions/checkout@v4
+        if: steps.task.outcome == 'success'
+
+      - uses: actions/setup-python@v5
+        if: steps.task.outputs.name == 'test' || steps.task.outputs.name == 'validate'
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        if: steps.task.outputs.name == 'validate'
+        with:
+          node-version: "20"
+
+      - name: Run unit tests
+        id: test
+        if: steps.task.outputs.name == 'test'
+        continue-on-error: true
+        run: python -m unittest discover -s tests -v
+
+      - name: Run validation
+        id: validate
+        if: steps.task.outputs.name == 'validate'
+        continue-on-error: true
+        run: |
+          python -m py_compile agent/server.py agent/updater.py agent/native_host.py
+          bash -n agent/install.sh
+          python -m json.tool extension/manifest.json > /dev/null
+          node --check extension/background.js
+          node --check extension/chatgpt.js
+          node --check extension/popup.js
+
+      - name: Explain diagnostics boundary
+        if: steps.task.outputs.name == 'diagnostics'
+        run: |
+          {
+            echo "## Diagnostics"
+            echo "This workflow can report on GitHub-hosted CI, but it cannot inspect the user's Mac, localhost, LaunchAgents, or local logs."
+            echo "The Mac agent must report separately for machine-specific diagnostics."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post result to the issue
+        if: always() && github.event_name == 'issues'
+        uses: actions/github-script@v7
+        env:
+          TASK_NAME: ${{ steps.task.outputs.name }}
+          TEST_OUTCOME: ${{ steps.test.outcome }}
+          VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
+        with:
+          script: |
+            const task = process.env.TASK_NAME || "unknown";
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            let result = "PASS";
+            let detail = "";
+            if (task === "test") {
+              result = process.env.TEST_OUTCOME === "success" ? "PASS" : "FAIL";
+              detail = "Unit test suite: " + (process.env.TEST_OUTCOME || "not run");
+            } else if (task === "validate") {
+              result = process.env.VALIDATE_OUTCOME === "success" ? "PASS" : "FAIL";
+              detail = "Compile, installer, manifest, and JavaScript validation: " + (process.env.VALIDATE_OUTCOME || "not run");
+            } else if (task === "diagnostics") {
+              result = "LIMITED";
+              detail = "GitHub-hosted diagnostics completed. This runner cannot inspect the user's Mac or its local services/logs.";
+            } else {
+              result = "FAIL";
+              detail = "Task title was not recognized.";
+            }
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body: `**VibeBridge fast reporter — ${result}**\n\nTask: ${task}\n${detail}\n\n[Workflow logs](${runUrl})`
+            });

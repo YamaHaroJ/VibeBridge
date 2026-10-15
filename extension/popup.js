@@ -9,6 +9,9 @@ const connect = document.querySelector("#connect");
 const consent = document.querySelector("#consent");
 const consentCheck = document.querySelector("#consent-check");
 const confirmConnect = document.querySelector("#confirm");
+const checkUpdate = document.querySelector("#check-update");
+const showLogs = document.querySelector("#show-logs");
+const logOutput = document.querySelector("#log-output");
 let ready = false;
 
 function renderEnabled(value) {
@@ -124,3 +127,56 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (changes.enabled && ready) renderEnabled(changes.enabled.newValue !== false);
 });
 initialize();
+
+
+// Maintenance tools intentionally stay collapsed so the normal popup remains minimal.
+async function loadUpdateLogs() {
+  logOutput.classList.remove("hidden");
+  logOutput.textContent = "Loading local update logs…";
+  try {
+    const saved = await chrome.storage.local.get(["token"]);
+    if (!saved.token) throw new Error("Connect VibeBridge first to view local diagnostics.");
+    const data = await callAgent("/update-status", saved.token);
+    const parts = [];
+    if (data.currentRevision) parts.push("Installed code: " + data.currentRevision);
+    if (data.remoteRevision) parts.push("GitHub master: " + data.remoteRevision);
+    if (data.updaterLoaded !== undefined) parts.push("Hourly updater loaded: " + (data.updaterLoaded ? "yes" : "no"));
+    if (data.logs) {
+      for (const [name, lines] of Object.entries(data.logs)) {
+        parts.push("\\n--- " + name + " ---\\n" + (lines.length ? lines.join("\\n") : "(no log entries yet)"));
+      }
+    } else if (data.log) parts.push(data.log.join("\\n"));
+    logOutput.textContent = parts.join("\\n") || "No update diagnostics available.";
+  } catch (error) {
+    logOutput.textContent = "Could not read update logs: " + error.message;
+  }
+}
+showLogs.addEventListener("click", loadUpdateLogs);
+checkUpdate.addEventListener("click", async () => {
+  checkUpdate.disabled = true;
+  checkUpdate.textContent = "Starting…";
+  logOutput.classList.remove("hidden");
+  logOutput.textContent = "Requesting a safe update. Local changes are checked first; code is validated before the agent restarts.";
+  try {
+    const saved = await chrome.storage.local.get(["token"]);
+    if (!saved.token) throw new Error("Connect VibeBridge first to update.");
+    const response = await fetch("http://127.0.0.1:43127/update", {
+      method: "POST",
+      headers: {Authorization: "Bearer " + saved.token, "Content-Type": "application/json"},
+      body: "{}"
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not start updater.");
+    logOutput.textContent = data.message || "Update started.";
+    checkUpdate.textContent = "Update started";
+    window.setTimeout(async () => {
+      await loadUpdateLogs();
+      checkUpdate.disabled = false;
+      checkUpdate.textContent = "Check for updates";
+    }, 4500);
+  } catch (error) {
+    logOutput.textContent = "Update could not start: " + error.message;
+    checkUpdate.disabled = false;
+    checkUpdate.textContent = "Check for updates";
+  }
+});

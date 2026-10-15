@@ -112,3 +112,24 @@ document.querySelector("#clone-repo").onclick = async () => {
     result.textContent = "Could not clone repository: " + e.message;
   }
 };
+
+
+document.querySelector("#update").onclick = async () => {
+  if (!confirm("Update VibeBridge from GitHub? The updater will stop if it detects local uncommitted changes. It will validate the code before restarting the agent.")) return;
+  try {
+    result.textContent = "Starting safe update…";
+    const data = await call("/update", {});
+    result.textContent = data.message || "Update started. Click Check update status in a few seconds.";
+  } catch (e) {
+    result.textContent = "Could not start update: " + e.message;
+  }
+};
+
+document.querySelector("#update-status").onclick = async () => {
+  try {
+    const data = await call("/update-status");
+    result.textContent = data.log?.length ? data.log.join("\\n") : "No update log yet.";
+  } catch (e) {
+    result.textContent = "Could not read update status: " + e.message;
+  }
+};

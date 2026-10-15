@@ -143,10 +143,10 @@ async function loadUpdateLogs() {
     if (data.updaterLoaded !== undefined) parts.push("Hourly updater loaded: " + (data.updaterLoaded ? "yes" : "no"));
     if (data.logs) {
       for (const [name, lines] of Object.entries(data.logs)) {
-        parts.push("\\n--- " + name + " ---\\n" + (lines.length ? lines.join("\\n") : "(no log entries yet)"));
+        parts.push("\n--- " + name + " ---\n" + (lines.length ? lines.join("\n") : "(no log entries yet)"));
       }
-    } else if (data.log) parts.push(data.log.join("\\n"));
-    logOutput.textContent = parts.join("\\n") || "No update diagnostics available.";
+    } else if (data.log) parts.push(data.log.join("\n"));
+    logOutput.textContent = parts.join("\n") || "No update diagnostics available.";
   } catch (error) {
     logOutput.textContent = "Could not read update logs: " + error.message;
   }

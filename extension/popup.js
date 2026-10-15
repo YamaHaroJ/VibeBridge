@@ -85,11 +85,20 @@ confirmConnect.addEventListener("click", async () => {
   confirmConnect.disabled = true;
   confirmConnect.textContent = "Connecting…";
   try {
-    const saved = await chrome.storage.local.get(["token"]);
-    if (!saved.token) {
-      throw new Error("Secure one-time pairing is not installed yet. The local installer must pair this extension before it can connect.");
+    const existing = await chrome.storage.local.get(["token"]);
+    let token = existing.token;
+    if (!token) {
+      const response = await fetch("http://127.0.0.1:43127/pair", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({approved: true})
+      });
+      const data = await response.json();
+      if (!response.ok || !data.token) throw new Error(data.error || "Could not pair with the local agent.");
+      token = data.token;
+      await chrome.storage.local.set({token});
     }
-    await callAgent("/health", saved.token);
+    await callAgent("/health", token);
     await chrome.storage.local.set({connectionConsent: true});
     consent.classList.add("hidden");
     await initialize();

@@ -41,7 +41,7 @@ if [[ -z "$GH" ]]; then
 fi
 if ! "$GH" auth status >/dev/null 2>&1; then
   /usr/bin/osascript -e 'display dialog "GitHub CLI is installed but not signed in. The next step opens Terminal for GitHub device authentication. Follow the instructions shown by gh auth login." with title "VibeBridge Setup" buttons {"Continue","Cancel"} default button "Continue"' || exit 1
-  /usr/bin/open -a Terminal "$SCRIPT_DIR/Authenticate GitHub.command"
+  open "$SCRIPT_DIR/Authenticate GitHub.command"
   exit 0
 fi
 
@@ -78,4 +78,5 @@ open -a "Google Chrome" "https://chatgpt.com/#settings/Apps"
 /usr/bin/osascript -e 'display dialog "VibeBridge agent is installed. In Chrome, enable Developer mode and click Load unpacked, then select ~/VibeBridge/extension. Open the VibeBridge extension, paste the local token shown in Terminal, and click Save settings. For ChatGPT to browse GitHub itself, connect GitHub separately in ChatGPT Settings → Apps/Connectors. This permission cannot be granted automatically." with title "VibeBridge Setup" buttons {"OK"} default button "OK"'
 echo
 echo "Setup files installed at $DEST"
-echo "Keep this Terminal window open long enough to copy the local token printed above."
+echo "Copy the local token above into the VibeBridge extension popup, then save settings."
+read -r -p "Press Return after saving your token to close this window."

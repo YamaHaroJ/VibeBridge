@@ -10,7 +10,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     "VIBEBRIDGE_FILESYSTEM_READ",
     "VIBEBRIDGE_FILESYSTEM_WRITE",
     "VIBEBRIDGE_FILESYSTEM_MKDIR",
-    "VIBEBRIDGE_CHECKPOINT_MESSAGE"
+    "VIBEBRIDGE_CHECKPOINT_MESSAGE",
+    "VIBEBRIDGE_LOCAL_DIAGNOSTICS"
   ];
   if (!supported.includes(message?.type)) return;
 
@@ -20,6 +21,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return {matched: false, error: "VibeBridge token missing. Open the extension popup and save your token."};
     }
     const active = saved.activeProject || saved.project || "";
+
+    if (message.type === "VIBEBRIDGE_LOCAL_DIAGNOSTICS") {
+      const response = await fetch(API + "/diagnostics/local", {
+        headers: {"Authorization": "Bearer " + saved.token}
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not inspect local VibeBridge services");
+      return data;
+    }
 
     if (message.type === "VIBEBRIDGE_CHECKPOINT_MESSAGE") {
       const payload = message.payload || {};

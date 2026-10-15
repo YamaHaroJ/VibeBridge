@@ -188,5 +188,59 @@ async function loadUpdateLogs() {
   }
 }
 showLogs.addEventListener("click", loadUpdateLogs);
-// Reloads the extension from the files currently present in its installed folder.
-reloadExtension?.addEventListener("click", () => chrome.runtime.reload());
+// "Reload" means sync this Mac's extension files from GitHub first, then reload Chrome.
+reloadExtension?.addEventListener("click", async () => {
+  reloadExtension.disabled = true;
+  reloadExtension.textContent = "Syncing…";
+  logOutput.classList.remove("hidden");
+  logOutput.textContent = "Fetching the latest VibeBridge release from GitHub…";
+  try {
+    const saved = await chrome.storage.local.get(["token"]);
+    if (!saved.token) throw new Error("Connect VibeBridge first.");
+    const response = await fetch("http://127.0.0.1:43127/update", {
+      method: "POST",
+      headers: {Authorization: "Bearer " + saved.token, "Content-Type": "application/json"},
+      body: "{}"
+    });
+    const started = await response.json();
+    if (!response.ok) throw new Error(started.error || "Could not start GitHub sync.");
+    let done = false;
+    let lastStatus;
+    for (let attempt = 0; attempt < 45; attempt++) {
+      await new Promise(resolve => window.setTimeout(resolve, 2000));
+      try {
+        const statusResponse = await fetch("http://127.0.0.1:43127/update-status", {
+          headers: {Authorization: "Bearer " + saved.token},
+          cache: "no-store"
+        });
+        if (!statusResponse.ok) continue;
+        lastStatus = await statusResponse.json();
+        const lines = (lastStatus.logs?.["update.log"] || []).join("\\n");
+        logOutput.textContent = [
+          "Local checkout: " + (lastStatus.currentRevision || "unknown"),
+          "GitHub master: " + (lastStatus.remoteRevision || "unknown"),
+          "",
+          lines
+        ].join("\\n");
+        if (/UPDATE FAILED:|Update validation failed|Update failed/i.test(lines)) {
+          throw new Error("GitHub sync failed. See diagnostics.");
+        }
+        if (lastStatus.currentRevision && lastStatus.remoteRevision &&
+            lastStatus.currentRevision === lastStatus.remoteRevision &&
+            (/Update complete\\.|Already up to date\\./i.test(lines))) {
+          done = true;
+          break;
+        }
+      } catch (pollError) {
+        if (/GitHub sync failed/.test(pollError.message)) throw pollError;
+      }
+    }
+    if (!done) throw new Error("GitHub sync did not confirm completion. Chrome was not reloaded.");
+    logOutput.textContent += "\\n\\nGitHub sync complete. Reloading Chrome extension…";
+    window.setTimeout(() => chrome.runtime.reload(), 500);
+  } catch (error) {
+    logOutput.textContent += "\\n\\nReload stopped: " + error.message;
+    reloadExtension.disabled = false;
+    reloadExtension.textContent = "Reload";
+  }
+});

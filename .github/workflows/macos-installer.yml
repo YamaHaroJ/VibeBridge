@@ -1,0 +1,64 @@
+name: macOS installer package
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate package inputs
+        run: |
+          python3 -m py_compile agent/server.py agent/updater.py
+          python3 -m json.tool extension/manifest.json >/dev/null
+          bash -n agent/install.sh
+          bash -n "packaging/Install VibeBridge.command"
+          bash -n "packaging/Authenticate GitHub.command"
+          node --check extension/background.js
+          node --check extension/chatgpt.js
+          node --check extension/popup.js
+      - name: Build disk image and extension archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIST="$RUNNER_TEMP/vibebridge-dist"
+          OUT="$RUNNER_TEMP/vibebridge-out"
+          mkdir -p "$DIST/VibeBridge" "$OUT"
+          rsync -a --exclude='.git/' --exclude='.github/' --exclude='tests/' --exclude='packaging/' ./ "$DIST/VibeBridge/"
+          cp "packaging/Install VibeBridge.command" "$DIST/Install VibeBridge.command"
+          cp "packaging/Authenticate GitHub.command" "$DIST/Authenticate GitHub.command"
+          chmod +x "$DIST/Install VibeBridge.command" "$DIST/Authenticate GitHub.command"
+          cat > "$DIST/Setup Guide.txt" <<'GUIDE'
+          VibeBridge macOS setup
+
+          1. Double-click Install VibeBridge.command.
+          2. Approve the setup confirmation. The agent runs only on this Mac (127.0.0.1).
+          3. If asked, authenticate GitHub CLI. Repository listing and creation use this local GitHub login.
+          4. In Chrome, open chrome://extensions, enable Developer mode, click Load unpacked, and choose ~/VibeBridge/extension.
+          5. Open the VibeBridge extension popup, paste the local token printed by the installer, and click Save settings.
+          6. Use Check connection setup. It checks the local agent and GitHub CLI separately.
+          7. Connect GitHub separately in ChatGPT Settings > Apps/Connectors if you want ChatGPT itself to browse repositories.
+
+          Chrome and ChatGPT do not permit an installer to silently grant extension or connector permissions. You must approve those connections yourself.
+          This build is unsigned and not notarized. macOS may show a security warning until the user explicitly approves running the downloaded installer.
+          GUIDE
+          hdiutil create -volname "VibeBridge Installer" -srcfolder "$DIST" -ov -format UDZO "$OUT/VibeBridge-macOS-Installer.dmg"
+          mkdir -p "$RUNNER_TEMP/extension-zip"
+          cp -R extension/. "$RUNNER_TEMP/extension-zip/"
+          (cd "$RUNNER_TEMP/extension-zip" && zip -qr "$OUT/VibeBridge-Chrome-Extension.zip" .)
+          shasum -a 256 "$OUT/VibeBridge-macOS-Installer.dmg" "$OUT/VibeBridge-Chrome-Extension.zip" > "$OUT/SHA256SUMS.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VibeBridge-macOS-installer-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/vibebridge-out/VibeBridge-macOS-Installer.dmg
+            ${{ runner.temp }}/vibebridge-out/VibeBridge-Chrome-Extension.zip
+            ${{ runner.temp }}/vibebridge-out/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,63 @@
+name: Package Chrome Extension
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "extension/**"
+      - ".github/workflows/package-extension.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate extension manifest and referenced files
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("extension")
+          manifest = json.loads((root / "manifest.json").read_text())
+          assert manifest.get("manifest_version") == 3
+          for key in ("background",):
+              entry = manifest.get(key, {}).get("service_worker")
+              if entry:
+                  assert (root / entry).is_file(), f"Missing {entry}"
+          popup = manifest.get("action", {}).get("default_popup")
+          if popup:
+              assert (root / popup).is_file(), f"Missing {popup}"
+          for script in manifest.get("content_scripts", []):
+              for entry in script.get("js", []):
+                  assert (root / entry).is_file(), f"Missing {entry}"
+          print(f"Validated {manifest['name']} {manifest['version']}")
+          PY
+
+      - name: Package extension
+        run: |
+          cd extension
+          zip -r ../VibeBridge-Chrome-Web-Store.zip . -x ".*" "__MACOSX/*"
+
+      - name: Verify ZIP layout
+        run: |
+          python - <<'PY'
+          from zipfile import ZipFile
+          with ZipFile("VibeBridge-Chrome-Web-Store.zip") as z:
+              names = z.namelist()
+              assert "manifest.json" in names, "manifest.json must be at ZIP root"
+              assert not any(n.startswith("extension/") for n in names), "ZIP must contain extension contents directly"
+              print("ZIP verified:", len(names), "files")
+          PY
+
+      - name: Upload ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VibeBridge-Chrome-Web-Store
+          path: VibeBridge-Chrome-Web-Store.zip
+          if-no-files-found: error
+          retention-days: 7

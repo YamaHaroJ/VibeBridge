@@ -20,12 +20,12 @@ LABEL = "com.vibebridge.agent"
 def log(message):
     SUPPORT.mkdir(parents=True, exist_ok=True)
     with LOG.open("a", encoding="utf-8") as f:
-        f.write(f"[{datetime.now().isoformat(timespec='seconds')}] {message}\\n")
+        f.write(f"[{datetime.now().isoformat(timespec='seconds')}] {message}\n")
 
 
 def run(args, timeout=90, check=True):
     result = subprocess.run(args, cwd=ROOT, capture_output=True, text=True, timeout=timeout)
-    output = (result.stdout + "\\n" + result.stderr).strip()
+    output = (result.stdout + "\n" + result.stderr).strip()
     log("$ " + " ".join(args) + f" (exit {result.returncode})" +
         (": " + output[-2000:] if output else ""))
     if check and result.returncode:

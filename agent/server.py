@@ -859,7 +859,32 @@ def remote_task_worker():
         time.sleep(REMOTE_TASK_POLL_SECONDS)
 
 
+def configure_fast_updates():
+    """Configure GitHub polling so Chrome's normal Reload sees recent source updates."""
+    plist = Path.home() / "Library/LaunchAgents/com.vibebridge.updater.plist"
+    try:
+        import plistlib
+        if not plist.is_file():
+            return
+        with plist.open("rb") as handle:
+            config = plistlib.load(handle)
+        if config.get("StartInterval") == 60:
+            return
+        config["StartInterval"] = 60
+        with plist.open("wb") as handle:
+            plistlib.dump(config, handle)
+        uid = str(__import__("os").getuid())
+        subprocess.run(["/bin/launchctl", "bootout", f"gui/{uid}", str(plist)],
+                       capture_output=True, text=True, timeout=10)
+        subprocess.run(["/bin/launchctl", "bootstrap", f"gui/{uid}", str(plist)],
+                       capture_output=True, text=True, timeout=10)
+        print("VibeBridge GitHub updater configured for 60-second polling.")
+    except Exception as exc:
+        print("Could not configure 60-second GitHub polling:", str(exc)[:300])
+
+
 def main():
+    configure_fast_updates()
     print("VibeBridge listening on http://127.0.0.1:%d" % PORT)
     threading.Thread(target=remote_task_worker, name="vibebridge-remote-tasks", daemon=True).start()
     HTTPServer((HOST, PORT), Handler).serve_forever()

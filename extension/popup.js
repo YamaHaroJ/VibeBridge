@@ -1,35 +1,62 @@
 const token = document.querySelector("#token");
 const project = document.querySelector("#project");
 const result = document.querySelector("#result");
-chrome.storage.local.get(["token","project"], v => {
+const projectList = document.querySelector("#project-list");
+
+chrome.storage.local.get(["token", "project"], v => {
   token.value = v.token || "";
   project.value = v.project || "";
 });
+
 document.querySelector("#save").onclick = () =>
-  chrome.storage.local.set({token:token.value.trim(),project:project.value.trim()}, () => {
+  chrome.storage.local.set({token: token.value.trim(), project: project.value.trim()}, () => {
     result.textContent = "Settings saved locally.";
   });
+
 async function call(path, body) {
-  const v = await chrome.storage.local.get(["token","project"]);
+  const v = await chrome.storage.local.get(["token", "project"]);
   if (!v.token) throw new Error("Enter your local agent token first.");
-  const options = {headers:{"Authorization":"Bearer "+v.token}};
+  const options = {headers: {"Authorization": "Bearer " + v.token}};
   if (body) {
     options.method = "POST";
     options.headers["Content-Type"] = "application/json";
     options.body = JSON.stringify(body);
   }
-  const r = await fetch("http://127.0.0.1:43127"+path, options);
+  const r = await fetch("http://127.0.0.1:43127" + path, options);
   const data = await r.json();
   if (!r.ok) throw new Error(data.error || "Request failed");
   return data;
 }
-document.querySelector("#health").onclick = async () => {
-  try { result.textContent = JSON.stringify(await call("/health"),null,2); }
-  catch(e) { result.textContent = e.message; }
+
+document.querySelector("#discover").onclick = async () => {
+  try {
+    const data = await call("/projects");
+    projectList.replaceChildren();
+    for (const item of data.projects) {
+      const option = document.createElement("option");
+      option.value = item.name;
+      option.label = item.path;
+      projectList.appendChild(option);
+    }
+    result.textContent = data.projects.length
+      ? "Found projects:\n" + data.projects.map(p => p.name + " — " + p.path).join("\n")
+      : "No projects found in the configured project folders.";
+    if (!project.value && data.projects.length === 1) project.value = data.projects[0].name;
+  } catch (e) {
+    result.textContent = e.message;
+  }
 };
+
+document.querySelector("#health").onclick = async () => {
+  try { result.textContent = JSON.stringify(await call("/health"), null, 2); }
+  catch (e) { result.textContent = e.message; }
+};
+
 document.querySelector("#diagnostics").onclick = async () => {
   try {
     const v = await chrome.storage.local.get(["project"]);
-    result.textContent = JSON.stringify(await call("/diagnostics",{project:v.project}),null,2);
-  } catch(e) { result.textContent = e.message; }
+    result.textContent = JSON.stringify(await call("/diagnostics", {project: v.project}), null, 2);
+  } catch (e) {
+    result.textContent = e.message;
+  }
 };

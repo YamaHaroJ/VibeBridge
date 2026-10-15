@@ -125,7 +125,7 @@ def remote_repo_context(slug):
                 content = base64.b64decode("".join(result.stdout.split())).decode("utf-8", errors="replace").strip()
                 if content:
                     label = "PERSISTENT PROJECT MEMORY" if filename == "VIBEBRIDGE_CONTEXT.md" else "README"
-                    parts.append(label + " (" + filename + "):\\n" + content[:6500])
+                    parts.append(label + " (" + filename + "):\n" + content[:6500])
         except Exception:
             pass
     return "\\n\\n".join(parts)[:18000]
@@ -200,7 +200,22 @@ def match_project(message, active=""):
     for repo in repos:
         full = str(repo.get("nameWithOwner", "")).lower()
         name = str(repo.get("name", "")).lower()
-        if full and (full in text or (name and __import__("re").search(r"(?<![a-z0-9_.-])" + __import__("re").escape(name) + r"(?![a-z0-9_.-])", text))):
+        # Match the exact repository slug/name, plus distinctive words from its
+        # name so natural requests like "switch to Autofill" work.
+        full_match = bool(full and full in text)
+        name_match = bool(name and __import__("re").search(
+            r"(?<![a-z0-9])" + __import__("re").escape(name).replace(r"\\-", r"[-_ ]+") + r"(?![a-z0-9])",
+            text
+        ))
+        aliases = {
+            "autofill-insurance-extension": ("autofill", "insurance extension", "autofill extension"),
+            "vibebridge": ("vibebridge", "vibe bridge"),
+            "macoptimizer": ("macoptimizer", "mac optimizer"),
+        }.get(name.replace("_", "-"), ())
+        alias_match = any(__import__("re").search(
+            r"(?<![a-z0-9])" + __import__("re").escape(alias) + r"(?![a-z0-9])", text
+        ) for alias in aliases)
+        if full_match or name_match or alias_match:
             remote_explicit.append(repo)
     # Prefer exact full slug mentions, otherwise only accept a unique short name.
     exact_slug = [repo for repo in remote_explicit if str(repo.get("nameWithOwner", "")).lower() in text]

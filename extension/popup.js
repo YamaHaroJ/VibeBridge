@@ -153,3 +153,37 @@ document.querySelector("#update-status").onclick = async () => {
     result.textContent = "Could not read update status: " + e.message;
   }
 };
+
+document.querySelector("#create-repo").onclick = async () => {
+  const name = prompt("New GitHub repository name (letters, numbers, periods, hyphens, underscores):");
+  if (!name) return;
+  const description = prompt("Short description (optional):") || "";
+  const isPrivate = confirm("Make this repository PRIVATE? Choose Cancel for PUBLIC.");
+  if (!confirm("Create GitHub repository '" + name + "' as " + (isPrivate ? "PRIVATE" : "PUBLIC") + "?")) return;
+  try {
+    result.textContent = "Creating GitHub repository…";
+    const data = await call("/create-repository", {name, description, private: isPrivate});
+    result.textContent = data.message + "\n" + data.repository.url + "\n\nThe new repository is ready for project switching. For local code edits, clone it to this Mac.";
+    await chrome.storage.local.set({lastCreatedRepository: data.repository.nameWithOwner});
+    await navigator.clipboard?.writeText(data.repository.nameWithOwner).catch(() => {});
+  } catch (e) {
+    result.textContent = "Could not create repository: " + e.message;
+  }
+};
+
+document.querySelector("#test-switch").onclick = async () => {
+  const name = prompt("Enter a repository name or owner/repository to test switching:");
+  if (!name) return;
+  try {
+    result.textContent = "Testing project resolution for " + name + "…";
+    const first = await call("/context", {message: "Switch to " + name, active: "VibeBridge"});
+    if (!first.matched || !first.context) throw new Error(first.error || "The project was not resolved. Details: " + JSON.stringify(first));
+    const second = await call("/context", {message: "Switch to VibeBridge", active: first.project.path});
+    if (!second.matched || !second.context || !/VibeBridge/i.test(second.project.name || "")) {
+      throw new Error("Switch back to VibeBridge failed. Details: " + JSON.stringify(second));
+    }
+    result.textContent = "PASS: first switch resolved " + first.project.name + " (" + first.matchReason + "), then switched back to " + second.project.name + ".\n\nFirst context preview:\n" + first.context.slice(0, 1200);
+  } catch (e) {
+    result.textContent = "FAIL: " + e.message + "\n\nCopy this diagnostic text and send it to ChatGPT.";
+  }
+};

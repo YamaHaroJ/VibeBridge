@@ -422,9 +422,10 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/create-repository":
             try:
                 repo = create_github_repo(body.get("name", ""), body.get("description", ""), body.get("private", True))
-                return self.send_json(201, {"created": True, "repository": repo,
-                                            "project": {"name": repo["nameWithOwner"].split("/", 1)[1], "path": "github:" + repo["nameWithOwner"], "repository": repo["nameWithOwner"], "remote": True},
-                                            "message": "Repository created and initialized with README.md and VIBEBRIDGE_CONTEXT.md. It is ready for remote context switching."})
+                project = {"name": repo["nameWithOwner"].split("/", 1)[1], "path": "github:" + repo["nameWithOwner"], "repository": repo["nameWithOwner"], "remote": True}
+                context = remote_repo_context(repo["nameWithOwner"])
+                return self.send_json(201, {"created": True, "repository": repo, "project": project, "context": context,
+                                            "message": "Repository created and initialized with README.md and VIBEBRIDGE_CONTEXT.md. Context is ready for this message."})
             except ValueError as e:
                 return self.send_json(400, {"error": str(e)})
             except RuntimeError as e:

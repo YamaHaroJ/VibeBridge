@@ -107,3 +107,9 @@ Important setup distinction: ChatGPT's GitHub connector is optional for VibeBrid
 - Follow-up commits `955edf2` and `fc27bb3` disable that route and remove the extension's token-fetch behavior. Existing authenticated connections still work; brand-new installs still need secure pairing.
 - Next design: use a trusted native approval step (for example a macOS confirmation dialog initiated by the local agent) or Chrome Native Messaging with a fixed, trusted extension ID. Do not expose the bearer token from an unauthenticated HTTP endpoint. Keep the UI low-friction and never ask the user to type the token.
 - Latest pairing commits are source changes only and have not been tested on the user's Mac.
+
+## Native token approval implementation (2026-10-15)
+- User approved the flow: click Connect in extension, read consent explanation, confirm, then receive a native macOS approval dialog; on approval the token transfers automatically and the extension checks local agent + GitHub CLI.
+- Commit `e2e39d3` adds a `/pair` handler in `agent/server.py`: it validates a Chrome extension origin, displays an AppleScript macOS approval dialog on first pairing, stores the approved extension origin with mode 0600, and returns the local token only after approval. Cancel returns an error without transferring the token. A different extension origin is rejected.
+- Commit `968ed93` makes the popup request `/pair` after its consent checkbox and Connect button, save the returned token to Chrome local storage, then run the health/GitHub checks.
+- This has been committed to GitHub but is not yet tested on macOS. Verify AppleScript quoting/dialog appearance, Chrome extension CORS preflight, LaunchAgent GUI permission, cancellation behavior, and CI results before calling it done. Token pairing should only be considered operational after a full fresh-install test.

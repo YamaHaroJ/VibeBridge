@@ -41,7 +41,7 @@ class NativePairingTests(unittest.TestCase):
         args = run.call_args.args[0]
         self.assertEqual(args[0], "/usr/bin/osascript")
         self.assertIn("display dialog (item 1 of argv)", args[2])
-        self.assertIn("Approving shares the local VibeBridge access token", args[3])
+        self.assertIn("Approving shares the token", args[3])
 
     @patch.object(server.subprocess, "run")
     def test_cancel_never_transfers_token_or_remembers_origin(self, run):
@@ -52,7 +52,6 @@ class NativePairingTests(unittest.TestCase):
         self.assertNotIn("token", payload)
         self.assertFalse(self.pairing_file.exists())
 
-    @patch.object(server.subprocess, "run")
     @patch.object(server.subprocess, "run")
     def test_same_approved_extension_requires_fresh_native_approval(self, run):
         self.pairing_file.write_text(self.origin)

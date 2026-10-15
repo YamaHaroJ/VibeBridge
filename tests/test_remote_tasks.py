@@ -28,6 +28,7 @@ class RemoteTaskTests(unittest.TestCase):
             self.assertNotIn("shell", call.kwargs)
 
     def test_task_enum_is_closed(self):
+        self.assertEqual(server.REMOTE_TASK_POLL_SECONDS, 2)
         self.assertEqual(server.REMOTE_TASKS, {"validate", "test", "diagnostics"})
         self.assertEqual(server.REMOTE_TASK_OWNER, "YamaHaroJ")
 

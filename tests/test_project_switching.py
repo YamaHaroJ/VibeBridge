@@ -38,6 +38,7 @@ class ProjectSwitchTests(unittest.TestCase):
         run.side_effect = [
             type("Completed", (), {"returncode": 0, "stdout": readme + "\n", "stderr": ""})(),
             type("Completed", (), {"returncode": 0, "stdout": memory + "\n", "stderr": ""})(),
+            type("Completed", (), {"returncode": 1, "stdout": "", "stderr": "404 Not Found"})(),
         ]
         context = server.remote_repo_context("YamaHaroJ/Autofill")
         self.assertIn("\n\nREADME (README.md):", context)

@@ -20,6 +20,7 @@ const reloadExtension = document.querySelector("#reload-extension");
 const autoRun = document.querySelector("#auto-run");
 const logOutput = document.querySelector("#log-output");
 let ready = false;
+let initializeGeneration = 0;
 
 function renderEnabled(value) {
   toggle.setAttribute("aria-checked", String(value));
@@ -68,6 +69,8 @@ autoRun?.addEventListener("change", async () => {
 });
 
 async function initialize() {
+  const generation = ++initializeGeneration;
+  const isCurrent = () => generation === initializeGeneration;
   toggle.disabled = true;
   connect.classList.add("hidden");
   requestBackgroundUpdate();
@@ -75,6 +78,7 @@ async function initialize() {
   renderStatus(githubStatus, githubStatusText, "checking", "Checking GitHub connection");
   try {
     const saved = await chrome.storage.local.get(["token", "enabled", "autoRunCommands"]);
+    if (!isCurrent()) return;
     autoRun.checked = saved.autoRunCommands === true;
     if (!saved.token) {
       ready = false;
@@ -86,6 +90,7 @@ async function initialize() {
       return;
     }
     await callAgent("/health", saved.token);
+    if (!isCurrent()) return;
 
     // Local pairing and GitHub CLI authentication are separate connections.
     // Once the local health check passes, keep the extension connected even if
@@ -98,13 +103,16 @@ async function initialize() {
 
     try {
       const data = await callAgent("/github-projects", saved.token);
+      if (!isCurrent()) return;
       const count = (data.repositories || []).length;
       renderStatus(githubStatus, githubStatusText, "ready", "GitHub connected · " + count + " repositories");
     } catch (error) {
+      if (!isCurrent()) return;
       renderStatus(githubStatus, githubStatusText, "setup", "GitHub sign-in required");
       copy.textContent = "VibeBridge is connected to this Mac. Sign in to GitHub on this Mac to enable repository features.";
     }
   } catch {
+    if (!isCurrent()) return;
     ready = false;
     renderEnabled(false);
     copy.textContent = "Start the local agent to finish setup.";
@@ -124,6 +132,9 @@ consentCheck.addEventListener("change", () => {
 document.querySelector("#cancel").addEventListener("click", () => consent.classList.add("hidden"));
 confirmConnect.addEventListener("click", async () => {
   if (!consentCheck.checked) return;
+  // Cancel any popup-open initialization still in flight so its stale no-token
+  // result cannot bring the Connect button back after pairing succeeds.
+  initializeGeneration++;
   confirmConnect.disabled = true;
   confirmConnect.textContent = "Connecting…";
   try {

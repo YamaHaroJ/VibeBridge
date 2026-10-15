@@ -504,8 +504,8 @@ def local_diagnostics():
             return {"label": label, "loaded": False, "state": "query-failed", "pid": None}
         if result.returncode != 0:
             return {"label": label, "loaded": False, "state": "not-loaded", "pid": None}
-        state_match = re.search(r"(?m)^\\s*state = ([^\\r\\n]+)", result.stdout)
-        pid_match = re.search(r"(?m)^\\s*pid = (\\d+)", result.stdout)
+        state_match = re.search(r"(?m)^\s*state = ([^\r\n]+)", result.stdout)
+        pid_match = re.search(r"(?m)^\s*pid = (\d+)", result.stdout)
         return {
             "label": label,
             "loaded": True,

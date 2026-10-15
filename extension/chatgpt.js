@@ -12,6 +12,56 @@
   const commandMarker = "VIBEBRIDGE LOCAL COMMAND";
   const processedBlocks = new WeakSet();
 
+  // Automatically checkpoint each newly rendered user/assistant message.
+  // Existing history is ignored; only messages created during this page session are sent.
+  const knownCheckpointNodes = new WeakSet();
+  const pendingCheckpoints = new Map();
+  let checkpointTimer = null;
+  document.querySelectorAll('[data-message-author-role="user"], [data-message-author-role="assistant"]').forEach(node => knownCheckpointNodes.add(node));
+
+  function conversationKey() {
+    const match = location.pathname.match(/\\/c\\/([^/]+)/);
+    return match ? match[1].slice(0, 80) : "chat";
+  }
+
+  function queueMessageCheckpoints() {
+    const nodes = document.querySelectorAll('[data-message-author-role="user"], [data-message-author-role="assistant"]');
+    for (const node of nodes) {
+      const role = node.getAttribute("data-message-author-role");
+      const text = (node.innerText || node.textContent || "").trim();
+      if (!text) continue;
+      if (!knownCheckpointNodes.has(node)) {
+        knownCheckpointNodes.add(node);
+        pendingCheckpoints.set(node, {role, text});
+      } else if (pendingCheckpoints.has(node)) {
+        pendingCheckpoints.set(node, {role, text});
+      }
+    }
+    if (pendingCheckpoints.size) {
+      clearTimeout(checkpointTimer);
+      checkpointTimer = setTimeout(flushMessageCheckpoints, 1800);
+    }
+  }
+
+  async function flushMessageCheckpoints() {
+    const entries = Array.from(pendingCheckpoints.values());
+    pendingCheckpoints.clear();
+    const conversation = conversationKey();
+    for (const item of entries) {
+      const text = item.text.trim();
+      if (!text) continue;
+      try {
+        const result = await chrome.runtime.sendMessage({
+          type: "VIBEBRIDGE_CHECKPOINT_MESSAGE",
+          payload: {role: item.role, text, conversation}
+        });
+        if (!result?.saved) showNotice("Automatic GitHub checkpoint failed: " + (result?.error || "unknown error"));
+      } catch (error) {
+        showNotice("Automatic GitHub checkpoint failed: " + error.message);
+      }
+    }
+  }
+
   function composerFor(button) {
     const form = button?.closest("form") || document.querySelector("form");
     return form?.querySelector("textarea") ||
@@ -181,8 +231,11 @@
     }
   }
 
-  const observer = new MutationObserver(() => addCommandControls());
-  observer.observe(document.documentElement, {childList: true, subtree: true});
+  const observer = new MutationObserver(() => {
+    addCommandControls();
+    queueMessageCheckpoints();
+  });
+  observer.observe(document.documentElement, {childList: true, subtree: true, characterData: true});
   addCommandControls();
 
   document.addEventListener("click", async event => {

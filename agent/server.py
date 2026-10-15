@@ -280,6 +280,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(200, {"repositories": github_projects()})
             except RuntimeError as e:
                 return self.send_json(400, {"error": str(e)})
+        if path == "/update-status":
+            log_file = SUPPORT / "update.log"
+            try:
+                lines = log_file.read_text(errors="replace").splitlines()[-30:]
+            except OSError:
+                lines = []
+            return self.send_json(200, {"log": lines})
         if path == "/context":
             query = parse_qs(urlparse(self.path).query)
             message = query.get("message", [""])[0]
@@ -306,6 +313,27 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             return self.send_json(400, {"error": "Invalid JSON"})
         path = urlparse(self.path).path
+        if path == "/update":
+            try:
+                script = Path(__file__).with_name("updater.py")
+                if not script.is_file():
+                    return self.send_json(501, {"error": "Updater helper is not installed in this checkout yet."})
+                log_file = SUPPORT / "update.log"
+                log_file.parent.mkdir(parents=True, exist_ok=True)
+                with log_file.open("a", encoding="utf-8") as handle:
+                    handle.write("\\n[" + __import__("datetime").datetime.now().isoformat(timespec="seconds") + "] Update requested from extension.\\n")
+                subprocess.Popen(
+                    [__import__("sys").executable, str(script)],
+                    cwd=str(ROOTS[2]),
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                    close_fds=True,
+                )
+                return self.send_json(202, {"started": True, "message": "Update started. Check Update status in a few seconds."})
+            except Exception as e:
+                return self.send_json(500, {"error": "Could not start updater: " + str(e)})
         if path == "/context":
             project, reason = match_project(body.get("message", ""), body.get("active", ""))
             if reason == "ambiguous":

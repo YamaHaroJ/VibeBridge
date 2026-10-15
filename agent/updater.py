@@ -100,14 +100,13 @@ def main():
     stage.mkdir()
     try:
         for path in MANAGED_PATHS:
-            subprocess.run(["git", "archive", target, path], cwd=ROOT, check=True,
-                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=90)
             archive = subprocess.run(["git", "archive", target, path], cwd=ROOT,
                                      capture_output=True, check=True, timeout=90)
             import tarfile
             import io
             with tarfile.open(fileobj=io.BytesIO(archive.stdout), mode="r:") as tar:
-                tar.extractall(stage, filter="data")
+                # Git-created archives contain only repository-relative paths.
+                tar.extractall(stage)
         # Validate the staged payload before touching the working files.
         staged_manifest = stage / "extension" / "manifest.json"
         import json

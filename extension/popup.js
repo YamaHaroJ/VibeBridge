@@ -60,3 +60,55 @@ document.querySelector("#diagnostics").onclick = async () => {
     result.textContent = e.message;
   }
 };
+
+
+document.querySelector("#github-discover").onclick = async () => {
+  const select = document.querySelector("#github-repo");
+  try {
+    result.textContent = "Loading repositories from your GitHub account…";
+    const data = await call("/github-projects");
+    select.replaceChildren();
+    const repos = data.repositories || [];
+    for (const repo of repos) {
+      const option = document.createElement("option");
+      option.value = repo.nameWithOwner;
+      const flags = [
+        repo.localPath ? "already local" : "not cloned",
+        repo.isPrivate ? "private" : "public",
+        repo.isArchived ? "archived" : ""
+      ].filter(Boolean).join(" · ");
+      option.textContent = repo.nameWithOwner + " — " + flags;
+      option.title = repo.description || repo.url || repo.nameWithOwner;
+      select.appendChild(option);
+    }
+    result.textContent = repos.length
+      ? "Found " + repos.length + " GitHub repositories visible to your authenticated GitHub CLI account. Select one to clone if it isn't already on this Mac."
+      : "No repositories returned by GitHub CLI for the authenticated account.";
+  } catch (e) {
+    result.textContent = "Could not load GitHub repositories: " + e.message;
+  }
+};
+
+document.querySelector("#clone-repo").onclick = async () => {
+  const select = document.querySelector("#github-repo");
+  const repository = select.value;
+  if (!repository) {
+    result.textContent = "First click Find GitHub repositories and select a repository.";
+    return;
+  }
+  const option = select.options[select.selectedIndex];
+  if (option?.textContent.includes("already local")) {
+    result.textContent = repository + " is already cloned on this Mac. Use Find local projects to select its local folder.";
+    return;
+  }
+  if (!confirm("Clone " + repository + " into ~/Projects on this Mac?")) return;
+  try {
+    result.textContent = "Cloning " + repository + "…";
+    const data = await call("/clone", {repository});
+    project.value = data.project.path;
+    await chrome.storage.local.set({project: data.project.path, activeProject: data.project.path});
+    result.textContent = "Cloned " + data.repository + " to " + data.project.path + " and selected it as the active project.";
+  } catch (e) {
+    result.textContent = "Could not clone repository: " + e.message;
+  }
+};

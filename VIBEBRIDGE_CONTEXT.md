@@ -166,3 +166,10 @@ Important setup distinction: ChatGPT's GitHub connector is optional for VibeBrid
 - Commit `a6e7506` changes the worker to scan up to 100 open issues per poll and select every unseen issue whose exact title, author, and task enum are allowed. Regression assertion is in `3a91b82`.
 - Verification request `#58` opened after this fix.
 - This fix prevents old queue entries from starving new requests, but still requires the Mac agent to deploy it. No response from issues `#51`-`#57` means the running Mac process is still not confirmed.
+
+
+## Independent fast task reporter verified (2026-10-15)
+- Added `.github/workflows/runner-report.yml` in commit `7579d5f`. GitHub Actions starts on newly opened/reopened issues titled exactly `VibeBridge task: test`, `VibeBridge task: validate`, or `VibeBridge task: diagnostics`; it runs fixed tasks on GitHub-hosted Ubuntu and posts a result comment with the workflow log link. It does not depend on the local Mac worker for reporting.
+- Reporter test issue `#59` completed successfully via Actions run `38798365423`: **PASS**, unit suite. All 31 tests passed in 0.020 seconds. It posted a `VibeBridge fast reporter — PASS` comment to the issue. Link: https://github.com/YamaHaroJ/VibeBridge/actions/runs/38798365423
+- Separate issue `#60` also received a Mac runner validation PASS, demonstrating the Mac worker has now responded again. The new GitHub Actions validation run was queued at check time and still needs final confirmation.
+- Hosted reporter cannot inspect the actual Mac's local processes, but test/validation results now return through a separate workflow even if the Mac worker is offline.

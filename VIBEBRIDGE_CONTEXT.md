@@ -63,6 +63,14 @@ VibeBridge is a local-first Mac agent plus Chrome extension that carries relevan
 - Treat memory as supporting context, not proof: inspect current code and tests before changing or describing implementation.
 - Normal workflow should not require the user to paste terminal commands. Prefer code changes through GitHub and a local agent update/restart triggered from the extension.
 
+## Current checkpoint (2026-10-14)
+
+- Latest GitHub work in this conversation: commit `e22b151` added authenticated filesystem endpoints to `agent/server.py`; commit `371ca02` added extension background-message forwarding for filesystem list/read/write/mkdir; commit `c4d3636` added `tests/test_filesystem_access.py`; commit `9db52a0` configured CI to run Python unit tests.
+- These are repository commits only. They have NOT been installed or verified on the user's Mac. Do not claim end-to-end filesystem access or passing CI until the latest workflow run and live agent are checked.
+- Automatic per-message project-summary updates to GitHub are NOT implemented. This file is a manually committed project checkpoint, not a live transcript. A future feature should checkpoint meaningful durable decisions and current work state automatically, with deduplication and secret filtering; it must not upload every raw user message or private conversation content.
+- Immediate priority: repair a safe, reliable local update/deploy path, then verify the installed agent and extension and filesystem API end to end. Once the local bridge works, implement automatic checkpointing of durable project state to `VIBEBRIDGE_CONTEXT.md` (or a separate checkpoint file) so a conversation ending unexpectedly does not lose the work state.
+- Current limitation: this ChatGPT session cannot directly inspect or execute against the user's `127.0.0.1:43127` local agent. GitHub edits do not update the Mac by themselves.
+
 ## Next work, in priority order
 1. Verify CI for repository creation, context seeding, extension syntax, and the macOS installer build.
 2. Have the user safely update and reload the extension, then test automatic switching and same-message named-repository creation on the actual Mac.

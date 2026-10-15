@@ -488,34 +488,40 @@ def match_project(message, active=""):
 
 
 def request_pairing(origin):
-    """Pair a Chrome extension only after an explicit native macOS approval."""
+    """Transfer the local token only after explicit native approval for each request.
+
+    Origin is not authentication: local processes can forge it. Never use a
+    remembered origin as permission to transfer the bearer token silently.
+    """
     if not re.fullmatch(r"chrome-extension://[a-p]{32}", origin or ""):
         return 403, {"error": "Pairing must be requested from the VibeBridge Chrome extension."}
     paired_origin = PAIRING_FILE.read_text().strip() if PAIRING_FILE.exists() else ""
     if paired_origin and paired_origin != origin:
         return 403, {"error": "This Mac is paired with a different extension. Reinstall VibeBridge using its supported installer to reset pairing."}
+    prompt = (
+        "A process is requesting the VibeBridge local access token for this Chrome extension:\n"
+        + origin + "\n\n"
+        "Approving shares the token. It can read and write project files in the configured workspace "
+        "and use your signed-in GitHub CLI for repository operations.\n\n"
+        "Only approve if you just clicked Connect in VibeBridge. A local program can imitate a browser origin."
+    )
+    script = (
+        "on run argv\n"
+        "display dialog (item 1 of argv) with title \"VibeBridge Connection Approval\" "
+        "buttons {\"Cancel\", \"Approve\"} default button \"Cancel\" "
+        "cancel button \"Cancel\" with icon caution\n"
+        "end run"
+    )
+    try:
+        result = subprocess.run(
+            ["/usr/bin/osascript", "-e", script, prompt],
+            capture_output=True, text=True, timeout=120
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return 503, {"error": "Could not show the macOS approval dialog. Make sure you are logged into the Mac desktop and try again."}
+    if result.returncode != 0 or "button returned:Approve" not in result.stdout:
+        return 403, {"error": "Connection was not approved. No token was transferred."}
     if not paired_origin:
-        prompt = (
-            "VibeBridge wants to connect its Chrome extension to the local VibeBridge agent on this Mac.\n\n"
-            "Approving shares the local VibeBridge access token with this extension. It can then read and write project files in the configured workspace and use your signed-in GitHub CLI for repository operations.\n\n"
-            "Only approve if you just clicked Connect in the VibeBridge extension."
-        )
-        script = (
-            "on run argv\n"
-            "display dialog (item 1 of argv) with title \"VibeBridge Connection Approval\" "
-            "buttons {\"Cancel\", \"Approve\"} default button \"Approve\" "
-            "cancel button \"Cancel\" with icon caution\n"
-            "end run"
-        )
-        try:
-            result = subprocess.run(
-                ["/usr/bin/osascript", "-e", script, prompt],
-                capture_output=True, text=True, timeout=120
-            )
-        except (OSError, subprocess.TimeoutExpired):
-            return 503, {"error": "Could not show the macOS approval dialog. Make sure you are logged into the Mac desktop and try again."}
-        if result.returncode != 0 or "button returned:Approve" not in result.stdout:
-            return 403, {"error": "Connection was not approved. No token was transferred."}
         PAIRING_FILE.write_text(origin)
         PAIRING_FILE.chmod(0o600)
     return 200, {"ok": True, "token": TOKEN}

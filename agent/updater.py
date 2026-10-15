@@ -63,9 +63,30 @@ def launch_agent():
 
 def main():
     time.sleep(1)
-    log("Automatic update check started.")
+    log("Automatic GitHub update check started.")
     if not (ROOT / ".git").exists():
         raise RuntimeError("VibeBridge checkout is not a Git repository.")
+
+    # Keep the installed LaunchAgent polling frequently so Chrome's Reload action
+    # picks up recently pushed GitHub files without a separate update button.
+    plist = Path.home() / "Library/LaunchAgents/com.vibebridge.updater.plist"
+    try:
+        import plistlib
+        if plist.exists():
+            with plist.open("rb") as handle:
+                config = plistlib.load(handle)
+            if config.get("StartInterval") != 60:
+                config["StartInterval"] = 60
+                with plist.open("wb") as handle:
+                    plistlib.dump(config, handle)
+                log("Changed installed updater interval to 60 seconds; reloading its LaunchAgent.")
+                uid = str(__import__("os").getuid())
+                subprocess.run(["/bin/launchctl", "bootout", f"gui/{uid}", str(plist)],
+                               capture_output=True, text=True, timeout=10)
+                subprocess.run(["/bin/launchctl", "bootstrap", f"gui/{uid}", str(plist)],
+                               capture_output=True, text=True, timeout=10)
+    except Exception as exc:
+        log("Could not adjust updater interval: " + str(exc))
 
     status = run(["git", "status", "--porcelain"])
     previous = run(["git", "rev-parse", "HEAD"])

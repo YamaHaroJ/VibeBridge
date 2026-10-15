@@ -203,7 +203,7 @@
         showNotice("VibeBridge is off. Your message will be sent without project context.");
         return;
       }
-      const requestedCreate = original.match(/\b(?:create|make)\s+(?:a\s+)?(?:new\s+)?(?:github\s+)?(?:repo|repository)\s+(?:named|called|for)\s+["\x27`]?([A-Za-z0-9][A-Za-z0-9_.-]{0,99})/i);
+      const requestedCreate = original.match(/\b(?:create|make)\s+(?:a\s+)?(?:new\s+)?(?:github\s+)?(?:repo|repository)\s+(?:named|called)\s+["\x27`]?([A-Za-z0-9][A-Za-z0-9_.-]{0,99})/i);
       let createdRepository = null;
       let result;
       if (requestedCreate) {

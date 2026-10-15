@@ -13,10 +13,10 @@ A local Mac agent and Chrome extension that attaches local project context to Ch
 2. Save the displayed bearer token somewhere private. Anyone with this token can execute commands in the configured project folders.
 3. Open `chrome://extensions`, enable Developer mode, select **Load unpacked**, and choose `~/VibeBridge/extension`.
 4. Open the VibeBridge extension, paste the token, enter a project path such as `~/VibeBridge`, and click **Save settings**.
-5. Click **Check connection**, then **Find local projects** to discover repositories already on this Mac.\n6. Click **Find GitHub repositories** to list repositories accessible to the authenticated GitHub CLI account, including older and newly created repositories. Select a repository and click **Clone selected repository to Mac** to clone it into `~/Projects`. Cloning requires GitHub CLI (`gh`) to be installed and signed in (`gh auth status`).\n7. In ChatGPT, mention a discovered project by name. VibeBridge will attach its README, saved notes, Git remote, branch, latest commit, and working-tree status to relevant development prompts.\n8. To save a durable fact, write `Remember for this project: ...` in a ChatGPT message after the correct project is active.
-6. In ChatGPT, mention a discovered project by name. VibeBridge will attach its README, saved notes, Git remote, branch, latest commit, and working-tree status to relevant development prompts.
-7. To save a durable fact, write `Remember for this project: ...` in a ChatGPT message after the correct project is active.
-
+5. Click **Check connection**, then **Find local projects** to discover repositories already on this Mac.
+6. Click **Find GitHub repositories** to list repositories accessible to the authenticated GitHub CLI account, including older and newly created repositories. Select a repository and click **Clone selected repository to Mac** to clone it into `~/Projects`. Cloning requires GitHub CLI (`gh`) to be installed and signed in (`gh auth status`).
+7. In ChatGPT, mention a discovered project by name. VibeBridge will attach its README, saved notes, Git remote, branch, latest commit, and working-tree status to relevant development prompts.
+8. To save a durable fact, write `Remember for this project: ...` in a ChatGPT message after the correct project is active.
 ## Project memory
 
 - `VIBEBRIDGE_CONTEXT.md` stores durable project goals, architecture, user workflow preferences, implementation status, decisions, limitations, and prioritized next steps. The local agent automatically includes it in project context when the file exists.

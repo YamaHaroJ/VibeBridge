@@ -89,7 +89,34 @@ echo "Private local token created with owner-only permissions; the extension pai
 echo "Logs are stored under: $SUPPORT"
 echo "Update logs: update.log; agent logs: agent.log and agent-error.log; updater launch logs: updater.log and updater-error.log"
 echo
-echo "Health check:"
-curl -sS -H "Authorization: Bearer $(cat "$SUPPORT/token")" http://127.0.0.1:43127/health
+echo "Health check (waiting up to 15 seconds for the agent)..."
+HEALTH_OK=0
+for attempt in $(seq 1 15); do
+  if curl --silent --show-error --max-time 1 \
+    -H "Authorization: Bearer $(cat "$SUPPORT/token")" \
+    http://127.0.0.1:43127/health; then
+    HEALTH_OK=1
+    break
+  fi
+  sleep 1
+done
 echo
+if [ "$HEALTH_OK" -ne 1 ]; then
+  echo "ERROR: VibeBridge agent did not become healthy."
+  echo
+  echo "== launchctl service state =="
+  launchctl print "gui/$(id -u)/com.vibebridge.agent" 2>&1 || true
+  echo
+  echo "== Recent agent errors =="
+  tail -n 80 "$SUPPORT/agent-error.log" 2>/dev/null || true
+  echo
+  echo "== Recent updater errors =="
+  tail -n 80 "$SUPPORT/updater-error.log" 2>/dev/null || true
+  echo
+  echo "== Recent update log =="
+  tail -n 80 "$SUPPORT/update.log" 2>/dev/null || true
+  exit 1
+fi
+echo
+echo "VibeBridge agent health check passed."
 echo "Next: open chrome://extensions, enable Developer mode, click Load unpacked, select $ROOT/extension"

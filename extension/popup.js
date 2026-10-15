@@ -216,14 +216,14 @@ checkUpdate.addEventListener("click", async () => {
         });
         if (statusResponse.ok) {
           lastStatus = await statusResponse.json();
-          const lines = (lastStatus.logs?.["update.log"] || []).join("\\n");
+          const lines = (lastStatus.logs?.["update.log"] || []).join("\n");
           logOutput.textContent = [
             "Local checkout: " + (lastStatus.currentRevision || "unknown"),
             "GitHub master: " + (lastStatus.remoteRevision || "unknown"),
             "",
             lines
-          ].join("\\n");
-          if (/Update complete\\.|Update validated\\./i.test(lines)) {
+          ].join("\n");
+          if (/Update complete\.|Update validated\./i.test(lines)) {
             finished = true;
             break;
           }
@@ -239,10 +239,10 @@ checkUpdate.addEventListener("click", async () => {
     checkUpdate.disabled = false;
     checkUpdate.textContent = "Check for updates";
     if (finished) {
-      logOutput.textContent += "\\n\\nUpdate complete. Reloading VibeBridge from the updated extension files…";
+      logOutput.textContent += "\n\nUpdate complete. Reloading VibeBridge from the updated extension files…";
       window.setTimeout(() => chrome.runtime.reload(), 800);
     } else {
-      logOutput.textContent += "\\n\\nUpdate is still running. Check again in a moment; the extension was not reloaded.";
+      logOutput.textContent += "\n\nUpdate is still running. Check again in a moment; the extension was not reloaded.";
     }
   } catch (error) {
     logOutput.textContent = "Update could not start: " + error.message;

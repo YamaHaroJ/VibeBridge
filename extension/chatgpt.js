@@ -274,7 +274,7 @@
         else if (saved?.error) showNotice("VibeBridge memory: " + saved.error);
       }
       if (result?.matched && result.context) {
-        const addition = marker + "\nThe following is persistent context from the user's local project. Treat it as background information, verify implementation against code when needed, and do not assume planned features are implemented.\n\n" + result.context + "\n\nEND " + marker + "\n\nUSER REQUEST:\n";
+        const addition = marker + "\nThe following is persistent context from the user's project. Treat it as background information, verify implementation against code when needed, and do not assume planned features are implemented.\n\n" + result.context + "\n\nEND " + marker + "\n\nVIBEBRIDGE MEMORY INSTRUCTION: At the end of your normal response, include a concise rolling checkpoint of durable project goals, decisions, verified progress, blockers, and next steps. Do not include raw transcripts or secrets. Put only the checkpoint in a fenced code block labelled vibebridge-memory. The extension hides this block and saves its contents to GitHub. Do not call a separate external AI API.\n\nUSER REQUEST:\n";
         writeComposer(composer, addition + original);
         showNotice(createdRepository ? "Created " + createdRepository.nameWithOwner + " and switched to its project context." : "VibeBridge attached context for " + result.project.name);
       } else if (result?.ambiguous) {

@@ -150,6 +150,18 @@ def remote_repo_context(slug):
     if not loaded:
         detail = "; ".join(errors) if errors else "The repository has no readable README.md or VIBEBRIDGE_CONTEXT.md."
         raise RuntimeError(f"Could not load useful context from GitHub repository {slug}. {detail}")
+    if slug.lower() == "yamaharoJ/vibebridge".lower():
+        try:
+            checkpoint = subprocess.run(
+                ["gh", "api", "repos/YamaHaroJ/VibeBridge/contents/memory/AUTO_CHECKPOINT.md", "--jq", ".content"],
+                capture_output=True, text=True, timeout=15
+            )
+            if checkpoint.returncode == 0 and checkpoint.stdout.strip():
+                checkpoint_text = base64.b64decode("".join(checkpoint.stdout.split()), validate=True).decode("utf-8", errors="replace").strip()
+                if checkpoint_text:
+                    parts.append("ROLLING CONVERSATION CHECKPOINTS (GitHub):\n" + checkpoint_text[:5000])
+        except (subprocess.TimeoutExpired, ValueError, base64.binascii.Error):
+            pass
     if errors:
         parts.append("REMOTE CONTEXT WARNINGS: " + "; ".join(errors))
     return "\n\n".join(parts)[:18000]

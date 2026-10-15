@@ -16,6 +16,7 @@ const consent = document.querySelector("#consent");
 const consentCheck = document.querySelector("#consent-check");
 const confirmConnect = document.querySelector("#confirm");
 const showLogs = document.querySelector("#show-logs");
+const reloadExtension = document.querySelector("#reload-extension");
 const autoRun = document.querySelector("#auto-run");
 const logOutput = document.querySelector("#log-output");
 let ready = false;
@@ -187,3 +188,5 @@ async function loadUpdateLogs() {
   }
 }
 showLogs.addEventListener("click", loadUpdateLogs);
+// Reloads the extension from the files currently present in its installed folder.
+reloadExtension?.addEventListener("click", () => chrome.runtime.reload());

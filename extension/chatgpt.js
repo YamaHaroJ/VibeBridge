@@ -3,6 +3,11 @@
   window.__vibeBridgeInstalled = true;
   let bypassNextSend = false;
   let busy = false;
+  let enabledState = true;
+  chrome.storage.local.get(["enabled"], state => { enabledState = state.enabled !== false; });
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.enabled) enabledState = changes.enabled.newValue !== false;
+  });
   const marker = "VIBEBRIDGE PROJECT CONTEXT";
   const commandMarker = "VIBEBRIDGE LOCAL COMMAND";
   const processedBlocks = new WeakSet();
@@ -185,7 +190,7 @@
     if (!button || bypassNextSend || busy) return;
     const composer = composerFor(button);
     const original = readComposer(composer).trim();
-    if (!original || original.includes(marker) || original.includes("VIBEBRIDGE DISABLED")) return;
+    if (!enabledState || !original || original.includes(marker) || original.includes("VIBEBRIDGE DISABLED")) return;
     if (!shouldResolve(original)) return;
 
     event.preventDefault();

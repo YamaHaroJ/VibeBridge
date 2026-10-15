@@ -154,6 +154,33 @@ def remote_repo_context(slug):
         parts.append("REMOTE CONTEXT WARNINGS: " + "; ".join(errors))
     return "\n\n".join(parts)[:18000]
 
+def create_github_repo(name, description="", private=True):
+    name = str(name or "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", name):
+        raise ValueError("Repository name must use only letters, numbers, periods, hyphens, or underscores.")
+    args = ["gh", "repo", "create", name, "--source", str(Path.home() / "VibeBridge"),
+            "--remote", "origin", "--description", str(description or "")[:300],
+            "--disable-issues"]
+    args += ["--private"] if private else ["--public"]
+    # Never push the VibeBridge checkout when creating an unrelated repository.
+    # Create the remote only; repository initialization is done by GitHub.
+    args = ["gh", "repo", "create", name] + (["--private"] if private else ["--public"])
+    if description:
+        args += ["--description", str(description)[:300]]
+    try:
+        result = subprocess.run(args, capture_output=True, text=True, timeout=45)
+    except FileNotFoundError:
+        raise RuntimeError("GitHub CLI (gh) is not installed.")
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("Creating the repository timed out.")
+    if result.returncode != 0:
+        raise RuntimeError((result.stderr or result.stdout or "GitHub repository creation failed").strip()[-1000:])
+    url = (result.stdout or "").strip().splitlines()[-1] if (result.stdout or "").strip() else ""
+    slug = url.rstrip("/").split("github.com/")[-1] if "github.com/" in url else ""
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", slug):
+        raise RuntimeError("GitHub reported success but the repository URL could not be resolved: " + url)
+    return {"nameWithOwner": slug, "url": "https://github.com/" + slug}
+
 def project_path(raw):
     value = str(raw or "").strip()
     projects = discover_projects()
@@ -346,6 +373,15 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             return self.send_json(400, {"error": "Invalid JSON"})
         path = urlparse(self.path).path
+        if path == "/create-repository":
+            try:
+                repo = create_github_repo(body.get("name", ""), body.get("description", ""), body.get("private", True))
+                return self.send_json(201, {"created": True, "repository": repo,
+                                            "message": "Repository created on GitHub. It has not been cloned to this Mac."})
+            except ValueError as e:
+                return self.send_json(400, {"error": str(e)})
+            except RuntimeError as e:
+                return self.send_json(400, {"error": str(e)})
         if path == "/update":
             try:
                 script = Path(__file__).with_name("updater.py")

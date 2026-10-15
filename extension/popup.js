@@ -129,7 +129,7 @@ confirmConnect.addEventListener("click", async () => {
     if (!token) {
       const data = await chrome.runtime.sendNativeMessage("com.vibebridge.agent", {type: "getToken"});
       if (chrome.runtime.lastError) {
-        throw new Error("Native Messaging is not installed. Run ~/VibeBridge/agent/install.sh, then reload the extension. " + chrome.runtime.lastError.message);
+        throw new Error("Chrome cannot find VibeBridge's Native Messaging host. In Terminal, run: bash ~/VibeBridge/agent/install.sh — then fully quit and reopen Chrome. Details: " + chrome.runtime.lastError.message);
       }
       if (!data?.ok || !data.token) throw new Error(data?.error || "Could not obtain the local agent token.");
       token = data.token;
@@ -142,7 +142,9 @@ confirmConnect.addEventListener("click", async () => {
   } catch (error) {
     consent.classList.add("hidden");
     renderStatus(status, statusText, "setup", error.message);
-    copy.textContent = "Native Messaging setup may be required. Run the VibeBridge installer, then connect again.";
+    copy.textContent = error.message.includes("Native Messaging") || error.message.includes("native messaging")
+      ? "Repair the Chrome connection: run bash ~/VibeBridge/agent/install.sh in Terminal, fully quit and reopen Chrome, then click Connect this Mac."
+      : "Connection failed. Check the message above and try Connect this Mac again.";
     connect.classList.remove("hidden");
   } finally {
     confirmConnect.textContent = "Connect";

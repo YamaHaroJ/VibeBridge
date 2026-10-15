@@ -46,10 +46,22 @@ def log_error(message):
         log_path = TOKEN_FILE.parent / "native-host-error.log"
         log_path.parent.mkdir(parents=True, exist_ok=True)
         with log_path.open("a", encoding="utf-8") as stream:
-            stream.write(message.rstrip() + "\\n")
+            stream.write(message.rstrip() + "\n")
         log_path.chmod(0o600)
     except Exception:
         pass
+
+
+def read_exact(stream, size):
+    chunks = []
+    remaining = size
+    while remaining:
+        chunk = stream.read(remaining)
+        if not chunk:
+            raise EOFError(f"Native Messaging stream ended with {remaining} bytes still expected.")
+        chunks.append(chunk)
+        remaining -= len(chunk)
+    return b"".join(chunks)
 
 
 def write_response(response):
@@ -60,7 +72,7 @@ def write_response(response):
 
 def main():
     try:
-        header = sys.stdin.buffer.read(4)
+        header = read_exact(sys.stdin.buffer, 4)
         if not header:
             return 0
         if len(header) != 4:
@@ -72,7 +84,7 @@ def main():
             log_error("Native message exceeded the size limit.")
             write_response({"ok": False, "error": "Native message is too large."})
             return 0
-        body = sys.stdin.buffer.read(size)
+        body = read_exact(sys.stdin.buffer, size)
         message = decode_message(header + body)
         token = TOKEN_FILE.read_text(encoding="utf-8").strip()
         write_response(handle_message(message, token))

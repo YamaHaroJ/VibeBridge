@@ -56,14 +56,12 @@ VibeBridge is a local-first Mac agent plus Chrome extension that carries relevan
 - Treat memory as supporting context, not proof: inspect current code and tests before changing or describing implementation.
 
 ## Next work, in priority order
-1. Finish and verify the seamless ChatGPT continuity flow: identify the intended project, retain active-project state across new chats, and reliably attach the right context when the user says “continue,” “update,” or “okay.”
-2. Improve memory quality: distinguish durable decisions from temporary observations; prevent repeated/near-duplicate notes; provide a way to correct or remove stale notes; and include the most relevant notes within the context budget.
-3. Add a clear context-injection status/diagnostic so the user can tell which project was selected and whether memory was attached.
-4. Keep GitHub-wide repository discovery as a core requirement: list old and new repositories accessible to the authenticated GitHub CLI account, distinguish repos already cloned locally, and let the user deliberately clone a selected repo into `~/Projects`.
-5. Test the extension against current ChatGPT composer/send-button behavior and ensure a failed context lookup never loses or duplicates the user\u2019s original message.
-6. Improve memory management after discovery and continuity are stable: provide a way to correct or remove stale notes and prioritize useful information within the context budget.
-4. Test the extension against current ChatGPT composer/send-button behavior and ensure a failed context lookup never loses or duplicates the user's original message.
-5. Update README and version metadata only after implementation and verification.
+1. Finish and verify seamless ChatGPT continuity: identify the intended project, retain active-project state across new chats, and reliably attach the right context.
+2. Keep GitHub-wide repository discovery as a core requirement: list older and newly created repositories accessible to the authenticated GitHub CLI account, distinguish repositories already cloned locally, and let the user deliberately clone a selected repository into `~/Projects`.
+3. Test context injection against current ChatGPT composer/send-button behavior and ensure a failed lookup never loses or duplicates the original message.
+4. Improve memory management: distinguish durable decisions from temporary notes, prevent duplicates, and allow stale notes to be corrected or removed.
+5. Add a clear status/diagnostic so the user can tell which project was selected and whether context was attached.
+6. Update README and version metadata only after implementation and verification.
 
 ## Current known gaps
 - End-to-end continuity has not yet been verified on the user's Mac after the latest repository state.

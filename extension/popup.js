@@ -33,6 +33,22 @@ document.querySelector("#save").onclick = () =>
     result.textContent = "Settings saved locally.";
   });
 
+document.querySelector("#save-ai-key").onclick = async () => {
+  const apiKey = document.querySelector("#openai-key").value.trim();
+  try {
+    result.textContent = "Saving AI summary configuration locally…";
+    const response = await chrome.runtime.sendMessage({
+      type: "VIBEBRIDGE_CHECKPOINT_CONFIG",
+      apiKey
+    });
+    if (!response?.configured) throw new Error(response?.error || "The AI summary key was not saved.");
+    document.querySelector("#openai-key").value = "";
+    result.textContent = "AI-written conversation summaries enabled. The key is stored on this Mac, not in GitHub.";
+  } catch (e) {
+    result.textContent = "Could not save AI summary key: " + e.message;
+  }
+};
+
 async function call(path, body) {
   const v = await chrome.storage.local.get(["token", "project"]);
   if (!v.token) throw new Error("Enter your local agent token first.");

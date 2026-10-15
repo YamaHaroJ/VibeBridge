@@ -127,13 +127,11 @@ confirmConnect.addEventListener("click", async () => {
     const existing = await chrome.storage.local.get(["token"]);
     let token = existing.token;
     if (!token) {
-      const response = await fetch("http://127.0.0.1:43127/pair", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({})
-      });
-      const data = await response.json();
-      if (!response.ok || !data.token) throw new Error(data.error || "Could not connect to the local agent.");
+      const data = await chrome.runtime.sendNativeMessage("com.vibebridge.agent", {type: "getToken"});
+      if (chrome.runtime.lastError) {
+        throw new Error("Native Messaging is not installed. Run ~/VibeBridge/agent/install.sh, then reload the extension. " + chrome.runtime.lastError.message);
+      }
+      if (!data?.ok || !data.token) throw new Error(data?.error || "Could not obtain the local agent token.");
       token = data.token;
       await chrome.storage.local.set({token});
     }
@@ -144,7 +142,7 @@ confirmConnect.addEventListener("click", async () => {
   } catch (error) {
     consent.classList.add("hidden");
     renderStatus(status, statusText, "setup", error.message);
-    copy.textContent = "Finish the one-time pairing, then connect again.";
+    copy.textContent = "Native Messaging setup may be required. Run the VibeBridge installer, then connect again.";
     connect.classList.remove("hidden");
   } finally {
     confirmConnect.textContent = "Connect";

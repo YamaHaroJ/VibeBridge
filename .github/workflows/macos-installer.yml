@@ -37,15 +37,14 @@ jobs:
           cat > "$DIST/Setup Guide.txt" <<'GUIDE'
           VibeBridge macOS setup
 
-          1. Double-click Install VibeBridge.command.
-          2. Approve the setup confirmation. The agent runs only on this Mac (127.0.0.1).
-          3. If asked, authenticate GitHub CLI. Repository listing and creation use this local GitHub login.
-          4. In Chrome, open chrome://extensions, enable Developer mode, click Load unpacked, and choose ~/VibeBridge/extension.
-          5. Open the VibeBridge extension popup, paste the local token printed by the installer, and click Save settings.
-          6. Use Check connection setup. It checks the local agent and GitHub CLI separately.
-          7. Connect GitHub separately in ChatGPT Settings > Apps/Connectors if you want ChatGPT itself to browse repositories.
+          1. Double-click Install VibeBridge.command and approve the setup prompt.
+          2. The installer fetches current public master, installs the local-only agent, enables hourly updates, and copies the local token to the clipboard.
+          3. In Chrome, open chrome://extensions, enable Developer mode, click Load unpacked, and choose ~/VibeBridge/extension.
+          4. Open the VibeBridge extension popup, paste the copied token, choose a project, and click Save settings.
+          5. Click Check connection. GitHub CLI authentication is optional and only needed for repository discovery/creation.
+          6. Connect GitHub separately in ChatGPT Settings > Apps/Connectors only if you want ChatGPT itself to browse repositories.
 
-          Chrome and ChatGPT do not permit an installer to silently grant extension or connector permissions. You must approve those connections yourself.
+          Required approvals: running the installer and installing/allowing the Chrome extension. The extension is not yet published in the Chrome Web Store, so Chrome currently requires the manual Load unpacked step. After Web Store publication, that step can be replaced by a standard Add to Chrome approval.
           This build is unsigned and not notarized. macOS may show a security warning until the user explicitly approves running the downloaded installer.
           GUIDE
           hdiutil create -volname "VibeBridge Installer" -srcfolder "$DIST" -ov -format UDZO "$OUT/VibeBridge-macOS-Installer.dmg"

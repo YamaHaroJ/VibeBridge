@@ -14,56 +14,35 @@ jobs:
   package:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Validate and prepare Chrome Web Store package
+      - uses: actions/checkout@v4
+      - name: Validate and package extension
         run: |
           python - <<'PY'
-          import json
-          import shutil
+          import json, shutil
           from pathlib import Path
-
+          from zipfile import ZipFile
           source = Path("extension")
           output = Path("web-store-package")
           shutil.copytree(source, output, ignore=shutil.ignore_patterns(".DS_Store", "__MACOSX"))
-          manifest_path = output / "manifest.json"
-          manifest = json.loads(manifest_path.read_text())
+          mp = output / "manifest.json"
+          manifest = json.loads(mp.read_text())
           assert manifest.get("manifest_version") == 3
-          # Chrome Web Store rejects the developer-supplied "key" manifest field.
           manifest.pop("key", None)
-          manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
-
-          for entry in [manifest.get("background", {}).get("service_worker"),
-                        manifest.get("action", {}).get("default_popup")]:
-              if entry:
-                  assert (output / entry).is_file(), f"Missing referenced file: {entry}"
+          mp.write_text(json.dumps(manifest, indent=2) + "\n")
+          for entry in [manifest.get("background", {}).get("service_worker"), manifest.get("action", {}).get("default_popup")]:
+              if entry: assert (output / entry).is_file(), f"Missing referenced file: {entry}"
           for script in manifest.get("content_scripts", []):
-              for entry in script.get("js", []):
-                  assert (output / entry).is_file(), f"Missing referenced file: {entry}"
-          print(f"Prepared {manifest['name']} {manifest['version']} for Chrome Web Store")
-          PY
-
-      - name: Package extension
-        run: |
-          cd web-store-package
-          zip -r ../VibeBridge-Chrome-Web-Store.zip . -x ".DS_Store" "__MACOSX/*"
-
-      - name: Verify ZIP layout and manifest
-        run: |
-          python - <<'PY'
-          import json
-          from zipfile import ZipFile
+              for entry in script.get("js", []): assert (output / entry).is_file(), f"Missing referenced file: {entry}"
+          with ZipFile("VibeBridge-Chrome-Web-Store.zip", "w") as z:
+              for path in output.rglob("*"):
+                  if path.is_file():
+                      z.write(path, path.relative_to(output).as_posix())
           with ZipFile("VibeBridge-Chrome-Web-Store.zip") as z:
-              names = z.namelist()
-              assert "manifest.json" in names, "manifest.json must be at ZIP root"
-              assert not any(n.startswith("web-store-package/") or n.startswith("extension/") for n in names)
-              manifest = json.loads(z.read("manifest.json"))
-              assert "key" not in manifest, "Chrome Web Store package must not include manifest key"
-              print("ZIP verified:", len(names), "files; manifest key removed")
+              assert "manifest.json" in z.namelist()
+              assert "key" not in json.loads(z.read("manifest.json"))
+              print("Verified package; manifest.json is at archive root.")
           PY
-
-      - name: Upload ZIP artifact
+      - name: Upload the package as an artifact
         uses: actions/upload-artifact@v4
         with:
           name: VibeBridge-Chrome-Web-Store

@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 import secrets
 import subprocess
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -114,22 +115,44 @@ def github_repo_for_name(value):
 def remote_repo_context(slug):
     parts = [f"PROJECT: {slug.rsplit('/', 1)[-1]}", f"GITHUB REPOSITORY: {slug}",
              "SOURCE: GitHub repository (not cloned locally). Local file edits and terminal commands require cloning."]
+    import base64
+    loaded = []
+    errors = []
     for filename in ("README.md", "VIBEBRIDGE_CONTEXT.md"):
         try:
             result = subprocess.run(
                 ["gh", "api", f"repos/{slug}/contents/{filename}", "--jq", ".content"],
                 capture_output=True, text=True, timeout=20
             )
-            if result.returncode == 0 and result.stdout.strip():
-                import base64
-                content = base64.b64decode("".join(result.stdout.split())).decode("utf-8", errors="replace").strip()
-                if content:
-                    label = "PERSISTENT PROJECT MEMORY" if filename == "VIBEBRIDGE_CONTEXT.md" else "README"
-                    parts.append(label + " (" + filename + "):\n" + content[:6500])
-        except Exception:
-            pass
-    return "\\n\\n".join(parts)[:18000]
-
+        except FileNotFoundError:
+            raise RuntimeError("GitHub CLI (gh) is not installed, so remote project context cannot be loaded.")
+        except subprocess.TimeoutExpired:
+            errors.append(f"{filename}: GitHub request timed out")
+            continue
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or "GitHub API request failed").strip()
+            if filename == "VIBEBRIDGE_CONTEXT.md" and ("404" in detail or "Not Found" in detail):
+                continue
+            errors.append(f"{filename}: {detail[:300]}")
+            continue
+        if not result.stdout.strip():
+            continue
+        try:
+            encoded = "".join(result.stdout.split())
+            content = base64.b64decode(encoded, validate=True).decode("utf-8", errors="replace").strip()
+        except (ValueError, base64.binascii.Error) as exc:
+            errors.append(f"{filename}: GitHub returned invalid base64 content ({exc})")
+            continue
+        if content:
+            label = "PERSISTENT PROJECT MEMORY" if filename == "VIBEBRIDGE_CONTEXT.md" else "README"
+            parts.append(label + " (" + filename + "):\n" + content[:6500])
+            loaded.append(filename)
+    if not loaded:
+        detail = "; ".join(errors) if errors else "The repository has no readable README.md or VIBEBRIDGE_CONTEXT.md."
+        raise RuntimeError(f"Could not load useful context from GitHub repository {slug}. {detail}")
+    if errors:
+        parts.append("REMOTE CONTEXT WARNINGS: " + "; ".join(errors))
+    return "\n\n".join(parts)[:18000]
 
 def project_path(raw):
     value = str(raw or "").strip()
@@ -184,40 +207,47 @@ def project_context(project):
 
 
 def match_project(message, active=""):
-    projects = discover_projects()
     text = str(message or "").lower()
-    explicit = [item for item in projects if item["name"].lower() in text]
-    if len(explicit) == 1:
-        return explicit[0], "message"
-    if len(explicit) > 1:
+    projects = discover_projects()
+
+    # Explicit local project mentions take precedence over the active project.
+    local_explicit = [
+        item for item in projects
+        if re.search(
+            r"(?<![a-z0-9])" + re.escape(item["name"].lower()).replace(r"\-", r"[-_ ]+") + r"(?![a-z0-9])",
+            text
+        )
+    ]
+    if len(local_explicit) == 1:
+        return local_explicit[0], "message"
+    if len(local_explicit) > 1:
         return None, "ambiguous"
-    # Resolve GitHub repositories by full owner/name or unique repository name.
+
+    # Search all repositories visible to GitHub CLI, including un-cloned projects.
     try:
         repos = github_projects()
     except RuntimeError:
         repos = []
     remote_explicit = []
+    aliases = {
+        "autofill-insurance-extension": ("autofill", "insurance extension", "autofill extension"),
+        "vibebridge": ("vibebridge", "vibe bridge"),
+        "macoptimizer": ("macoptimizer", "mac optimizer"),
+    }
     for repo in repos:
         full = str(repo.get("nameWithOwner", "")).lower()
         name = str(repo.get("name", "")).lower()
-        # Match the exact repository slug/name, plus distinctive words from its
-        # name so natural requests like "switch to Autofill" work.
+        normalized_name = name.replace("_", "-")
+        pattern = re.escape(normalized_name).replace(r"\-", r"[-_ ]+")
         full_match = bool(full and full in text)
-        name_match = bool(name and __import__("re").search(
-            r"(?<![a-z0-9])" + __import__("re").escape(name).replace(r"\\-", r"[-_ ]+") + r"(?![a-z0-9])",
-            text
-        ))
-        aliases = {
-            "autofill-insurance-extension": ("autofill", "insurance extension", "autofill extension"),
-            "vibebridge": ("vibebridge", "vibe bridge"),
-            "macoptimizer": ("macoptimizer", "mac optimizer"),
-        }.get(name.replace("_", "-"), ())
-        alias_match = any(__import__("re").search(
-            r"(?<![a-z0-9])" + __import__("re").escape(alias) + r"(?![a-z0-9])", text
-        ) for alias in aliases)
+        name_match = bool(pattern and re.search(r"(?<![a-z0-9])" + pattern + r"(?![a-z0-9])", text))
+        alias_match = any(
+            re.search(r"(?<![a-z0-9])" + re.escape(alias) + r"(?![a-z0-9])", text)
+            for alias in aliases.get(normalized_name, ())
+        )
         if full_match or name_match or alias_match:
             remote_explicit.append(repo)
-    # Prefer exact full slug mentions, otherwise only accept a unique short name.
+
     exact_slug = [repo for repo in remote_explicit if str(repo.get("nameWithOwner", "")).lower() in text]
     chosen = exact_slug if exact_slug else remote_explicit
     unique = {str(repo.get("nameWithOwner", "")).lower(): repo for repo in chosen}
@@ -225,23 +255,26 @@ def match_project(message, active=""):
         repo = next(iter(unique.values()))
         if repo.get("localPath"):
             return {"name": repo["name"], "path": repo["localPath"]}, "message"
-        return {"name": repo["name"], "path": "github:" + repo["nameWithOwner"], "repository": repo["nameWithOwner"], "remote": True}, "message"
+        return {"name": repo["name"], "path": "github:" + repo["nameWithOwner"],
+                "repository": repo["nameWithOwner"], "remote": True}, "message"
     if len(unique) > 1:
         return None, "ambiguous"
+
+    # If no new project was named, preserve the active project.
     if active:
         if str(active).startswith("github:"):
             repo = github_repo_for_name(active)
             if repo:
                 if repo.get("localPath"):
                     return {"name": repo["name"], "path": repo["localPath"]}, "active"
-                return {"name": repo["name"], "path": "github:" + repo["nameWithOwner"], "repository": repo["nameWithOwner"], "remote": True}, "active"
+                return {"name": repo["name"], "path": "github:" + repo["nameWithOwner"],
+                        "repository": repo["nameWithOwner"], "remote": True}, "active"
         try:
             p = project_path(active)
             return {"name": p.name, "path": str(p)}, "active"
         except (ValueError, OSError):
             pass
     return None, "none"
-
 
 class Handler(BaseHTTPRequestHandler):
     def send_json(self, status, obj):

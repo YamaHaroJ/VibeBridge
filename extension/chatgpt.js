@@ -42,13 +42,44 @@
     if (!node) {
       node = document.createElement("div");
       node.id = "vibebridge-notice";
-      node.style.cssText = "position:fixed;z-index:999999;right:18px;bottom:88px;max-width:360px;padding:10px 14px;border-radius:10px;background:#172033;color:#fff;font:13px system-ui;box-shadow:0 4px 18px #0005";
+      node.style.cssText = "position:fixed;z-index:999999;right:18px;bottom:88px;max-width:min(560px,calc(100vw - 36px));max-height:45vh;overflow:auto;padding:12px;border-radius:10px;background:#172033;color:#fff;font:13px system-ui;box-shadow:0 4px 18px #0005;white-space:pre-wrap;overflow-wrap:anywhere";
+      const message = document.createElement("div");
+      message.id = "vibebridge-notice-message";
+      const actions = document.createElement("div");
+      actions.style.cssText = "display:flex;gap:8px;margin-top:10px";
+      const copy = document.createElement("button");
+      copy.type = "button";
+      copy.textContent = "Copy error";
+      copy.style.cssText = "padding:5px 8px;border:0;border-radius:5px;cursor:pointer";
+      copy.addEventListener("click", async () => {
+        const value = node.dataset.fullText || "";
+        try {
+          await navigator.clipboard.writeText(value);
+          copy.textContent = "Copied";
+        } catch {
+          const field = document.createElement("textarea");
+          field.value = value;
+          field.style.cssText = "position:fixed;left:-9999px;top:0";
+          document.body.appendChild(field);
+          field.select();
+          const copied = document.execCommand("copy");
+          field.remove();
+          copy.textContent = copied ? "Copied" : "Select and copy the error text";
+        }
+      });
+      const close = document.createElement("button");
+      close.type = "button";
+      close.textContent = "Dismiss";
+      close.style.cssText = "padding:5px 8px;border:0;border-radius:5px;cursor:pointer";
+      close.addEventListener("click", () => { node.style.display = "none"; });
+      actions.append(copy, close);
+      node.append(message, actions);
       document.body.appendChild(node);
     }
-    node.textContent = text;
+    node.dataset.fullText = String(text);
+    const message = node.querySelector("#vibebridge-notice-message");
+    if (message) message.textContent = String(text);
     node.style.display = "block";
-    clearTimeout(node.__timer);
-    node.__timer = setTimeout(() => { node.style.display = "none"; }, 5000);
   }
 
   function addCommandControls() {

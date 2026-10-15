@@ -154,6 +154,71 @@ def remote_repo_context(slug):
         parts.append("REMOTE CONTEXT WARNINGS: " + "; ".join(errors))
     return "\n\n".join(parts)[:18000]
 
+def redact_checkpoint_text(value):
+    value = str(value or "")
+    value = re.sub(r"(?i)(bearer\\s+)[A-Za-z0-9._~+/-]+=*", r"\\1[REDACTED]", value)
+    value = re.sub(r"(?i)(api[_ -]?key|token|password|secret)\\s*[:=]\\s*[^\\s,;]+", r"\\1=[REDACTED]", value)
+    value = re.sub(r"(?i)sk-[A-Za-z0-9_-]{12,}", "[REDACTED_API_KEY]", value)
+    return value[:1200].strip()
+
+
+def sync_message_checkpoint(role, text, conversation):
+    # Separate rolling checkpoint file avoids rewriting the main project memory each turn.
+    import base64
+    from datetime import datetime
+    repo = "YamaHaroJ/VibeBridge"
+    role = str(role or "").lower()
+    if role not in ("user", "assistant"):
+        raise ValueError("role must be user or assistant")
+    safe_text = redact_checkpoint_text(text)
+    if not safe_text:
+        raise ValueError("message text is empty after filtering")
+    conv = re.sub(r"[^A-Za-z0-9_.-]", "", str(conversation or "chat"))[:80] or "chat"
+    path = "memory/AUTO_CHECKPOINT.md"
+    get = subprocess.run(
+        ["gh", "api", f"repos/{repo}/contents/{path}"],
+        capture_output=True, text=True, timeout=20
+    )
+    sha = None
+    entries = []
+    if get.returncode == 0:
+        try:
+            item = json.loads(get.stdout)
+            sha = item.get("sha")
+            existing = base64.b64decode(item.get("content", "")).decode("utf-8", errors="replace")
+            entries = existing.splitlines()
+        except Exception:
+            raise RuntimeError("Could not decode existing GitHub checkpoint file.")
+    elif "404" not in (get.stderr + get.stdout):
+        raise RuntimeError((get.stderr or get.stdout or "Could not read checkpoint file").strip()[:700])
+    stamp = datetime.now().astimezone().isoformat(timespec="seconds")
+    digest = hashlib.sha256((conv + "\\0" + role + "\\0" + safe_text).encode()).hexdigest()[:16]
+    if any(line.startswith("<!-- " + digest + " -->") for line in entries):
+        return {"saved": True, "duplicate": True, "path": path}
+    block = [
+        "<!-- " + digest + " -->",
+        "### " + stamp + " — " + role.title() + " message",
+        "- Conversation: " + conv,
+        "- Checkpoint: " + safe_text.replace("\\n", " "),
+        ""
+    ]
+    updated = (existing.rstrip() + "\\n\\n" if sha else "# Automatic per-message checkpoints\\n\\n") + "\\n".join(block) + "\\n"
+    # Keep file bounded; preserve the heading and most recent 250 entries (five lines per entry).
+    lines = updated.splitlines()
+    if len(lines) > 1260:
+        updated = "\\n".join(lines[:2] + lines[-1250:]) + "\\n"
+    payload = {"message": "Auto-checkpoint " + role + " message " + stamp, "content": base64.b64encode(updated.encode()).decode()}
+    if sha:
+        payload["sha"] = sha
+    result = subprocess.run(
+        ["gh", "api", "--method", "PUT", f"repos/{repo}/contents/{path}", "--input", "-"],
+        input=json.dumps(payload), capture_output=True, text=True, timeout=30
+    )
+    if result.returncode != 0:
+        raise RuntimeError((result.stderr or result.stdout or "GitHub checkpoint update failed").strip()[:1000])
+    return {"saved": True, "path": path, "role": role, "timestamp": stamp}
+
+
 def create_github_repo(name, description="", private=True):
     name = str(name or "").strip()
     if not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", name):
@@ -480,6 +545,12 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             return self.send_json(400, {"error": "Invalid JSON"})
         path = urlparse(self.path).path
+        if path == "/checkpoint":
+            try:
+                result = sync_message_checkpoint(body.get("role", ""), body.get("text", ""), body.get("conversation", "chat"))
+                return self.send_json(200, result)
+            except (ValueError, RuntimeError) as e:
+                return self.send_json(400, {"error": str(e)})
         if path == "/filesystem/write":
             try:
                 target = filesystem_path(body.get("path", ""))

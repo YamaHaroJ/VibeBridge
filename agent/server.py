@@ -162,8 +162,76 @@ def redact_checkpoint_text(value):
     return value[:1200].strip()
 
 
+def load_checkpoint_api_key():
+    key_file = SUPPORT / "openai_api_key"
+    try:
+        return key_file.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def update_checkpoint_api_key(value):
+    value = str(value or "").strip()
+    if value and not value.startswith("sk-"):
+        raise ValueError("Enter a valid OpenAI API key beginning with sk-.")
+    key_file = SUPPORT / "openai_api_key"
+    if value:
+        key_file.write_text(value, encoding="utf-8")
+        key_file.chmod(0o600)
+    else:
+        try:
+            key_file.unlink()
+        except FileNotFoundError:
+            pass
+    return {"configured": bool(value)}
+
+
+def ai_merge_checkpoint(previous, role, new_message, conversation):
+    import urllib.request
+    key = load_checkpoint_api_key()
+    if not key:
+        raise RuntimeError("AI summary is not configured yet. Add your OpenAI API key in the VibeBridge popup. The key is stored locally and is never written to GitHub.")
+    prompt = (
+        "Maintain a concise, continuously updated project/conversation checkpoint. "
+        "Combine the PREVIOUS SUMMARY with the NEW MESSAGE; preserve durable goals, decisions, current implementation, "
+        "verified results, unresolved blockers, and next steps. Remove repetition and stale claims. "
+        "Distinguish verified facts from plans. Do not include secrets or raw transcript. "
+        "Return only the updated summary in Markdown, ideally 200-500 words. "
+        "Conversation identifier: " + conversation + "\nMessage role: " + role +
+        "\n\nPREVIOUS SUMMARY:\n" + (previous or "(No previous summary yet)") +
+        "\n\nNEW MESSAGE:\n" + new_message
+    )
+    payload = {
+        "model": "gpt-4.1-mini",
+        "input": [
+            {"role": "system", "content": "You maintain accurate, compact project memory. Never invent progress or claim unverified work passed."},
+            {"role": "user", "content": prompt}
+        ],
+        "max_output_tokens": 1200
+    }
+    request = urllib.request.Request(
+        "https://api.openai.com/v1/responses",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"},
+        method="POST"
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=45) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except Exception as exc:
+        raise RuntimeError("AI summary request failed: " + str(exc)[:500])
+    chunks = []
+    for item in result.get("output", []):
+        for content in item.get("content", []):
+            if content.get("type") == "output_text":
+                chunks.append(content.get("text", ""))
+    summary = "\n".join(chunks).strip()
+    if not summary:
+        raise RuntimeError("AI returned an empty checkpoint summary.")
+    return summary[:12000]
+
+
 def sync_message_checkpoint(role, text, conversation):
-    # Separate rolling checkpoint file avoids rewriting the main project memory each turn.
     import base64
     from datetime import datetime
     repo = "YamaHaroJ/VibeBridge"
@@ -181,34 +249,25 @@ def sync_message_checkpoint(role, text, conversation):
     )
     sha = None
     existing = ""
-    entries = []
     if get.returncode == 0:
         try:
             item = json.loads(get.stdout)
             sha = item.get("sha")
             existing = base64.b64decode(item.get("content", "")).decode("utf-8", errors="replace")
-            entries = existing.splitlines()
         except Exception:
             raise RuntimeError("Could not decode existing GitHub checkpoint file.")
     elif "404" not in (get.stderr + get.stdout):
         raise RuntimeError((get.stderr or get.stdout or "Could not read checkpoint file").strip()[:700])
+
+    # Keep one evolving summary per conversation; do not append raw message logs.
+    summaries = re.findall(r"(?ms)^## Conversation: ([^\n]+)\n(.*?)(?=^## Conversation: |\Z)", existing)
+    previous = next((body.strip() for key, body in summaries if key == conv), "")
+    summary = ai_merge_checkpoint(previous, role, safe_text, conv)
     stamp = datetime.now().astimezone().isoformat(timespec="seconds")
-    digest = hashlib.sha256((conv + "\0" + role + "\0" + safe_text).encode()).hexdigest()[:16]
-    if any(line.startswith("<!-- " + digest + " -->") for line in entries):
-        return {"saved": True, "duplicate": True, "path": path}
-    block = [
-        "<!-- " + digest + " -->",
-        "### " + stamp + " — " + role.title() + " message",
-        "- Conversation: " + conv,
-        "- Checkpoint: " + safe_text.replace("\n", " "),
-        ""
-    ]
-    updated = (existing.rstrip() + "\n\n" if sha else "# Automatic per-message checkpoints\n\n") + "\n".join(block) + "\n"
-    # Keep file bounded; preserve the heading and most recent 250 entries (five lines per entry).
-    lines = updated.splitlines()
-    if len(lines) > 1260:
-        updated = "\n".join(lines[:2] + lines[-1250:]) + "\n"
-    payload = {"message": "Auto-checkpoint " + role + " message " + stamp, "content": base64.b64encode(updated.encode()).decode()}
+    new_section = "## Conversation: " + conv + "\n_Last updated: " + stamp + " — latest message role: " + role + "_\n\n" + summary.strip()
+    other_sections = [("## Conversation: " + key + "\n" + body.strip()) for key, body in summaries if key != conv]
+    updated = "# VibeBridge AI Conversation Summaries\n\n" + new_section + "\n\n" + "\n\n".join(other_sections[:40]) + "\n"
+    payload = {"message": "Update AI conversation summary " + conv + " " + stamp, "content": base64.b64encode(updated.encode()).decode()}
     if sha:
         payload["sha"] = sha
     result = subprocess.run(
@@ -217,7 +276,7 @@ def sync_message_checkpoint(role, text, conversation):
     )
     if result.returncode != 0:
         raise RuntimeError((result.stderr or result.stdout or "GitHub checkpoint update failed").strip()[:1000])
-    return {"saved": True, "path": path, "role": role, "timestamp": stamp}
+    return {"saved": True, "path": path, "role": role, "timestamp": stamp, "summary": summary}
 
 
 def create_github_repo(name, description="", private=True):
@@ -546,6 +605,11 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             return self.send_json(400, {"error": "Invalid JSON"})
         path = urlparse(self.path).path
+        if path == "/checkpoint-config":
+            try:
+                return self.send_json(200, update_checkpoint_api_key(body.get("api_key", "")))
+            except ValueError as e:
+                return self.send_json(400, {"error": str(e)})
         if path == "/checkpoint":
             try:
                 result = sync_message_checkpoint(body.get("role", ""), body.get("text", ""), body.get("conversation", "chat"))

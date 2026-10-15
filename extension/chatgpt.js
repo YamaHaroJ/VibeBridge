@@ -20,7 +20,7 @@
   document.querySelectorAll('[data-message-author-role="user"], [data-message-author-role="assistant"]').forEach(node => knownCheckpointNodes.add(node));
 
   function conversationKey() {
-    const match = location.pathname.match(/\\/c\\/([^/]+)/);
+    const match = location.pathname.match(/\/c\/([^/]+)/);
     return match ? match[1].slice(0, 80) : "chat";
   }
 

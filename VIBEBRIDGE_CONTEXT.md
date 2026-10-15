@@ -122,3 +122,9 @@ Important setup distinction: ChatGPT's GitHub connector is optional for VibeBrid
 - Current updater still tracks public `master` hourly. It pauses when the local Git tree is dirty, validates Python/manifest/JavaScript, rolls back on validation failure, and restarts the agent. After extension files are fetched, Chrome still needs Reload. The test-versus-stable branch/release split is not fully implemented yet; a `development` branch was created but is not yet wired to a separate test updater.
 - CI for the earlier commits through `f9ddf7f` passed validation; newest popup/logging commits still have queued/running workflows as of this checkpoint. Check current workflow status before claiming they pass.
 - Important bootstrap limit: this session cannot connect to `127.0.0.1:43127` or read local Mac logs directly. Once the updated popup is on the Mac, the user can click Maintenance & diagnostics → View logs, then send the displayed log output back into ChatGPT. Do not claim local runtime verification before that.
+
+
+## Extension build versioning rule (2026-10-15)
+- Every change to the Chrome extension that should be tested on the user's Mac MUST bump `extension/manifest.json` version before asking the user to reload it. Never ask the user to reload an extension without providing the expected build number.
+- The popup's `Extension build: vX.Y.Z · loaded` stamp is generated from Chrome's loaded manifest. Use it as the confirmation that the new extension files are loaded; GitHub commit success alone is not installation proof.
+- Bump patch versions for ordinary test fixes (for example, 0.2.1 -> 0.2.2); reserve minor/major bumps for planned releases. Mention the expected version and relevant commit in the reload instruction.

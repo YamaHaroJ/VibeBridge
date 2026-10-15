@@ -9,7 +9,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     "VIBEBRIDGE_FILESYSTEM_LIST",
     "VIBEBRIDGE_FILESYSTEM_READ",
     "VIBEBRIDGE_FILESYSTEM_WRITE",
-    "VIBEBRIDGE_FILESYSTEM_MKDIR"
+    "VIBEBRIDGE_FILESYSTEM_MKDIR",
+    "VIBEBRIDGE_CHECKPOINT_MESSAGE"
   ];
   if (!supported.includes(message?.type)) return;
 
@@ -19,6 +20,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return {matched: false, error: "VibeBridge token missing. Open the extension popup and save your token."};
     }
     const active = saved.activeProject || saved.project || "";
+
+    if (message.type === "VIBEBRIDGE_CHECKPOINT_MESSAGE") {
+      const payload = message.payload || {};
+      const response = await fetch(API + "/checkpoint", {
+        method: "POST",
+        headers: {"Authorization": "Bearer " + saved.token, "Content-Type": "application/json"},
+        body: JSON.stringify({
+          role: payload.role,
+          text: payload.text,
+          conversation: payload.conversation || "chat"
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Automatic checkpoint failed");
+      return data;
+    }
 
     if (message.type === "VIBEBRIDGE_FILESYSTEM_LIST") {
       const target = message.path || "";

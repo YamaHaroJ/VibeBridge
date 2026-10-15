@@ -53,6 +53,45 @@ def validate():
         log("Node is not installed; JavaScript syntax validation is covered by GitHub Actions.")
 
 
+def sync_extension_tree(source, destination):
+    """Update the unpacked extension in place without removing its registered root.
+
+    Chrome stores the unpacked extension's path in its profile. Briefly deleting
+    that path during an automatic update can make Chrome treat the extension as
+    missing and drop it from the profile. Keep the root directory present and
+    publish manifest.json last so Chrome never sees a missing root/manifest.
+    """
+    source = Path(source)
+    destination = Path(destination)
+    destination.mkdir(parents=True, exist_ok=True)
+
+    source_files = {p.relative_to(source) for p in source.rglob("*") if p.is_file()}
+    manifest_rel = Path("manifest.json")
+    if manifest_rel not in source_files:
+        raise RuntimeError("Staged extension is missing manifest.json.")
+
+    # Copy payload files first; keep the currently valid manifest until last.
+    for rel in sorted(source_files, key=lambda p: str(p)):
+        if rel == manifest_rel:
+            continue
+        target = destination / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source / rel, target)
+
+    # Publish the validated manifest only after all referenced files are present.
+    shutil.copy2(source / manifest_rel, destination / manifest_rel)
+
+    # Remove files no longer present in the release, without deleting the root.
+    for path in sorted(destination.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+        if path.is_file() and path.relative_to(destination) not in source_files:
+            path.unlink()
+        elif path.is_dir():
+            try:
+                path.rmdir()
+            except OSError:
+                pass
+
+
 def launch_agent():
     log("Runtime files validated. Restarting local agent.")
     uid = str(__import__("os").getuid())
@@ -175,9 +214,12 @@ def main():
         try:
             for path in MANAGED_PATHS:
                 destination = ROOT / path
-                if destination.exists():
-                    shutil.rmtree(destination)
-                shutil.copytree(stage / path, destination)
+                if path == "extension":
+                    sync_extension_tree(stage / path, destination)
+                else:
+                    if destination.exists():
+                        shutil.rmtree(destination)
+                    shutil.copytree(stage / path, destination)
             validate()
         except Exception:
             for path in MANAGED_PATHS:

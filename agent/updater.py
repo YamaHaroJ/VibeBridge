@@ -18,7 +18,7 @@ SUPPORT = Path.home() / "Library/Application Support/VibeBridge"
 LOG = SUPPORT / "update.log"
 LABEL = "com.vibebridge.agent"
 REMOTE = "https://github.com/YamaHaroJ/VibeBridge.git"
-MANAGED_PATHS = ("agent", "extension")
+MANAGED_PATHS = ("agent", "extension", "tests")
 
 
 def log(message):

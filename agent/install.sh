@@ -26,7 +26,8 @@ manifest_path, python, host_script, extension_id = sys.argv[1:]
 manifest = {
     "name": "com.vibebridge.agent",
     "description": "VibeBridge secure token bootstrap",
-    "path": str(pathlib.Path(host_script).resolve()),
+    "path": str(pathlib.Path(python).resolve()),
+    "args": [str(pathlib.Path(host_script).resolve())],
     "type": "stdio",
     "allowed_origins": ["chrome-extension://" + extension_id + "/"],
 }

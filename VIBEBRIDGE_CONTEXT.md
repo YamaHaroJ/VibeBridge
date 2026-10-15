@@ -204,3 +204,9 @@ Important setup distinction: ChatGPT's GitHub connector is optional for VibeBrid
 - GitHub CLI/repository lookup is now a separate status. If it fails, the popup retains the local connected state and explains that only GitHub repository features need sign-in; it no longer resets the main switch and asks to connect the Mac again.
 - Validation run: https://github.com/YamaHaroJ/VibeBridge/actions/runs/38802894618 (running at checkpoint time).
 - Local Chrome runtime verification is still required after the updater syncs the latest popup.js and the extension is reloaded.
+
+
+## Version synchronization rule (2026-10-15)
+- User explicitly requires every extension reload associated with a code change to include a version bump, so both sides can verify they are running the same build.
+- Popup connection-state fix is versioned as **0.2.21** in `extension/manifest.json`; commit `74ad273`.
+- Before asking the user to reload, check that the local updater has synced the commit and tell them the exact version expected in `chrome://extensions`. Do not imply a GitHub commit changes the local extension until it has synced.

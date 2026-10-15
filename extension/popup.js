@@ -227,7 +227,7 @@ reloadExtension?.addEventListener("click", async () => {
         }
         if (lastStatus.currentRevision && lastStatus.remoteRevision &&
             lastStatus.currentRevision === lastStatus.remoteRevision &&
-            (/Update complete\.|Already up to date\./i.test(lines))) {
+            (/(?:Update complete\.|Already up to date\.|GitHub revision already deployed:)/i.test(lines))) {
           done = true;
           break;
         }

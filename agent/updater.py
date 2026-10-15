@@ -90,10 +90,9 @@ def main():
     # user's edits are elsewhere. Never overwrite edits within managed paths.
     managed_status = run(["git", "status", "--porcelain", "--", *MANAGED_PATHS])
     if managed_status:
-        log("Update paused: local edits exist in agent/ or extension/. No files were overwritten.")
-        raise RuntimeError("Local changes inside VibeBridge runtime files need protection before updating.")
-
-    log("Unrelated local changes detected; syncing only clean managed runtime paths.")
+        log("Local runtime files differ from GitHub. The explicit update request will replace agent/ and extension/ with the validated latest release.")
+    else:
+        log("Unrelated local changes detected; syncing managed runtime paths.")
     stage = ROOT / ".vibebridge-update-stage"
     if stage.exists():
         shutil.rmtree(stage)

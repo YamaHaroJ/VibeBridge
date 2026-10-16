@@ -69,7 +69,8 @@ class ExtensionFlowContractTests(unittest.TestCase):
         self.assertIn('showContextChoice(', self.content_script)
         self.assertIn('Send without context', self.content_script)
         self.assertIn('Attach context & send', self.content_script)
-        self.assertNotIn('writeComposer(composer, addition + original)', self.content_script)
+        self.assertIn('readComposer(composer).trim() !== original', self.content_script)
+        self.assertIn('bypassNextSend = true', self.content_script)
 
     def test_assistant_memory_block_is_detected_and_forwarded(self):
         self.assertIn('language-vibebridge-memory|vibebridge-memory', self.content_script)

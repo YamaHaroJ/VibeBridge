@@ -9,6 +9,11 @@ import server
 
 
 class ProjectSwitchTests(unittest.TestCase):
+    def test_agent_uses_threaded_http_server(self):
+        source = (Path(__file__).resolve().parents[1] / "agent" / "server.py").read_text()
+        self.assertIn("from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer", source)
+        self.assertIn("ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()", source)
+
     def test_command_timeout_kills_process_group_and_returns(self):
         import time
         import subprocess

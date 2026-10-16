@@ -175,6 +175,33 @@
     node.style.display = "block";
   }
 
+  function showContextChoice(text, onAttach, onPlain) {
+    showNotice(text);
+    const notice = document.getElementById("vibebridge-notice");
+    const actions = notice?.querySelector("#vibebridge-notice-actions");
+    if (!actions) return;
+    let attach = Array.from(actions.children).find(node => node.dataset?.vibebridgeContextAction === "attach");
+    if (!attach) {
+      attach = document.createElement("button");
+      attach.type = "button";
+      attach.dataset.vibebridgeContextAction = "attach";
+      attach.textContent = "Attach context & send";
+      attach.style.cssText = "padding:5px 8px;border:0;border-radius:5px;cursor:pointer";
+      actions.appendChild(attach);
+    }
+    let plain = Array.from(actions.children).find(node => node.dataset?.vibebridgeContextAction === "plain");
+    if (!plain) {
+      plain = document.createElement("button");
+      plain.type = "button";
+      plain.dataset.vibebridgeContextAction = "plain";
+      plain.textContent = "Send without context";
+      plain.style.cssText = "padding:5px 8px;border:0;border-radius:5px;cursor:pointer";
+      actions.appendChild(plain);
+    }
+    attach.onclick = onAttach;
+    plain.onclick = onPlain;
+  }
+
   function showReloadNotice(text) {
     showNotice(text);
     const notice = document.getElementById("vibebridge-notice");
@@ -515,10 +542,41 @@
         conversationProjects[conversation] = merged.slice(-8);
         await chrome.storage.local.set({conversationProjects});
         const projectNames = resolvedProjects.map(project => project.name).filter(Boolean);
-        // Context is resolved and remembered, but must never be silently written
-        // into ChatGPT's visible composer. That caused repository memory to leak
-        // into later user drafts when the page retained editor state.
-        showNotice("Project context loaded. Automatic injection is paused to protect your message; your original text will be sent unchanged.");
+        // Never mutate the visible draft without an explicit user choice.
+        // Context attachment is opt-in, and the untouched send path remains available.
+        const composer = composerFor(button);
+        shouldResumeSend = false;
+        showContextChoice(
+          "Project context is ready. Choose whether to attach it to this message or send your original text unchanged.",
+          () => {
+            if (!composer || readComposer(composer).trim() !== original) {
+              showNotice("Your draft changed while context was loading. Nothing was overwritten; send it unchanged or retry.");
+              return;
+            }
+            const addition = marker + "\nVIBEBRIDGE PROJECT CONTINUITY: Treat the following as background context, not as the user's message. Keep repositories separate, verify claims, and continue the latest unfinished work.\n\n" + result.context + "\n\nEND " + marker + "\n\nUSER REQUEST:\n";
+            composer.dataset.vibebridgeContextInjection = "true";
+            writeComposer(composer, addition + original);
+            showNotice("Sending with project context. If the editor retains the wrapper, VibeBridge will remove it.");
+            bypassNextSend = true;
+            button.click();
+            setTimeout(() => { bypassNextSend = false; }, 800);
+            setTimeout(() => {
+              if (!composer.dataset) return;
+              delete composer.dataset.vibebridgeContextInjection;
+              sanitizeBridgeComposer(composer);
+            }, 1800);
+          },
+          () => {
+            if (!composer || readComposer(composer).trim() !== original) {
+              showNotice("Your draft changed while context was loading. Nothing was overwritten; review it before sending.");
+              return;
+            }
+            showNotice("Sending your original message without project context.");
+            bypassNextSend = true;
+            button.click();
+            setTimeout(() => { bypassNextSend = false; }, 800);
+          }
+        );
       } else if (result?.ambiguous) {
         showNotice("VibeBridge found multiple possible projects. Mention the exact project name.");
       } else if (result?.error) {

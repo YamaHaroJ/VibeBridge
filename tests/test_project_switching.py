@@ -170,12 +170,12 @@ class ProjectSwitchTests(unittest.TestCase):
         self.assertEqual(context, "PROJECT: VibeBridge\\nREMOTE MEMORY")
         remote_context.assert_called_once_with("YamaHaroJ/VibeBridge")
 
-    @patch.object(server.subprocess, "run", side_effect=server.subprocess.TimeoutExpired(cmd="git", timeout=5))
     @patch.object(server, "ROOTS", [Path("/Users/test/Projects"), Path("/Users/test/Developer"), Path("/Users/test/VibeBridge")])
     @patch.object(server, "local_repo_map", return_value={"yamaharoJ/vibebridge": "/Users/test/VibeBridge"})
     @patch.object(server, "discover_projects", return_value=[{"name": "VibeBridge", "path": "/Users/test/VibeBridge"}])
     def test_terminal_project_path_resolves_selected_github_slug_to_local_checkout(self, _projects, _local_map):
-        path = server.project_path("github:YamaHaroJ/VibeBridge")
+        with patch.object(Path, "is_dir", return_value=True):
+            path = server.project_path("github:YamaHaroJ/VibeBridge")
         self.assertEqual(str(path), "/Users/test/VibeBridge")
 
     @patch.object(server, "local_repo_map", return_value={})
@@ -183,6 +183,7 @@ class ProjectSwitchTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not cloned locally"):
             server.project_path("github:YamaHaroJ/RemoteOnly")
 
+    @patch.object(server.subprocess, "run", side_effect=server.subprocess.TimeoutExpired(cmd="git", timeout=5))
     def test_safe_git_metadata_timeout_returns_empty_value(self, _run):
         self.assertEqual(server.safe_git_output(["git", "status", "--short"], Path("/tmp")), "")
 

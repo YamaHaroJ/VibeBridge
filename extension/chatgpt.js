@@ -422,6 +422,10 @@
     if (relevant) scheduleScan();
   });
   observer.observe(document.documentElement, {childList: true, subtree: true, characterData: true});
+  const initialComposer = document.querySelector("#prompt-textarea") ||
+    document.querySelector('textarea[placeholder]') ||
+    document.querySelector('[contenteditable="true"][role="textbox"]');
+  if (initialComposer) sanitizeBridgeComposer(initialComposer);
   // Existing assistant messages are rendered first and only receive manual Run controls.
   // Subsequent command blocks can use hands-off mode.
   addCommandControls(false);

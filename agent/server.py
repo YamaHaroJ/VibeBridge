@@ -180,7 +180,12 @@ def sync_message_checkpoint(summary, conversation):
         raise ValueError("The assistant summary is empty.")
     try:
         document = json.loads(raw)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as exc:
+        # A malformed JSON checkpoint must never be silently saved as raw text
+        # into the VibeBridge repository; it could overwrite the wrong project's
+        # rolling memory and conceal a broken assistant payload.
+        if raw.startswith("{") or raw.startswith("["):
+            raise ValueError("Assistant memory JSON is malformed; no checkpoint was saved.") from exc
         document = {"projects": [{"repository": "YamaHaroJ/VibeBridge", "summary": raw}]}
     projects = document.get("projects", [])
     if not isinstance(projects, list) or not projects:

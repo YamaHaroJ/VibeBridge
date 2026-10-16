@@ -27,6 +27,8 @@ const context = {
   chrome,
   URL,
   AbortController,
+  setTimeout,
+  clearTimeout,
   fetch: async (url, options) => {
     request = {url, options};
     return {ok: true, async json() { return {exitCode: 0, stdout: 'done', stderr: ''}; }};

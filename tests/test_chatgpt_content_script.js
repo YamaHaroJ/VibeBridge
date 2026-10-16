@@ -22,6 +22,7 @@ class Element {
   }
   addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
   append(...items) { for (const item of items) this.appendChild(item); }
+  replaceChildren(...items) { this.children = []; this.textContent = ""; this.append(...items); }
   appendChild(item) { item.parentElement = this; this.children.push(item); return item; }
   insertBefore(item, before) {
     item.parentElement = this;
@@ -163,10 +164,16 @@ async function runScenario(sendMessage) {
       }
       throw new Error("Unexpected message " + message.type);
     });
-    assert.match(h.composer.value, /MOCK PROJECT CONTEXT/, "resolved context is attached automatically");
-    assert.ok(h.composer.value.includes("USER REQUEST:") && h.composer.value.endsWith("Continue VibeBridge"), "original request remains after the context wrapper");
-    assert.equal(h.getCurrentSend().clickCount, 1, "context-enriched message sends automatically exactly once");
-    assert.equal(h.document.getElementById("vibebridge-notice"), null, "no banner or context-choice UI is created");
+    assert.equal(h.composer.value, "Continue VibeBridge", "context resolution must never mutate the draft automatically");
+    assert.equal(h.getCurrentSend().clickCount, undefined, "matched context must not auto-send without an explicit choice");
+    const choice = h.document.getElementById("vibebridge-context-choice");
+    assert.ok(choice, "explicit context-choice UI is shown");
+    assert.equal(choice.children[1].textContent, "Send with project context");
+    assert.equal(choice.children[2].textContent, "Send original only");
+    choice.children[1].click();
+    await new Promise(resolve => setTimeout(resolve, 20));
+    assert.match(h.composer.value, /MOCK PROJECT CONTEXT/, "context is attached only after explicit selection");
+    assert.equal(h.getCurrentSend().clickCount, 1, "explicit context choice sends exactly once");
   }
   {
     const h = await runScenario(async message => {

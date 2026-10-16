@@ -158,6 +158,9 @@
             const candidate = JSON.parse(normalizedBlock.slice(jsonStart, jsonEnd + 1));
             if (candidate && Array.isArray(candidate.command) && candidate.command.length &&
                 candidate.command.every(part => typeof part === "string")) payload = candidate;
+            else if (candidate && typeof candidate.command === "string" && candidate.command.trim()) {
+              payload = {command: ["bash", "-lc", candidate.command]};
+            }
           } catch {}
         }
         if (!payload) continue;

@@ -175,6 +175,10 @@
       // an optional JSON code fence so the relay never asks the user to paste it in Terminal.
       const normalizedBlock = rawBlock.replace(/^\s+/, "");
       const markedBlock = normalizedBlock.startsWith(commandMarker);
+      // Some ChatGPT render paths drop custom fence classes but retain the
+      // literal fence label as the first rendered line. Preserve hands-off
+      // behavior only for that explicit VibeBridge label, never generic JSON.
+      const markedFence = /^vibebridge-run(?:\\s|$)/i.test(normalizedBlock);
       const hasCommandLanguage = /language-vibebridge-run|vibebridge-run/i.test(className);
       const hasShellLanguage = /language-(bash|sh|zsh|shell)\b/i.test(className);
       let payload = null;
@@ -285,7 +289,7 @@
       run.addEventListener("click", () => executeCommand(false));
       // Automatic execution must require an explicit VibeBridge command marker.
       // Generic JSON and ordinary shell code blocks are manual-only, even in hands-off mode.
-      const explicitlyMarkedCommand = hasCommandLanguage || markedBlock;
+      const explicitlyMarkedCommand = hasCommandLanguage || markedBlock || markedFence;
       chrome.storage.local.get(["autoRunCommands"], settings => {
         if (allowAutoRun && explicitlyMarkedCommand && allowAutomaticExecution && settings.autoRunCommands === true) {
           description.textContent = "Hands-off mode is enabled: this command will run automatically on your Mac, then its result will be sent back to ChatGPT.";

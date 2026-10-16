@@ -510,7 +510,7 @@
       } else if (result?.error) {
         showNotice("VibeBridge: " + result.error + "\nYour original message will still be sent. Check the local agent and GitHub CLI connection in the extension popup.");
       } else {
-        showNotice("VibeBridge did not attach project context. No matching project was found; your original message will still be sent. Try the exact repository name or owner/repository.");
+        showNotice("VibeBridge did not attach project context. Reason: " + (result?.reason || "unknown") + ". Active project: " + (activeProject || "(none)") + ". Conversation projects: " + (knownProjects.join(", ") || "(none)") + ". Your original message will still be sent. Open the extension popup and verify the selected project.");
       }
     } catch (error) {
       const message = String(error?.message || error || "Unknown error");

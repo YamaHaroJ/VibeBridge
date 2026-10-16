@@ -200,16 +200,16 @@ def sync_message_checkpoint(summary, conversation):
         todos = entry.get("todos", [])
         decisions = entry.get("decisions", [])
         updated = str(entry.get("updated", "")).strip()
-        sections = ["### Durable project summary\\n" + summary_value] if summary_value else []
+        sections = ["### Durable project summary\n" + summary_value] if summary_value else []
         if handoff:
-            sections.append("### Latest conversation handoff\\n" + handoff)
+            sections.append("### Latest conversation handoff\n" + handoff)
         if isinstance(todos, list) and todos:
-            sections.append("### Living todo list\\n" + json.dumps(todos[:40], ensure_ascii=False, indent=2))
+            sections.append("### Living todo list\n" + json.dumps(todos[:40], ensure_ascii=False, indent=2))
         if isinstance(decisions, list) and decisions:
-            sections.append("### Durable decisions\\n" + json.dumps(decisions[:40], ensure_ascii=False, indent=2))
+            sections.append("### Durable decisions\n" + json.dumps(decisions[:40], ensure_ascii=False, indent=2))
         if updated:
-            sections.append("### Memory updated\\n" + updated)
-        summary_text = "\\n\\n".join(sections).strip()[:9000]
+            sections.append("### Memory updated\n" + updated)
+        summary_text = "\n\n".join(sections).strip()[:9000]
         if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", slug) or not summary_text:
             errors.append("Skipped an invalid repository or empty summary.")
             continue
@@ -407,7 +407,7 @@ def project_context(project):
         parts.append("PERSISTENT PROJECT MEMORY:\n" + memory)
     checkpoint = read_text(p / "memory" / "AUTO_CHECKPOINT.md", 9000)
     if checkpoint:
-        parts.append("LATEST CROSS-CONVERSATION HANDOFFS AND LIVING TODOS:\\n" + checkpoint)
+        parts.append("LATEST CROSS-CONVERSATION HANDOFFS AND LIVING TODOS:\n" + checkpoint)
     memory_file = MEMORY_DIR / (hashlib.sha256(str(p).encode()).hexdigest() + ".md")
     local_memory = read_text(memory_file, 6500)
     if local_memory:
@@ -545,7 +545,7 @@ def resolve_project_set(message, known_projects=None, active=""):
     local_projects = discover_projects()
     for item in local_projects:
         name = str(item.get("name", "")).lower()
-        if name and re.search(r"(?<![a-z0-9])" + re.escape(name).replace(r"\\-", r"[-_ ]+") + r"(?![a-z0-9])", text):
+        if name and re.search(r"(?<![a-z0-9])" + re.escape(name).replace(r"\-", r"[-_ ]+") + r"(?![a-z0-9])", text):
             add(item)
 
     # Resolve every connected repository explicitly mentioned, not just the first
@@ -563,7 +563,7 @@ def resolve_project_set(message, known_projects=None, active=""):
         full = str(repo.get("nameWithOwner", "")).lower()
         name = str(repo.get("name", "")).lower()
         normalized = name.replace("_", "-")
-        name_pattern = re.escape(normalized).replace(r"\\-", r"[-_ ]+")
+        name_pattern = re.escape(normalized).replace(r"\-", r"[-_ ]+")
         full_match = bool(full and re.search(r"(?<![a-z0-9])" + re.escape(full) + r"(?![a-z0-9_.-])", text))
         name_match = bool(name_pattern and re.search(r"(?<![a-z0-9])" + name_pattern + r"(?![a-z0-9])", text))
         alias_match = any(re.search(r"(?<![a-z0-9])" + re.escape(alias) + r"(?![a-z0-9])", text)
@@ -829,7 +829,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(200, {
                     "matched": True,
                     "projects": loaded,
-                    "context": "\\n\\n".join(sections)[:36000],
+                    "context": "\n\n".join(sections)[:36000],
                     "errors": errors
                 })
             except Exception as e:

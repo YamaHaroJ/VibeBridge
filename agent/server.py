@@ -1170,16 +1170,19 @@ class Handler(BaseHTTPRequestHandler):
             if host not in {"chatgpt.com", "chat.openai.com"}:
                 return self.send_json(400, {"error": "Unrecognized ChatGPT host"})
             tab_id = body.get("tabId")
-            if not isinstance(tab_id, int) or isinstance(tab_id, bool) or tab_id < 0:
+            if tab_id is not None and (not isinstance(tab_id, int) or isinstance(tab_id, bool) or tab_id < 0):
                 return self.send_json(400, {"error": "Invalid browser tab ID"})
             seen = datetime.now(timezone.utc).isoformat(timespec="seconds")
             with BROWSER_STATUS_LOCK:
                 BROWSER_STATUS.update({"connected": True, "version": version, "host": host, "lastSeen": seen})
-                tabs = BROWSER_STATUS.setdefault("tabs", {})
-                tabs[tab_id] = {"version": version, "host": host, "lastSeen": seen}
-                if len(tabs) > 200:
-                    ordered = sorted(tabs.items(), key=lambda pair: pair[1].get("lastSeen", ""), reverse=True)
-                    BROWSER_STATUS["tabs"] = dict(ordered[:200])
+                # Older already-loaded extension workers omit tabId. Preserve their
+                # service heartbeat while only counting tabs reported by new code.
+                if tab_id is not None:
+                    tabs = BROWSER_STATUS.setdefault("tabs", {})
+                    tabs[tab_id] = {"version": version, "host": host, "lastSeen": seen}
+                    if len(tabs) > 200:
+                        ordered = sorted(tabs.items(), key=lambda pair: pair[1].get("lastSeen", ""), reverse=True)
+                        BROWSER_STATUS["tabs"] = dict(ordered[:200])
             return self.send_json(200, {"ok": True})
         if path == "/checkpoint":
             try:

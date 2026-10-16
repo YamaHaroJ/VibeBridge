@@ -12,8 +12,9 @@ class ExtensionTreeSyncTests(unittest.TestCase):
 
     def test_dirty_managed_runtime_changes_are_never_overwritten(self):
         source = Path(updater.__file__).read_text(encoding="utf-8")
-        self.assertIn('if managed_status:', source)
-        self.assertIn('Update deferred because agent/, extension/, or tests/ has local changes.', source)
+        self.assertIn('if managed_status and not force_managed:', source)
+        self.assertIn('if managed_status and force_managed:', source)
+        self.assertIn('Update deferred because managed runtime paths have local edits.', source)
         self.assertIn('preserving all files', source)
 
 

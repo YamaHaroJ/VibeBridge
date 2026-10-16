@@ -192,7 +192,24 @@ def sync_message_checkpoint(summary, conversation):
         if not isinstance(entry, dict):
             continue
         slug = str(entry.get("repository", "")).strip()
-        summary_text = str(entry.get("summary", "")).strip()[:9000]
+        if isinstance(entry.get("summary"), dict):
+            summary_value = json.dumps(entry.get("summary"), ensure_ascii=False, indent=2)
+        else:
+            summary_value = str(entry.get("summary", "")).strip()
+        handoff = str(entry.get("handoff", "")).strip()
+        todos = entry.get("todos", [])
+        decisions = entry.get("decisions", [])
+        updated = str(entry.get("updated", "")).strip()
+        sections = ["### Durable project summary\\n" + summary_value] if summary_value else []
+        if handoff:
+            sections.append("### Latest conversation handoff\\n" + handoff)
+        if isinstance(todos, list) and todos:
+            sections.append("### Living todo list\\n" + json.dumps(todos[:40], ensure_ascii=False, indent=2))
+        if isinstance(decisions, list) and decisions:
+            sections.append("### Durable decisions\\n" + json.dumps(decisions[:40], ensure_ascii=False, indent=2))
+        if updated:
+            sections.append("### Memory updated\\n" + updated)
+        summary_text = "\\n\\n".join(sections).strip()[:9000]
         if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", slug) or not summary_text:
             errors.append("Skipped an invalid repository or empty summary.")
             continue
@@ -388,6 +405,9 @@ def project_context(project):
     memory = read_text(p / "VIBEBRIDGE_CONTEXT.md", 6500)
     if memory:
         parts.append("PERSISTENT PROJECT MEMORY:\n" + memory)
+    checkpoint = read_text(p / "memory" / "AUTO_CHECKPOINT.md", 9000)
+    if checkpoint:
+        parts.append("LATEST CROSS-CONVERSATION HANDOFFS AND LIVING TODOS:\\n" + checkpoint)
     memory_file = MEMORY_DIR / (hashlib.sha256(str(p).encode()).hexdigest() + ".md")
     local_memory = read_text(memory_file, 6500)
     if local_memory:

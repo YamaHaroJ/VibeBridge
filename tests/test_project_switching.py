@@ -9,6 +9,20 @@ import server
 
 
 class ProjectSwitchTests(unittest.TestCase):
+    def test_command_arguments_reject_empty_or_non_array_payloads(self):
+        for command in (None, [], "echo hi", [1]):
+            with self.subTest(command=command), self.assertRaises(ValueError):
+                server.validate_command_arguments(command)
+
+    def test_command_arguments_enforce_count_and_length_limits(self):
+        with self.assertRaisesRegex(ValueError, "40 arguments"):
+            server.validate_command_arguments(["x"] * 41)
+        with self.assertRaisesRegex(ValueError, "4000 characters"):
+            server.validate_command_arguments(["x" * 4001])
+        with self.assertRaisesRegex(ValueError, "NUL bytes"):
+            server.validate_command_arguments(["echo", "bad\\x00arg"])
+        self.assertEqual(server.validate_command_arguments(["python3", "-V"]), ["python3", "-V"])
+
     def test_get_rejects_non_extension_browser_origin(self):
         handler = object.__new__(server.Handler)
         handler.headers = {"Origin": "https://attacker.example"}

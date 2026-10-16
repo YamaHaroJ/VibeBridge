@@ -65,13 +65,34 @@
     if (!el) return;
     el.focus();
     if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") {
-      const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), "value")?.set;
+      const prototype = el.tagName === "TEXTAREA" ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
       if (setter) setter.call(el, text); else el.value = text;
-      el.dispatchEvent(new Event("input", {bubbles: true}));
-    } else {
-      el.textContent = text;
       el.dispatchEvent(new InputEvent("input", {bubbles: true, inputType: "insertText", data: text}));
+      el.dispatchEvent(new Event("change", {bubbles: true}));
+      return;
     }
+
+    // Do not replace contenteditable textContent: that destroys ChatGPT's
+    // editor structure and can break subsequent typing/paste. Use the editor's
+    // insertion path, then notify React/ProseMirror-style input handlers.
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    let inserted = false;
+    try { inserted = document.execCommand("insertText", false, text); } catch {}
+    if (!inserted) {
+      range.deleteContents();
+      const node = document.createTextNode(text);
+      range.insertNode(node);
+      range.setStartAfter(node);
+      range.collapse(true);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
+    el.dispatchEvent(new InputEvent("input", {bubbles: true, inputType: "insertText", data: text}));
   }
 
   function shouldResolve(text) {

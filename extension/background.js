@@ -96,9 +96,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           try {
             await chrome.scripting.executeScript({target: {tabId: tab.id}, files: ["chatgpt.js"]});
             recovered = true;
-            reply = await ping();
           } catch (_) {
             // Restricted pages, tab navigations, or Chrome policy can block injection.
+          }
+          // executeScript can resolve before the page's message listener is ready.
+          // Retry briefly rather than recording a false disconnected state.
+          for (let attempt = 0; attempt < 4 && !reply?.alive; attempt++) {
+            if (attempt) await new Promise(resolve => setTimeout(resolve, 100));
+            reply = await ping();
           }
         }
         return {tabId: tab.id, host: new URL(tab.url).hostname, contentScript: reply?.alive === true, version: reply?.version || null, coreVersion: reply?.coreVersion || null, recovered};

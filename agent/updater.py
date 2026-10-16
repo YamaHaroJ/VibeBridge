@@ -197,9 +197,11 @@ def main():
     # user's edits are elsewhere. Never overwrite edits within managed paths.
     managed_status = run(["git", "status", "--porcelain", "--", *MANAGED_PATHS])
     if managed_status:
-        log("Local runtime files differ from GitHub. The explicit update request will replace agent/ and extension/ with the validated latest release.")
-    else:
-        log("Unrelated local changes detected; syncing managed runtime paths.")
+        # Never overwrite edited runtime files during an automatic five-second
+        # update poll. Require the user to commit/stash/revert them first.
+        log("Update deferred: managed runtime paths contain local edits; preserving all files. Resolve edits before retrying.")
+        raise RuntimeError("Update deferred because agent/, extension/, or tests/ has local changes. Commit, stash, or revert those edits, then retry.")
+    log("Unrelated local changes detected; syncing managed runtime paths.")
     stage = ROOT / ".vibebridge-update-stage"
     if stage.exists():
         shutil.rmtree(stage)

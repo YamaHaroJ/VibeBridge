@@ -20,7 +20,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (!saved.token) {
       return {matched: false, error: "VibeBridge token missing. Open the extension popup and save your token."};
     }
-    const active = saved.activeProject || saved.project || "";
+    const active = message.activeProject || saved.activeProject || saved.project || "";
 
     if (message.type === "VIBEBRIDGE_LOCAL_DIAGNOSTICS") {
       const response = await fetch(API + "/diagnostics/local", {
@@ -148,7 +148,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const response = await fetch(API + "/context", {
       method: "POST",
       headers: {"Authorization": "Bearer " + saved.token, "Content-Type": "application/json"},
-      body: JSON.stringify({message: message.text || "", active})
+      body: JSON.stringify({message: message.text || "", active: message.activeProject || active})
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not load project context");

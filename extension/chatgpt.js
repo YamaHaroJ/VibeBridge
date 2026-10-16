@@ -1,6 +1,24 @@
 (() => {
+  const loadedFileVersion = chrome.runtime.getManifest?.().version || "unknown";
+  // Keep a lightweight ping/heartbeat endpoint available even when this file is
+  // injected into a tab that already has an older content-script instance.
+  if (!window.__vibeBridgePingInstalled) {
+    window.__vibeBridgePingInstalled = true;
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message?.type === "VIBEBRIDGE_CONTENT_SCRIPT_PING") {
+        sendResponse({alive: true, version: loadedFileVersion, coreVersion: window.__vibeBridgeInstalledVersion || "not-installed", host: location.hostname});
+      }
+    });
+  }
+  function reportHeartbeatFromThisFile() {
+    chrome.runtime.sendMessage({type: "VIBEBRIDGE_BROWSER_HEARTBEAT"}).catch(() => {});
+  }
+  reportHeartbeatFromThisFile();
+  if (window.__vibeBridgeHeartbeatTimer) window.clearInterval(window.__vibeBridgeHeartbeatTimer);
+  window.__vibeBridgeHeartbeatTimer = window.setInterval(reportHeartbeatFromThisFile, 30000);
   if (window.__vibeBridgeInstalled) return;
   window.__vibeBridgeInstalled = true;
+  window.__vibeBridgeInstalledVersion = loadedFileVersion;
   let bypassNextSend = false;
   let busy = false;
   let enabledState = true;
@@ -9,20 +27,7 @@
     if (area === "local" && changes.enabled) enabledState = changes.enabled.newValue !== false;
   });
   const marker = "VIBEBRIDGE PROJECT CONTEXT";
-  const extensionVersion = chrome.runtime.getManifest?.().version || "unknown";
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message?.type === "VIBEBRIDGE_CONTENT_SCRIPT_PING") {
-      sendResponse({alive: true, version: extensionVersion, host: location.hostname});
-    }
-  });
-  // Report only extension version and ChatGPT host; never send conversation text.
-  function reportBrowserHeartbeat() {
-    chrome.runtime.sendMessage({type: "VIBEBRIDGE_BROWSER_HEARTBEAT"}).catch(() => {});
-  }
-  reportBrowserHeartbeat();
-  // Retry after temporary agent restarts and keep diagnostics current while ChatGPT is open.
-  window.setInterval(reportBrowserHeartbeat, 30000);
-  window.addEventListener("pageshow", reportBrowserHeartbeat);
+  window.addEventListener("pageshow", reportHeartbeatFromThisFile);
   const commandMarker = "VIBEBRIDGE LOCAL COMMAND";
   const processedBlocks = new WeakSet();
   // Never replay commands embedded in conversation history when a tab opens.

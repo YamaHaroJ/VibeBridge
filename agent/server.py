@@ -231,6 +231,21 @@ def format_project_context_sections(sections):
     )[:36000]
 
 
+def redact_checkpoint_text(value):
+    """Remove common credentials before any checkpoint content is written to GitHub."""
+    text = str(value or "")
+    patterns = [
+        (r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{8,}", "[REDACTED BEARER TOKEN]"),
+        (r"\bsk-(?:proj-)?[A-Za-z0-9_-]{16,}\b", "[REDACTED API KEY]"),
+        (r"\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b", "[REDACTED GITHUB TOKEN]"),
+        (r"(?i)\b(api[_ -]?key|access[_ -]?token|refresh[_ -]?token|password|client[_ -]?secret)\s*[:=]\s*[^\s,;]+", r"\1=[REDACTED]"),
+        (r"(?i)-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----.*?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----", "[REDACTED PRIVATE KEY]"),
+    ]
+    for pattern, replacement in patterns:
+        text = re.sub(pattern, replacement, text, flags=re.DOTALL if "PRIVATE KEY" in pattern else 0)
+    return text
+
+
 def sync_message_checkpoint(summary, conversation):
     import base64
     from datetime import datetime
@@ -274,7 +289,7 @@ def sync_message_checkpoint(summary, conversation):
             sections.append("### Durable decisions\n" + json.dumps(decisions[:40], ensure_ascii=False, indent=2))
         if updated:
             sections.append("### Memory updated\n" + updated)
-        summary_text = "\n\n".join(sections).strip()[:9000]
+        summary_text = redact_checkpoint_text("\n\n".join(sections)).strip()[:9000]
         if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", slug) or not summary_text:
             errors.append("Skipped an invalid repository or empty summary.")
             continue
@@ -311,8 +326,11 @@ def sync_message_checkpoint(summary, conversation):
             if history_match:
                 history = [line for line in history_match.group(1).splitlines() if line.strip().startswith("- ")]
             if handoff:
-                compact_handoff = re.sub(r"\s+", " ", handoff).strip()
-                history.append("- [" + stamp + "] " + compact_handoff[:1200])
+                compact_handoff = redact_checkpoint_text(re.sub(r"\s+", " ", handoff).strip())[:1200]
+                # Streaming retries or repeated assistant blocks must not append
+                # the exact same handoff multiple times to the rolling timeline.
+                if not any(line.split("] ", 1)[-1] == compact_handoff for line in history):
+                    history.append("- [" + stamp + "] " + compact_handoff)
             history = history[-8:]
             summary_text += "\n\n### Recent project-building history\n" + "\n".join(history)
             summary_text = summary_text[:9000]

@@ -434,15 +434,20 @@ def project_context(project):
             else:
                 slug = ""
             if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", slug):
-                shared = subprocess.run(
-                    ["gh", "api", f"repos/{slug}/contents/memory/AUTO_CHECKPOINT.md", "--jq", ".content"],
-                    capture_output=True, text=True, timeout=12
-                )
-                if shared.returncode == 0 and shared.stdout.strip():
-                    import base64
-                    shared_text = base64.b64decode("".join(shared.stdout.split()), validate=True).decode("utf-8", errors="replace").strip()
-                    if shared_text:
-                        checkpoint = shared_text
+                # Bound remote checkpoint retrieval and treat it as optional. A slow
+                # GitHub API must not delay otherwise usable local project context.
+                try:
+                    shared = subprocess.run(
+                        ["gh", "api", f"repos/{slug}/contents/memory/AUTO_CHECKPOINT.md", "--jq", ".content"],
+                        capture_output=True, text=True, timeout=4
+                    )
+                    if shared.returncode == 0 and shared.stdout.strip():
+                        import base64
+                        shared_text = base64.b64decode("".join(shared.stdout.split()), validate=True).decode("utf-8", errors="replace").strip()
+                        if shared_text:
+                            checkpoint = shared_text
+                except (OSError, subprocess.TimeoutExpired, ValueError):
+                    pass
     except Exception:
         pass
     if checkpoint:

@@ -22,7 +22,7 @@ async function harness({storage = {token: "test-token"}, fetchImpl} = {}) {
       if (fetchImpl) return fetchImpl(url, options);
       return {ok: true, async json() { return {matched: true, context: "MOCK PROJECT HANDOFF", projects: [{name:"VibeBridge", path:"github:YamaHaroJ/VibeBridge"}], saved:true}; }};
     },
-    URL, console, setTimeout, clearTimeout
+    URL, AbortController, console, setTimeout, clearTimeout
   };
   vm.runInNewContext(source, context, {filename:"background.js"});
   async function send(message) {

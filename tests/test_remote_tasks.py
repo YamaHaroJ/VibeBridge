@@ -44,6 +44,23 @@ class RemoteTaskTests(unittest.TestCase):
         self.assertNotIn("process arguments", output)
         diagnostics.assert_called_once_with()
 
+    @patch.object(server.subprocess, "run")
+    @patch.object(server.Path, "home", return_value=Path("/tmp"))
+    def test_test_task_runs_python_and_both_javascript_suites(self, _home, run):
+        with patch.object(Path, "is_dir", return_value=True):
+            run.return_value = type("Completed", (), {
+                "returncode": 0, "stdout": "passed", "stderr": ""
+            })()
+            ok, output = server.run_remote_task("test")
+        self.assertTrue(ok)
+        commands = [call.args[0] for call in run.call_args_list]
+        self.assertEqual(commands, [
+            ["python3", "-m", "unittest", "discover", "-s", "tests", "-v"],
+            ["node", "tests/test_extension_bridge.js"],
+            ["node", "tests/test_chatgpt_content_script.js"],
+        ])
+        self.assertIn("node tests/test_chatgpt_content_script.js", output)
+
     def test_task_enum_is_closed(self):
         self.assertEqual(server.REMOTE_TASK_POLL_SECONDS, 1)
         self.assertNotIn("--order", server.REMOTE_TASK_LIST_ARGS)

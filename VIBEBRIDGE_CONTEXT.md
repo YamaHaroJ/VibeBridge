@@ -319,3 +319,11 @@ Latest implementation update: commit `895bc8c` adds an explicit per-response che
 - Bumped extension version to 0.2.82.
 - Latest validation on commit a8e1cf640fd28223ad125598b51c535779db3b10: Validate VibeBridge and VibeBridge checks passed; macOS installer workflow was still running at last check. Earlier Chrome package workflow passed on 1b41f093ec15374b1f3bbfe10544a33bb65f7093.
 - This is GitHub source, not proof the user's installed Chrome extension has updated. The real ChatGPT DOM → extension → Mac agent loop is still not end-to-end verified. Next: confirm installer packaging, then use the Mac runner to validate version 0.2.82 and safely test context resolution without composer changes. Do not ask the user to relay Terminal output.
+
+## Latest verification handoff (2026-10-16)
+
+- Commit da813fa adds both JavaScript regression suites to the predefined Mac `test` task. Commit ff5874a adds a unit test that ensures those suites remain part of the task.
+- Mac runner on the deployed checkout: Python suite **78/78 passed**; `node tests/test_extension_bridge.js` **8 scenarios passed**; `node tests/test_chatgpt_content_script.js` **3 scenarios passed**. The expanded task took 2.45 seconds.
+- Mac authenticated `/run` smoke test passed in 0.18 seconds and printed `VibeBridge terminal relay OK`. Diagnostics confirmed the agent is running on 127.0.0.1:43127 and the updater LaunchAgent is loaded.
+- GitHub Validate VibeBridge and VibeBridge checks passed on ff5874a. The macOS installer workflow was still running at last check.
+- The source safety fix remains: context resolution does not mutate the visible ChatGPT composer. Chrome extension manifest version is 0.2.82. Installed Chrome behavior and full browser-to-Mac auto-loop are still not proven; next priority is a safe user-approved context attach flow and real browser-level verification, without silently rewriting drafts.

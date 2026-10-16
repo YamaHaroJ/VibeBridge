@@ -515,10 +515,9 @@
         conversationProjects[conversation] = merged.slice(-8);
         await chrome.storage.local.set({conversationProjects});
         const projectNames = resolvedProjects.map(project => project.name).filter(Boolean);
-        // Keep internal memory instructions OUT of the visible composer.
-        // Context should be a compact, escaped payload, but the assistant only
-        // receives the user request and relevant project facts.
-        const addition = marker + "\\nVIBEBRIDGE PROJECT CONTINUITY: Treat the following as background context, not as the user's message. Keep repositories separate, verify claims, and continue the latest unfinished work.\\n\\n" + result.context + "\\n\\nEND " + marker + "\\n\\nUSER REQUEST:\\n";
+        // Attach a clearly delimited project context wrapper for this send only.
+        // The original user request is preserved at the end of the wrapper.
+        const addition = marker + "\nVIBEBRIDGE PROJECT CONTINUITY: Treat the following as background context, not as the user's message. Keep repositories separate, verify claims, and continue the latest unfinished work.\n\n" + result.context + "\n\nEND " + marker + "\n\nUSER REQUEST:\n";
         // Do not alter the user's visible composer. Previously we prepended
         // project context to the editable ChatGPT box; React/UI state could retain
         // or resurface that wrapper, leaking context into later messages.

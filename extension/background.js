@@ -68,6 +68,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (!response.ok) throw new Error(data.error || "Could not report browser extension status");
       return data;
     }
+    if (message.type === "VIBEBRIDGE_BROWSER_STATUS") {
+      const response = await fetchAgent("/diagnostics/local", {
+        headers: {"Authorization": "Bearer " + saved.token},
+        cache: "no-store"
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not read local diagnostics");
+      return data.browserExtension || {connected: false, version: null, host: null, lastSeen: null};
+    }
 
     if (message.type === "VIBEBRIDGE_LOCAL_DIAGNOSTICS") {
       const response = await fetchAgent("/diagnostics/local", {

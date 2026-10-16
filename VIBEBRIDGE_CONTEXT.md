@@ -417,3 +417,8 @@ Latest implementation update: commit `895bc8c` adds an explicit per-response che
   6. Continue automatic project recognition and hands-off Mac operation only after safety and deployment checks.
   7. For every project, keep this handoff precise: last actual action/command, exact result, branch/commit/version, tests with evidence, known failures, and one next action. Never infer success from intended work or stale summaries.
 - Important feature gap from the existing history remains: automatic rolling summaries of every completed user/assistant turn are not implemented. Current code saves only explicit `vibebridge-memory` blocks when that flow is triggered. Do not represent the full automatic summary pipeline as complete.
+
+
+### Correction to the handoff interpretation — 2026-10-16
+
+- The screenshot's Chrome tab text `VibeBridge 0.2.95 Ready` is the ChatGPT conversation title, not a reliable live extension-version indicator. The popup's bottom-right diagnostic explicitly showed `VibeBridge v0.2.96 · blocks 0 · commands 0`. Therefore the screenshot alone does NOT prove a 0.2.95/0.2.96 runtime mismatch. Use the popup's live browser-tab probe and `/diagnostics/local` allowlisted revision/version fields to verify the loaded content script and local checkout independently.

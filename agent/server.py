@@ -391,7 +391,9 @@ def project_context(project):
         # listing can fail transiently or omit repositories outside the default
         # account scope even while `gh api repos/{owner}/{repo}` still works.
         slug = str(project)[len("github:"):].strip()
-        if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", slug):
+        parts = slug.split("/")
+        if (len(parts) != 2 or any(part in ("", ".", "..") for part in parts)
+                or not all(re.fullmatch(r"[A-Za-z0-9_.-]+", part) for part in parts)):
             raise ValueError("Invalid GitHub repository path.")
         return remote_repo_context(slug)
     p = project_path(project)

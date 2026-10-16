@@ -407,7 +407,9 @@
     if (!button || bypassNextSend || busy) return;
     const composer = composerFor(button);
     const original = readComposer(composer).trim();
-    if (!enabledState || !original || original.includes(marker) || original.includes("VIBEBRIDGE DISABLED")) return;
+    // Guard any bridge-owned wrapper, including escaped/partially edited variants,
+    // so a context-enriched prompt is never wrapped and injected a second time.
+    if (!enabledState || !original || /VIBEBRIDGE PROJECT CONTEXT|VIBEBRIDGE PROJECT CONTINUITY|END VIBEBRIDGE PROJECT CONTEXT|VIBEBRIDGE MEMORY CHECKPOINT REQUIREMENT/.test(original) || original.includes("VIBEBRIDGE DISABLED")) return;
     // When VibeBridge is enabled, resolve context for every user message. Short
     // follow-ups like “you should” and “it should” still depend on project history.
 

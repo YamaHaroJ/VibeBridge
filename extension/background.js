@@ -49,7 +49,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     if (message.type === "VIBEBRIDGE_CHECKPOINT_MESSAGE") {
       const payload = message.payload || {};
-      const response = await fetch(API + "/checkpoint", {
+      const response = await fetchAgent("/checkpoint", {
         method: "POST",
         headers: {"Authorization": "Bearer " + saved.token, "Content-Type": "application/json"},
         body: JSON.stringify({
@@ -93,7 +93,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           typeof message.content !== "string") {
         throw new Error("A file path and text content are required.");
       }
-      const response = await fetch(API + "/filesystem/write", {
+      const response = await fetchAgent("/filesystem/write", {
         method: "POST",
         headers: {"Authorization": "Bearer " + saved.token, "Content-Type": "application/json"},
         body: JSON.stringify({path: message.path, content: message.content})
@@ -107,7 +107,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (typeof message.path !== "string" || !message.path) {
         throw new Error("A folder path is required.");
       }
-      const response = await fetch(API + "/filesystem/mkdir", {
+      const response = await fetchAgent("/filesystem/mkdir", {
         method: "POST",
         headers: {"Authorization": "Bearer " + saved.token, "Content-Type": "application/json"},
         body: JSON.stringify({path: message.path})
@@ -119,7 +119,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     if (message.type === "VIBEBRIDGE_CREATE_REPOSITORY") {
       const payload = message.payload || {};
-      const response = await fetch(API + "/create-repository", {
+      const response = await fetchAgent("/create-repository", {
         method: "POST",
         headers: {"Authorization": "Bearer " + saved.token, "Content-Type": "application/json"},
         body: JSON.stringify({name: payload.name, description: payload.description || "", private: payload.private !== false})
@@ -133,7 +133,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     if (message.type === "VIBEBRIDGE_REMEMBER") {
       if (!active) return {saved: false, error: "No active project. Mention its name first."};
-      const response = await fetch(API + "/remember", {
+      const response = await fetchAgent("/remember", {
         method: "POST",
         headers: {"Authorization": "Bearer " + saved.token, "Content-Type": "application/json"},
         body: JSON.stringify({project: active, note: message.note || ""})
@@ -151,7 +151,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return {ok: false, error: "Invalid command. Expected an array of up to 40 text arguments."};
       }
       // This message is only sent after the user explicitly clicks Run in the ChatGPT page.
-      const response = await fetch(API + "/run", {
+      const response = await fetchAgent("/run", {
         method: "POST",
         headers: {"Authorization": "Bearer " + saved.token, "Content-Type": "application/json"},
         body: JSON.stringify({project: active, command})
@@ -164,7 +164,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 
     const multiProject = message.type === "VIBEBRIDGE_RESOLVE_CONTEXTS";
-    const response = await fetch(API + (multiProject ? "/contexts" : "/context"), {
+    const response = await fetchAgent((multiProject ? "/contexts" : "/context"), {
       method: "POST",
       headers: {"Authorization": "Bearer " + saved.token, "Content-Type": "application/json"},
       body: JSON.stringify({

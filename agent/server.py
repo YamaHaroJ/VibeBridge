@@ -1347,7 +1347,7 @@ class Handler(BaseHTTPRequestHandler):
 # are eligible. Results are posted to the issue and the issue is closed after processing.
 REMOTE_TASK_REPO = "YamaHaroJ/VibeBridge"
 REMOTE_TASK_OWNER = "YamaHaroJ"
-REMOTE_TASKS = {"validate", "test", "diagnostics", "terminal-smoke", "macoptimizer-build", "macoptimizer-dedupe"}
+REMOTE_TASKS = {"validate", "test", "diagnostics", "terminal-smoke", "chatgpt-tabs", "macoptimizer-build", "macoptimizer-dedupe"}
 REMOTE_TASK_HEAVY = {"validate", "test", "macoptimizer-build"}
 REMOTE_TASK_HEAVY_LIMIT = max(1, min(3, (os.cpu_count() or 4) // 4))
 _remote_task_heavy_slots = threading.BoundedSemaphore(REMOTE_TASK_HEAVY_LIMIT)
@@ -1361,6 +1361,13 @@ def run_remote_task(task):
     root = Path.home() / "VibeBridge"
     if task not in REMOTE_TASKS:
         raise ValueError("Unsupported remote task.")
+    if task == "chatgpt-tabs":
+        # Count ChatGPT tabs only; do not collect titles, other URLs, or browsing history.
+        script = "tell application \"Google Chrome\"\n set totalCount to 0\n set chatgptCount to 0\n repeat with w in windows\n  repeat with t in tabs of w\n   set totalCount to totalCount + 1\n   set tabURL to URL of t\n   if tabURL starts with \"https://chatgpt.com/\" or tabURL starts with \"https://chat.openai.com/\" then set chatgptCount to chatgptCount + 1\n  end repeat\n end repeat\n return \"ChatGPT tabs: \" & chatgptCount & \" | Total Chrome tabs: \" & totalCount\nend tell"
+        result = subprocess.run(["/usr/bin/osascript", "-e", script], capture_output=True, text=True, timeout=15)
+        if result.returncode:
+            return False, "Could not query Chrome tabs. Ensure Chrome is running and allow Automation access if macOS prompts: " + result.stderr[-1000:]
+        return True, result.stdout.strip()
     if task == "macoptimizer-dedupe":
         app = Path.home() / "Applications" / "MacOptimizer.app"
         binary = app / "Contents" / "MacOS" / "MacOptimizer"

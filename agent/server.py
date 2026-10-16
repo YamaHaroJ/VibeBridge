@@ -708,21 +708,47 @@ def resolve_project_set(message, known_projects=None, active=""):
             item = {"name": root.name, "path": str(root)}
         resolved.append(item)
 
-    # Preserve the conversation's known project set. Only accept paths resolved
-    # through the same local-root/GitHub allowlists used by normal project loading.
-    for value in known[:8]:
-        add(value if isinstance(value, dict) else {"path": value})
-
-    # Short follow-ups (e.g. "keep building") rarely name a repository. When
-    # there is no explicit switch request, include the saved active project even
-    # if conversationProjects is empty or stale. Explicit switches still resolve
-    # their requested target without accidentally carrying the old project in.
     switch_intent = bool(re.search(
         r"\b(?:switch|change|move)\s+(?:the\s+)?(?:project|repo|repository)?\s*(?:to|over\s+to)\b|\bopen\s+(?:the\s+)?(?:repo|repository)\b",
         text
     ))
-    if active and not switch_intent:
-        add({"path": active})
+
+    # Resolve explicit project mentions first. A switch starts a new project
+    # scope; otherwise keep the conversation's known projects for follow-ups.
+    # Never inject a global active project alongside explicitly named projects.
+    explicit_mentions = []
+    local_projects = discover_projects()
+    for item in local_projects:
+        name = str(item.get("name", "")).lower()
+        if name and re.search(r"(?<![a-z0-9])" + re.escape(name).replace(r"\-", r"[-_ ]+") + r"(?![a-z0-9])", text):
+            explicit_mentions.append(item)
+    aliases = {
+        "autofill-insurance-extension": ("autofill", "insurance extension", "autofill extension"),
+        "vibebridge": ("vibebridge", "vibe bridge"),
+        "macoptimizer": ("macoptimizer", "mac optimizer"),
+    }
+    for repo in repos:
+        full = str(repo.get("nameWithOwner", "")).lower()
+        name = str(repo.get("name", "")).lower()
+        normalized = name.replace("_", "-")
+        name_pattern = re.escape(normalized).replace(r"\-", r"[-_ ]+")
+        full_match = bool(full and re.search(r"(?<![a-z0-9])" + re.escape(full) + r"(?![a-z0-9_.-])", text))
+        name_match = bool(name_pattern and re.search(r"(?<![a-z0-9])" + name_pattern + r"(?![a-z0-9])", text))
+        alias_match = any(re.search(r"(?<![a-z0-9])" + re.escape(alias) + r"(?![a-z0-9])", text)
+                          for alias in aliases.get(normalized, ()))
+        if full_match or name_match or alias_match:
+            explicit_mentions.append({"name": name, "path": "github:" + full, "repository": full, "remote": True})
+
+    if switch_intent:
+        for project in explicit_mentions:
+            add(project)
+    else:
+        for value in known[:8]:
+            add(value if isinstance(value, dict) else {"path": value})
+        if not explicit_mentions and active and not resolved:
+            add({"path": active})
+        for project in explicit_mentions:
+            add(project)
 
     local_projects = discover_projects()
     for item in local_projects:

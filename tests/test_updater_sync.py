@@ -5,7 +5,7 @@ from unittest.mock import patch
 from pathlib import Path
 
 from agent import updater
-from agent.updater import sync_extension_tree
+from agent.updater import deploy_current_checkout, sync_extension_tree
 
 
 class ExtensionTreeSyncTests(unittest.TestCase):
@@ -19,6 +19,30 @@ class ExtensionTreeSyncTests(unittest.TestCase):
         self.assertEqual(first_command[1:5], ["-m", "unittest", "discover", "-s"])
         self.assertIn("tests", first_command)
         self.assertEqual(first_timeout, 120)
+
+
+    def test_failed_agent_restart_does_not_mark_revision_deployed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            marker = Path(temporary) / "last-synced-revision"
+            marker.write_text("previous\\n")
+            with patch("agent.updater.SYNC_MARKER", marker), \
+                 patch("agent.updater.validate") as validate, \
+                 patch("agent.updater.launch_agent", side_effect=RuntimeError("launchctl failed")):
+                with self.assertRaisesRegex(RuntimeError, "launchctl failed"):
+                    deploy_current_checkout("target-revision")
+            validate.assert_called_once_with()
+            self.assertEqual(marker.read_text(), "previous\\n")
+
+    def test_successful_deployment_marks_revision_after_agent_restart(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            marker = Path(temporary) / "last-synced-revision"
+            with patch("agent.updater.SYNC_MARKER", marker), \
+                 patch("agent.updater.validate") as validate, \
+                 patch("agent.updater.launch_agent") as launch:
+                deploy_current_checkout("target-revision")
+            validate.assert_called_once_with()
+            launch.assert_called_once_with()
+            self.assertEqual(marker.read_text(), "target-revision\\n")
 
     def test_sync_preserves_registered_root_and_publishes_new_files(self):
         with tempfile.TemporaryDirectory() as temporary:

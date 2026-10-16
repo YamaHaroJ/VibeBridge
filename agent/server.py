@@ -257,18 +257,18 @@ def sync_message_checkpoint(summary, conversation):
             # summary/handoff is authoritative, while recent project-building
             # steps remain visible instead of being overwritten each turn.
             previous_body = next((body for key, body in sections if key == conv), "")
-            history_match = re.search(r"(?ms)^### Recent project-building history\\n(.*?)(?=^### |\\Z)", previous_body)
+            history_match = re.search(r"(?ms)^### Recent project-building history\n(.*?)(?=^### |\Z)", previous_body)
             history = []
             if history_match:
                 history = [line for line in history_match.group(1).splitlines() if line.strip().startswith("- ")]
             if handoff:
-                compact_handoff = re.sub(r"\\s+", " ", handoff).strip()
+                compact_handoff = re.sub(r"\s+", " ", handoff).strip()
                 history.append("- [" + stamp + "] " + compact_handoff[:1200])
             history = history[-8:]
-            summary_text += "\\n\\n### Recent project-building history\\n" + "\\n".join(history)
+            summary_text += "\n\n### Recent project-building history\n" + "\n".join(history)
             summary_text = summary_text[:9000]
-            section = "## Conversation: " + conv + "\\n_Last updated: " + stamp + "_\\n\\n" + summary_text
-            others = ["## Conversation: " + key + "\\n" + body.strip() for key, body in sections if key != conv]
+            section = "## Conversation: " + conv + "\n_Last updated: " + stamp + "_\n\n" + summary_text
+            others = ["## Conversation: " + key + "\n" + body.strip() for key, body in sections if key != conv]
             updated_text = "# Project Conversation Checkpoints\n\n" + section + "\n\n" + "\n\n".join(others[:40]) + "\n"
             payload = {
                 "message": "Update ChatGPT checkpoint " + conv + " " + stamp,

@@ -592,7 +592,7 @@ def resolve_project_set(message, known_projects=None, active=""):
     # if conversationProjects is empty or stale. Explicit switches still resolve
     # their requested target without accidentally carrying the old project in.
     switch_intent = bool(re.search(
-        r"\\b(?:switch|change|move)\\s+(?:the\\s+)?(?:project|repo|repository)?\\s*(?:to|over\\s+to)\\b|\\bopen\\s+(?:the\\s+)?(?:repo|repository)\\b",
+        r"\b(?:switch|change|move)\s+(?:the\s+)?(?:project|repo|repository)?\s*(?:to|over\s+to)\b|\bopen\s+(?:the\s+)?(?:repo|repository)\b",
         text
     ))
     if active and not switch_intent:

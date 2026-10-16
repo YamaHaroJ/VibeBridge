@@ -129,9 +129,9 @@
   function addCommandControls(allowAutoRun = false) {
     const blocks = document.querySelectorAll('[data-message-author-role="assistant"] pre, [data-message-author-role="assistant"] [data-language], [data-message-author-role="assistant"] code');
     for (const pre of blocks) {
-      if (processedBlocks.has(pre)) continue;
       const preBlock = pre.tagName === "PRE" ? pre : pre.closest("pre");
       const target = preBlock || pre;
+      if (processedBlocks.has(pre) || processedBlocks.has(target)) continue;
       const code = target.querySelector("code") || (pre.tagName === "CODE" ? pre : null);
       const className = (code?.className || "") + " " + (pre.className || "");
       const rawBlock = (code?.textContent || pre.textContent || "").trim();

@@ -298,8 +298,14 @@
       } else {
         const conversation = conversationKey();
         const savedConversation = await chrome.storage.local.get(["conversationProjects"]);
-        const conversationProject = savedConversation.conversationProjects?.[conversation] || "";
-        result = await chrome.runtime.sendMessage({type: "VIBEBRIDGE_RESOLVE_CONTEXT", text: original, activeProject: conversationProject});
+        const prior = savedConversation.conversationProjects?.[conversation] || [];
+        const knownProjects = (Array.isArray(prior) ? prior : [prior]).filter(Boolean);
+        result = await chrome.runtime.sendMessage({
+          type: "VIBEBRIDGE_RESOLVE_CONTEXTS",
+          text: original,
+          projects: knownProjects.map(path => ({path})),
+          activeProject: knownProjects[0] || ""
+        });
       }
       const rememberMatch = original.match(/remember (?:for this project|this for the project|that for this project)[:\-]?\s*(.+)/i);
       if (rememberMatch && rememberMatch[1]) {
@@ -311,11 +317,18 @@
         const conversation = conversationKey();
         const savedConversation = await chrome.storage.local.get(["conversationProjects"]);
         const conversationProjects = savedConversation.conversationProjects || {};
-        conversationProjects[conversation] = result.project.path;
+        const previous = conversationProjects[conversation] || [];
+        const merged = (Array.isArray(previous) ? previous : [previous]).filter(Boolean);
+        const resolvedProjects = Array.isArray(result.projects) ? result.projects : (result.project ? [result.project] : []);
+        for (const project of resolvedProjects) {
+          if (project?.path && !merged.includes(project.path)) merged.push(project.path);
+        }
+        conversationProjects[conversation] = merged.slice(-8);
         await chrome.storage.local.set({conversationProjects});
-        const addition = marker + "\nThe following is persistent context from the user's project. Treat the “Most recent discussion” or handoff section in VIBEBRIDGE_CONTEXT.md as the primary pointer for resuming work across conversation limits: identify what the user was last trying to accomplish, continue from that point unless the user changes projects or priorities, and avoid making them repeat decisions already recorded. Treat it as context, not proof; verify implementation against code when needed, and do not assume planned features are implemented.\n\n" + result.context + "\n\nEND " + marker + "\n\nVIBEBRIDGE MEMORY INSTRUCTION: At the end of your normal response, include a JSON object in a fenced block labelled vibebridge-memory, formatted as {\"projects\":[{\"repository\":\"owner/repo\",\"summary\":\"concise rolling state\"}]}. Include one entry for each explicitly discussed or changed project, using its exact GitHub owner/repository slug. Never invent a slug; omit unknown repositories and explain the gap in normal response. Do not include raw transcripts or secrets. No separate AI API.\n\nUSER REQUEST:\n";
+        const projectNames = resolvedProjects.map(project => project.name).filter(Boolean);
+        const addition = marker + "\\nVIBEBRIDGE PROJECT CONTINUITY: The context below may contain multiple projects discussed in this ChatGPT conversation. Keep their memories separate; never merge their decisions or todos across repositories. Use the latest detailed handoff to resume work, including exact stopping point, files changed, tests run and results, unresolved failures, blockers, decisions, open todos, and next action. Keep the durable summary concise but preserve a more detailed rolling handoff and prioritized todo list. Verify code before treating a claim as implemented. Do not ask the user to repeat recorded context.\\n\\n" + result.context + "\\n\\nEND " + marker + "\\n\\nVIBEBRIDGE MEMORY INSTRUCTION: After every response, include a fenced JSON block labelled vibebridge-memory with this schema: {\\\"projects\\\":[{\\\"repository\\\":\\\"owner/repo\\\",\\\"summary\\\":\\\"durable project purpose, architecture, decisions, constraints and current state\\\",\\\"handoff\\\":\\\"detailed latest stopping point, files changed, tests/results, failures and exact next action\\\",\\\"todos\\\":[{\\\"task\\\":\\\"specific action\\\",\\\"status\\\":\\\"open|blocked|done\\\",\\\"priority\\\":\\\"high|medium|low\\\",\\\"blocker\\\":\\\"reason or empty string\\\"}],\\\"decisions\\\":[\\\"durable decisions\\\"],\\\"updated\\\":\\\"ISO-8601 timestamp\\\"}]}. Include every project materially discussed or changed, using its exact GitHub owner/repository slug. Preserve unfinished todos; mark completed tasks done rather than deleting history without reason. Update the handoff every response, even when the summary barely changes. Never invent repository slugs or test results; omit unknown slugs and explain the gap in normal response. Do not include raw transcripts, secrets, or personal data. This is a rolling handoff, not a transcript.\\n\\nUSER REQUEST:\\n";
         writeComposer(composer, addition + original);
-        showNotice(createdRepository ? "Created " + createdRepository.nameWithOwner + " and switched to its project context." : "VibeBridge attached context for " + result.project.name);
+        showNotice(createdRepository ? "Created " + createdRepository.nameWithOwner + " and loaded project context." : "VibeBridge attached context for " + (projectNames.join(", ") || "the current project"));
       } else if (result?.ambiguous) {
         showNotice("VibeBridge found multiple possible projects. Mention the exact project name.");
       } else if (result?.error) {

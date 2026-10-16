@@ -36,6 +36,16 @@ class ExtensionContractTests(unittest.TestCase):
         self.assertIn("!active", handler)
         self.assertIn("command.length > 40", handler)
 
+    def test_periodic_check_reloads_extension_after_manifest_version_changes_on_disk(self):
+        background = (EXTENSION / "background.js").read_text()
+        start = background.index("async function checkForInstalledExtensionUpdate()")
+        end = background.index("chrome.alarms?.onAlarm?.addListener?.(alarm => {", start)
+        check = background[start:end]
+        self.assertIn('fetchAgent("/diagnostics/local"', check)
+        self.assertIn("data?.checkout?.extensionVersion", check)
+        self.assertIn("diskVersion !== loadedVersion", check)
+        self.assertIn("chrome.runtime.reload()", check)
+
     def test_periodic_chatgpt_recovery_alarm_is_declared_and_registered(self):
         manifest = json.loads((EXTENSION / "manifest.json").read_text())
         background = (EXTENSION / "background.js").read_text()

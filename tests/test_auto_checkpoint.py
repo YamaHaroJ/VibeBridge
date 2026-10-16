@@ -128,7 +128,7 @@ class ExtensionFlowContractTests(unittest.TestCase):
 
 
     def test_automatic_memory_is_explicitly_opt_in_and_scoped_to_matched_repository(self):
-        self.assertEqual(self.manifest["version"], "0.2.91")
+        self.assertEqual(self.manifest["version"], "0.2.92")
         self.assertIn('id="auto-memory"', self.popup_html)
         self.assertIn("autoMemoryCheckpoints", self.popup_source)
         self.assertIn("savedPreferences.autoMemoryCheckpoints", self.content_script)
@@ -139,6 +139,10 @@ class ExtensionFlowContractTests(unittest.TestCase):
 
     def test_browser_heartbeat_reports_loaded_version_without_conversation_data(self):
         self.assertIn('"VIBEBRIDGE_BROWSER_HEARTBEAT"', self.content_script)
+        self.assertIn('window.setInterval(reportBrowserHeartbeat, 30000)', self.content_script)
+        self.assertIn('id="browser-status"', self.popup_html)
+        self.assertIn('refreshBrowserStatus(saved.token)', self.popup_source)
+        self.assertIn('"ChatGPT extension heartbeat: "', self.popup_source)
         self.assertIn('chrome.runtime.getManifest().version', self.background)
         self.assertIn('"/extension-status"', self.background)
         self.assertIn('browser_extension_snapshot()', self.server_source)

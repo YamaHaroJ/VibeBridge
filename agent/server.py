@@ -868,12 +868,19 @@ class Handler(BaseHTTPRequestHandler):
         if not self.authorized():
             return self.send_json(401, {"error": "Unauthorized"})
         try:
-            length = int(self.headers.get("Content-Length", "0"))
+            raw_length = self.headers.get("Content-Length")
+            if raw_length is None or not re.fullmatch(r"[0-9]+", raw_length.strip()):
+                return self.send_json(400, {"error": "Invalid Content-Length"})
+            length = int(raw_length)
             if length > 1024 * 1024:
                 return self.send_json(413, {"error": "Request too large"})
             body = json.loads(self.rfile.read(length))
-        except Exception:
+            if not isinstance(body, dict):
+                return self.send_json(400, {"error": "JSON body must be an object"})
+        except (ValueError, TypeError, json.JSONDecodeError):
             return self.send_json(400, {"error": "Invalid JSON"})
+        except OSError:
+            return self.send_json(400, {"error": "Could not read request body"})
         path = urlparse(self.path).path
         if path == "/checkpoint":
             try:

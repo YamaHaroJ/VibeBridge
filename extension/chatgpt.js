@@ -25,7 +25,12 @@
   }
 
   async function saveAssistantCheckpoints() {
-    const nodes = document.querySelectorAll('[data-message-author-role="assistant"] pre');
+    // Check only the newest assistant response; scanning historical messages on
+    // every streaming mutation scales poorly on long development conversations.
+    const messages = document.querySelectorAll('[data-message-author-role="assistant"]');
+    const latest = messages.length ? messages[messages.length - 1] : null;
+    if (!latest) return;
+    const nodes = latest.querySelectorAll('pre');
     for (const pre of nodes) {
       if (processedMemoryBlocks.has(pre)) continue;
       const code = pre.querySelector("code");

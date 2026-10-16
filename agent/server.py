@@ -1149,7 +1149,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/extension-status":
             version = str(body.get("version", "")).strip()[:40]
             host = str(body.get("host", "")).strip().lower()
-            if not re.fullmatch(r"\\d+\\.\\d+\\.\\d+(?:[-+][A-Za-z0-9.-]+)?", version):
+            if not re.fullmatch(r"\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?", version):
                 return self.send_json(400, {"error": "Invalid extension version"})
             if host not in {"chatgpt.com", "chat.openai.com"}:
                 return self.send_json(400, {"error": "Unrecognized ChatGPT host"})

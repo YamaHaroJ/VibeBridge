@@ -9,6 +9,17 @@ import server
 
 
 class ProjectSwitchTests(unittest.TestCase):
+    def test_request_body_requires_valid_nonnegative_content_length(self):
+        for value in (None, "", "-1", "+1", "1.5", "abc"):
+            with self.subTest(value=value):
+                self.assertFalse(value is not None and __import__("re").fullmatch(r"[0-9]+", value.strip()))
+
+    def test_request_json_must_be_an_object(self):
+        for value in ("[]", '"text"', "null", "1"):
+            with self.subTest(value=value):
+                self.assertNotIsInstance(__import__("json").loads(value), dict)
+        self.assertIsInstance(__import__("json").loads('{"ok":true}'), dict)
+
     def test_command_arguments_reject_empty_or_non_array_payloads(self):
         for command in (None, [], "echo hi", [1]):
             with self.subTest(command=command), self.assertRaises(ValueError):

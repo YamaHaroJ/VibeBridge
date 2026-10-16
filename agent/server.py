@@ -1003,6 +1003,34 @@ def local_diagnostics():
 
     agent = service_snapshot("com.vibebridge.agent")
     updater = service_snapshot("com.vibebridge.updater")
+    # A StartInterval LaunchAgent is normally idle between invocations. Report
+    # its schedule and the last safe status line so "not running" is not mistaken
+    # for a dead updater, without exposing arbitrary logs or environment values.
+    updater_schedule = {"plistPresent": False, "runAtLoad": None, "startIntervalSeconds": None}
+    updater_log_status = {"present": False, "lastLine": None}
+    try:
+        import plistlib
+        updater_plist = Path.home() / "Library/LaunchAgents/com.vibebridge.updater.plist"
+        if updater_plist.is_file():
+            with updater_plist.open("rb") as handle:
+                config = plistlib.load(handle)
+            updater_schedule = {
+                "plistPresent": True,
+                "runAtLoad": config.get("RunAtLoad") is True,
+                "startIntervalSeconds": config.get("StartInterval") if isinstance(config.get("StartInterval"), int) else None,
+            }
+        update_log = Path.home() / "Library/Application Support/VibeBridge/update.log"
+        if update_log.is_file():
+            lines = update_log.read_text(encoding="utf-8", errors="replace").splitlines()
+            safe_lines = [line for line in lines[-200:] if any(term in line.lower() for term in (
+                "automatic github update check started", "github revision already deployed",
+                "checkout and deployed runtime already", "update complete", "could not adjust updater interval",
+                "could not verify deployed extension manifest", "runtime files validated",
+                "restart failed", "traceback", "error", "exception"
+            ))]
+            updater_log_status = {"present": True, "lastLine": safe_lines[-1][-240:] if safe_lines else None}
+    except (OSError, ValueError, TypeError, ImportError):
+        pass
     checkout = Path.home() / "VibeBridge"
     revision, dirty, extension_version = "unknown", None, "unknown"
     try:
@@ -1032,7 +1060,7 @@ def local_diagnostics():
         "platform": platform.system(),
         "osVersion": platform.mac_ver()[0] if platform.system() == "Darwin" else platform.release(),
         "agent": {**agent, "requestPid": os.getpid(), "port": PORT},
-        "updater": updater,
+        "updater": {**updater, "schedule": updater_schedule, "logStatus": updater_log_status},
         "checkout": {"path": str(checkout), "revision": revision, "dirty": dirty,
                      "extensionVersion": extension_version},
         "browserExtension": browser_extension_snapshot(),

@@ -101,7 +101,7 @@ class RemoteTaskTests(unittest.TestCase):
         self.assertEqual(server.REMOTE_TASK_POLL_SECONDS, 1)
         self.assertNotIn("--order", server.REMOTE_TASK_LIST_ARGS)
         self.assertEqual(server.REMOTE_TASK_LIST_ARGS[-2:], ["--limit", "100"])
-        self.assertEqual(server.REMOTE_TASKS, {"validate", "test", "diagnostics", "terminal-smoke", "macoptimizer-build", "macoptimizer-dedupe"})
+        self.assertEqual(server.REMOTE_TASKS, {"validate", "test", "diagnostics", "terminal-smoke", "chatgpt-tabs", "macoptimizer-build", "macoptimizer-dedupe"})
         self.assertEqual(server.REMOTE_TASK_OWNER, "YamaHaroJ")
 
 

@@ -1223,7 +1223,7 @@ def run_remote_task(task):
         project = Path.home() / "MacOptimizer"
         if not project.is_dir() or not (project / ".git").is_dir():
             return False, "MacOptimizer checkout missing at " + str(project)
-        status = subprocess.run(["git", "status", "--porcelain"], cwd=str(project),
+        status = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=str(project),
                                 capture_output=True, text=True, timeout=15)
         if status.returncode != 0:
             return False, "Cannot inspect MacOptimizer git status: " + (status.stderr or status.stdout)[-1500:]

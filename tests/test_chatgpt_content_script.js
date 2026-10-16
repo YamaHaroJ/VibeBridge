@@ -163,50 +163,31 @@ async function runScenario(sendMessage) {
       }
       throw new Error("Unexpected message " + message.type);
     });
-    assert.equal(h.composer.value, "Continue VibeBridge", "context resolution never mutates the user's draft");
-    assert.equal(h.send.clickCount, undefined, "context-ready prompt waits for an explicit user choice");
-    assert.ok(h.notices.some(m => m.type === "VIBEBRIDGE_RESOLVE_CONTEXTS"));
-    const notice = h.document.getElementById("vibebridge-notice-message");
-    assert.match(notice.textContent, /choose whether to attach it/i);
-    const actions = h.document.getElementById("vibebridge-notice-actions");
-    const plain = actions.children.find(node => node.dataset.vibebridgeContextAction === "plain");
-    assert.ok(plain, "user can choose to send without context");
-    plain.click();
-    assert.equal(actions.children.some(node => node.dataset.vibebridgeContextAction), false, "context choices are removed after selection");
-    assert.equal(h.composer.value, "Continue VibeBridge", "plain send preserves the draft byte-for-byte");
-    assert.equal(h.send.clickCount, 1, "plain send submits exactly once");
+    assert.match(h.composer.value, /MOCK PROJECT CONTEXT/, "resolved context is attached automatically");
+    assert.match(h.composer.value, /USER REQUEST:[\\s\\S]*Continue VibeBridge/);
+    assert.equal(h.getCurrentSend().clickCount, 1, "context-enriched message sends automatically exactly once");
+    assert.equal(h.document.getElementById("vibebridge-notice"), null, "no banner or context-choice UI is created");
   }
   {
     const h = await runScenario(async message => {
-      if (message.type === "VIBEBRIDGE_RESOLVE_CONTEXTS") {
-        return {matched:true, context:"MOCK PROJECT CONTEXT", projects:[{name:"VibeBridge",path:"/Users/test/VibeBridge"}]};
-      }
+      if (message.type === "VIBEBRIDGE_RESOLVE_CONTEXTS") return {matched:false, reason:"no-match"};
       throw new Error("Unexpected message " + message.type);
     });
-    const actions = h.document.getElementById("vibebridge-notice-actions");
-    const attach = actions.children.find(node => node.dataset.vibebridgeContextAction === "attach");
-    assert.ok(attach, "user can explicitly attach context");
-    const replacementSend = h.replaceSendButton(); // Simulate ChatGPT replacing the Send button during async work.
-    attach.click();
-    assert.equal(actions.children.some(node => node.dataset.vibebridgeContextAction), false, "context choices are removed after selection");
-    assert.match(h.composer.value, /MOCK PROJECT CONTEXT/, "context is inserted only after explicit opt-in");
-    assert.match(h.composer.value, /USER REQUEST:[\s\S]*Continue VibeBridge/);
-    assert.equal(replacementSend.clickCount, 1, "context-enriched message uses the live Send button exactly once");
-    assert.equal(h.send.clickCount, undefined, "stale Send button is never clicked");
+    assert.equal(h.composer.value, "Continue VibeBridge", "no-match preserves the original draft");
+    assert.equal(h.getCurrentSend().clickCount, 1, "no-match sends original text automatically");
+    assert.equal(h.document.getElementById("vibebridge-notice"), null, "no-match creates no banner");
   }
   {
     const h = await runScenario(async () => { throw new Error("Extension context invalidated."); });
     assert.equal(h.composer.value, "Continue VibeBridge", "invalidated context leaves original prompt intact");
-    assert.equal(h.send.clickCount, undefined, "invalidated extension must not replay/send the prompt");
-    const notice = h.document.getElementById("vibebridge-notice-message");
-    assert.match(notice.textContent, /Reload this tab to reconnect/i);
+    assert.equal(h.getCurrentSend().clickCount, undefined, "invalidated extension must not replay/send the prompt");
+    assert.equal(h.document.getElementById("vibebridge-notice"), null, "even reload errors do not create banners");
   }
   {
     const h = await runScenario(async () => { throw new Error("Failed to fetch"); });
     assert.equal(h.composer.value, "Continue VibeBridge");
-    assert.equal(h.send.clickCount, 1, "recoverable agent error still replays the original send once");
-    const notice = h.document.getElementById("vibebridge-notice-message");
-    assert.match(notice.textContent, /original message will still be sent/i);
+    assert.equal(h.getCurrentSend().clickCount, 1, "recoverable agent error still sends the original once");
+    assert.equal(h.document.getElementById("vibebridge-notice"), null, "recoverable errors do not create banners");
   }
   console.log("ChatGPT content-script DOM simulation: 4 scenarios passed");
 })().catch(error => { console.error(error); process.exitCode = 1; });

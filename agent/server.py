@@ -1167,7 +1167,7 @@ class Handler(BaseHTTPRequestHandler):
 # are eligible. Results are posted to the issue and the issue is closed after processing.
 REMOTE_TASK_REPO = "YamaHaroJ/VibeBridge"
 REMOTE_TASK_OWNER = "YamaHaroJ"
-REMOTE_TASKS = {"validate", "test", "diagnostics", "terminal-smoke", "macoptimizer-build"}
+REMOTE_TASKS = {"validate", "test", "diagnostics", "terminal-smoke", "macoptimizer-build", "macoptimizer-dedupe"}
 REMOTE_TASK_POLL_SECONDS = 2
 REMOTE_TASK_LIST_ARGS = ["gh", "issue", "list", "--repo", REMOTE_TASK_REPO, "--state", "open", "--json", "number,title,body,author", "--limit", "100"]
 _remote_task_seen = set()
@@ -1178,6 +1178,24 @@ def run_remote_task(task):
     root = Path.home() / "VibeBridge"
     if task not in REMOTE_TASKS:
         raise ValueError("Unsupported remote task.")
+    if task == "macoptimizer-dedupe":
+        app = Path.home() / "Applications" / "MacOptimizer.app"
+        binary = app / "Contents" / "MacOS" / "MacOptimizer"
+        if not binary.is_file():
+            return False, "Installed MacOptimizer executable missing: " + str(binary)
+        # Kill every process with this executable name, regardless of which old
+        # copy launched it, then open exactly the canonical app bundle.
+        subprocess.run(["/usr/bin/killall", "-9", "MacOptimizer"], capture_output=True, text=True, timeout=10)
+        time.sleep(1)
+        launched = subprocess.run(["/usr/bin/open", "-n", str(app)], capture_output=True, text=True, timeout=20)
+        if launched.returncode:
+            return False, "Could not relaunch canonical app: " + launched.stderr[-1200:]
+        time.sleep(2)
+        check = subprocess.run(["/usr/bin/pgrep", "-fl", "MacOptimizer"], capture_output=True, text=True, timeout=10)
+        lines = [line for line in check.stdout.splitlines() if "pgrep -fl" not in line]
+        if len(lines) != 1:
+            return False, "Expected one MacOptimizer process after clean relaunch; found " + str(len(lines)) + ":\n" + "\n".join(lines[:10])
+        return True, "Clean relaunch completed. Single process:\n" + "\n".join(lines)
     if task == "macoptimizer-build":
         app_root = Path.home() / "MacOptimizer"
         if not (app_root / ".git").is_dir():

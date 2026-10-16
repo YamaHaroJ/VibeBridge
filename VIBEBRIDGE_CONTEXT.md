@@ -268,3 +268,10 @@ Memory quality rules:
 6. Never store secrets, private customer information, or raw conversation transcripts.
 
 Latest implementation update: commit `895bc8c` adds an explicit per-response checkpoint instruction to the injected prompt, requiring the hidden block to include the most recent user request, actual assistant action/result, verification evidence, exact resume point, next action, blockers, separate project summaries, todos, and decisions. Commit `537f3b9` bumps the extension to `0.2.74`. These changes are source commits until CI passes and the extension is loaded/reloaded in Chrome. The checkpoint parser already stores the durable summary, latest handoff, living todos, and decisions in `memory/AUTO_CHECKPOINT.md` per repository/conversation.
+
+## Rolling project-memory policy (2026-10-16)
+- Treat memory as an evolving project log, not a static profile or a single last-message note. The project is being built across turns, so the recent build sequence is the most important operational context.
+- Every checkpoint should merge forward: update the current project summary and latest handoff, maintain prioritized open todos and durable decisions, and preserve the latest eight dated project-building handoffs for that conversation.
+- Give recent work priority in injected context: latest user request, what was changed, exact commit/build, tests and evidence, current blocker, and the next concrete action. Older milestones remain useful only when they explain architecture or why a decision was made.
+- Keep project histories separate by repository and conversation. A message affecting multiple repositories must create a separate rolling handoff for each.
+- The checkpoint writer now retains up to eight dated entries under `### Recent project-building history` when updating the same conversation section. This is committed in `3484283`, with regex/string escaping corrected in `a299544`. CI is still required to validate this parser change; it has not been verified on the user's Mac.

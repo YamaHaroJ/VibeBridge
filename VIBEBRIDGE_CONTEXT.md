@@ -239,3 +239,9 @@ Important setup distinction: ChatGPT's GitHub connector is optional for VibeBrid
 - Next: confirm tests pass on current master, then request `VibeBridge task: terminal-smoke`. This verifies the local agent HTTP execution route and project resolution, but not yet the Chrome content-script button end-to-end.
 - No extension source changed; manifest stays **0.2.62**, so no Chrome reload is required for these agent changes.
 
+## Live terminal smoke result (2026-10-16)
+- Mac runner task #120 passed against the live local agent: authenticated `POST /run` executed the fixed harmless command `python3 -c "print('VibeBridge terminal relay OK')"` in `/Users/jay/VibeBridge` and returned the expected output.
+- This proves the local agent's authenticated terminal execution endpoint is running and executes commands in the VibeBridge checkout. It does not yet prove the Chrome extension's injected **Run on my Mac** button completes the full UI-to-agent round trip.
+- Unit suite passed 55 tests on issue #119 after a transient earlier run raced with the test-file update.
+- Next: keep hardening the browser relay and add integration coverage for the extension message/HTTP bridge. Extension files were not changed; version remains **0.2.62**.
+

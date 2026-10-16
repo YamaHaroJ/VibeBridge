@@ -34,6 +34,8 @@ if not TOKEN_FILE.exists():
     TOKEN_FILE.chmod(0o600)
 TOKEN = TOKEN_FILE.read_text().strip()
 PAIRING_FILE = SUPPORT / "paired_extension_origin"
+BROWSER_STATUS_LOCK = threading.Lock()
+BROWSER_STATUS = {"connected": False, "version": None, "host": None, "lastSeen": None}
 
 
 def discover_projects():
@@ -938,6 +940,11 @@ def resolve_project_set(message, known_projects=None, active=""):
 
     return resolved[:8]
 
+def browser_extension_snapshot():
+    with BROWSER_STATUS_LOCK:
+        return dict(BROWSER_STATUS)
+
+
 def local_diagnostics():
     """Return allowlisted VibeBridge service and deployment metadata, never logs or process arguments."""
     def service_snapshot(label):
@@ -995,6 +1002,7 @@ def local_diagnostics():
         "updater": updater,
         "checkout": {"path": str(checkout), "revision": revision, "dirty": dirty,
                      "extensionVersion": extension_version},
+        "browserExtension": browser_extension_snapshot(),
         "scope": "VibeBridge services and checkout metadata only; no file paths from status, unrelated processes, arguments, environment, secrets, or logs are returned.",
     }
 
@@ -1138,6 +1146,16 @@ class Handler(BaseHTTPRequestHandler):
         except OSError:
             return self.send_json(400, {"error": "Could not read request body"})
         path = urlparse(self.path).path
+        if path == "/extension-status":
+            version = str(body.get("version", "")).strip()[:40]
+            host = str(body.get("host", "")).strip().lower()
+            if not re.fullmatch(r"\\d+\\.\\d+\\.\\d+(?:[-+][A-Za-z0-9.-]+)?", version):
+                return self.send_json(400, {"error": "Invalid extension version"})
+            if host not in {"chatgpt.com", "chat.openai.com"}:
+                return self.send_json(400, {"error": "Unrecognized ChatGPT host"})
+            with BROWSER_STATUS_LOCK:
+                BROWSER_STATUS.update({"connected": True, "version": version, "host": host, "lastSeen": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+            return self.send_json(200, {"ok": True})
         if path == "/checkpoint":
             try:
                 result = sync_message_checkpoint(body.get("summary", ""), body.get("conversation", "chat"))

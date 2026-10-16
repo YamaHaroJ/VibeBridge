@@ -45,7 +45,7 @@ class RemoteTaskTests(unittest.TestCase):
         diagnostics.assert_called_once_with()
 
     def test_task_enum_is_closed(self):
-        self.assertEqual(server.REMOTE_TASK_POLL_SECONDS, 2)
+        self.assertEqual(server.REMOTE_TASK_POLL_SECONDS, 1)
         self.assertNotIn("--order", server.REMOTE_TASK_LIST_ARGS)
         self.assertEqual(server.REMOTE_TASK_LIST_ARGS[-2:], ["--limit", "100"])
         self.assertEqual(server.REMOTE_TASKS, {"validate", "test", "diagnostics", "terminal-smoke", "macoptimizer-build", "macoptimizer-dedupe"})

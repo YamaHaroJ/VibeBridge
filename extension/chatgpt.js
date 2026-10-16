@@ -10,6 +10,11 @@
   });
   const marker = "VIBEBRIDGE PROJECT CONTEXT";
   const extensionVersion = chrome.runtime.getManifest?.().version || "unknown";
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type === "VIBEBRIDGE_CONTENT_SCRIPT_PING") {
+      sendResponse({alive: true, version: extensionVersion, host: location.hostname});
+    }
+  });
   // Report only extension version and ChatGPT host; never send conversation text.
   function reportBrowserHeartbeat() {
     chrome.runtime.sendMessage({type: "VIBEBRIDGE_BROWSER_HEARTBEAT"}).catch(() => {});

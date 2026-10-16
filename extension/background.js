@@ -2,16 +2,33 @@ const API = "http://127.0.0.1:43127";
 
 async function fetchAgent(path, options = {}, timeoutMs = 20000) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let timeout;
+  const clearRequestTimeout = () => clearTimeout(timeout);
+  timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(API + path, {...options, signal: controller.signal});
+    const response = await fetch(API + path, {...options, signal: controller.signal});
+    // Keep the deadline active while the response body is being read, not just
+    // until headers arrive. Every current caller consumes JSON via response.json().
+    const readJson = response.json.bind(response);
+    response.json = async (...args) => {
+      try {
+        return await readJson(...args);
+      } catch (error) {
+        if (error.name === "AbortError") {
+          throw new Error("VibeBridge local agent timed out while reading " + path + ".");
+        }
+        throw error;
+      } finally {
+        clearRequestTimeout();
+      }
+    };
+    return response;
   } catch (error) {
+    clearRequestTimeout();
     if (error.name === "AbortError") {
       throw new Error("VibeBridge local agent timed out while handling " + path + ".");
     }
     throw error;
-  } finally {
-    clearTimeout(timeout);
   }
 }
 

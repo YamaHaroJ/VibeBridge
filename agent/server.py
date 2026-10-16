@@ -79,29 +79,54 @@ def local_repo_map():
     return found
 
 
+_github_projects_cache = {"expires": 0.0, "value": None}
+_github_projects_cache_lock = threading.Lock()
+
+
 def github_projects():
-    try:
-        result = subprocess.run(
-            ["gh", "repo", "list", "--limit", "1000", "--json",
-             "name,nameWithOwner,description,url,isPrivate,isArchived,updatedAt,defaultBranchRef"],
-            capture_output=True, text=True, timeout=45
-        )
-    except FileNotFoundError:
-        raise RuntimeError("GitHub CLI (gh) is not installed. Install GitHub CLI and sign in first.")
-    except subprocess.TimeoutExpired:
-        raise RuntimeError("GitHub repository listing timed out. Try again.")
-    if result.returncode != 0:
-        message = (result.stderr or result.stdout or "GitHub CLI could not list repositories").strip()
-        raise RuntimeError(message[:1000])
-    try:
-        repositories = json.loads(result.stdout)
-    except json.JSONDecodeError:
-        raise RuntimeError("GitHub CLI returned an unreadable repository list.")
-    local = local_repo_map()
-    for repo in repositories:
-        repo["localPath"] = local.get(str(repo.get("nameWithOwner", "")).lower())
-    repositories.sort(key=lambda item: (item.get("nameWithOwner", "").lower()))
-    return repositories
+    # Context resolution can run for every message. Avoid spawning gh and walking
+    # every local repository on each request; refresh in the background window.
+    now = time.monotonic()
+    cached = _github_projects_cache["value"]
+    if cached is not None and now < _github_projects_cache["expires"]:
+        return [dict(repo) for repo in cached]
+
+    with _github_projects_cache_lock:
+        now = time.monotonic()
+        cached = _github_projects_cache["value"]
+        if cached is not None and now < _github_projects_cache["expires"]:
+            return [dict(repo) for repo in cached]
+        try:
+            result = subprocess.run(
+                ["gh", "repo", "list", "--limit", "1000", "--json",
+                 "name,nameWithOwner,description,url,isPrivate,isArchived,updatedAt,defaultBranchRef"],
+                capture_output=True, text=True, timeout=20
+            )
+        except FileNotFoundError:
+            raise RuntimeError("GitHub CLI (gh) is not installed. Install GitHub CLI and sign in first.")
+        except subprocess.TimeoutExpired:
+            # If GitHub is momentarily slow, retain a previously successful cache.
+            if cached is not None:
+                return [dict(repo) for repo in cached]
+            raise RuntimeError("GitHub repository listing timed out. Try again.")
+        if result.returncode != 0:
+            if cached is not None:
+                return [dict(repo) for repo in cached]
+            message = (result.stderr or result.stdout or "GitHub CLI could not list repositories").strip()
+            raise RuntimeError(message[:1000])
+        try:
+            repositories = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            if cached is not None:
+                return [dict(repo) for repo in cached]
+            raise RuntimeError("GitHub CLI returned an unreadable repository list.")
+        local = local_repo_map()
+        for repo in repositories:
+            repo["localPath"] = local.get(str(repo.get("nameWithOwner", "")).lower())
+        repositories.sort(key=lambda item: (item.get("nameWithOwner", "").lower()))
+        _github_projects_cache["value"] = repositories
+        _github_projects_cache["expires"] = time.monotonic() + 30
+        return [dict(repo) for repo in repositories]
 
 
 def github_repo_for_name(value):

@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import json
 import os
@@ -333,6 +334,25 @@ def create_github_repo(name, description="", private=True):
 
 # Filesystem access is intentionally scoped to the authenticated user's home
 # directory. macOS privacy controls still apply to protected folders.
+def expected_extension_origin():
+    """Derive the only trusted Chrome extension origin from the pinned manifest key."""
+    try:
+        manifest_path = Path(__file__).resolve().parent.parent / "extension" / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        key = manifest.get("key")
+        digest = hashlib.sha256(base64.b64decode(key, validate=True)).digest()[:16]
+        alphabet = "abcdefghijklmnop"
+        extension_id = "".join(alphabet[b >> 4] + alphabet[b & 15] for b in digest)
+        return "chrome-extension://" + extension_id
+    except (OSError, ValueError, TypeError, KeyError):
+        return ""
+
+
+def trusted_extension_origin(origin):
+    expected = expected_extension_origin()
+    return bool(expected) and secrets.compare_digest(str(origin or ""), expected)
+
+
 HOME_ROOT = Path.home().resolve()
 MAX_FILE_BYTES = 2 * 1024 * 1024
 
@@ -722,7 +742,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         origin = self.headers.get("Origin", "")
-        if origin.startswith("chrome-extension://"):
+        if trusted_extension_origin(origin):
             self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Vary", "Origin")
         self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
@@ -733,8 +753,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         origin = self.headers.get("Origin", "")
-        if not origin.startswith("chrome-extension://"):
-            return self.send_json(403, {"error": "Extension origin required"})
+        if not trusted_extension_origin(origin):
+            return self.send_json(403, {"error": "Registered VibeBridge extension origin required"})
         return self.send_json(200, {"ok": True})
 
     def authorized(self):
@@ -744,7 +764,7 @@ class Handler(BaseHTTPRequestHandler):
         """Reject browser-origin requests unless they come from the installed extension."""
         origin = self.headers.get("Origin", "")
         if origin:
-            if not origin.startswith("chrome-extension://"):
+            if not trusted_extension_origin(origin):
                 self.send_json(403, {"error": "Untrusted browser origin"})
                 return False
         return True

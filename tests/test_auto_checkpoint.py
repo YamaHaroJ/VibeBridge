@@ -108,8 +108,10 @@ class ExtensionFlowContractTests(unittest.TestCase):
         self.assertNotIn("savedConversation.project", self.content_script)
         self.assertIn('if (!enabledState || !original', self.content_script)
         self.assertIn('function showNotice(_text) {}', self.content_script)
-        self.assertIn('Automatically attach detected project context', self.content_script)
-        self.assertIn('writeComposer(composer, addition + original)', self.content_script)
+        self.assertIn("Context is stored for subsequent resolution", self.content_script)
+        self.assertNotIn("writeComposer(composer, addition + original)", self.content_script)
+        self.assertNotIn("composer.dataset.vibebridgeContextInjection", self.content_script)
+        self.assertIn("Send the user's original request unchanged instead.", self.content_script)
         self.assertNotIn('USER REQUEST:\\n', self.content_script)
         self.assertNotIn('function showContextChoice', self.content_script)
         self.assertIn('readComposer(composer).trim() !== original', self.content_script)
@@ -128,7 +130,7 @@ class ExtensionFlowContractTests(unittest.TestCase):
 
 
     def test_automatic_memory_is_explicitly_opt_in_and_scoped_to_matched_repository(self):
-        self.assertEqual(self.manifest["version"], "0.2.94")
+        self.assertEqual(self.manifest["version"], "0.2.96")
         self.assertIn('id="auto-memory"', self.popup_html)
         self.assertIn("autoMemoryCheckpoints", self.popup_source)
         self.assertIn("savedPreferences.autoMemoryCheckpoints", self.content_script)

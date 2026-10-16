@@ -36,6 +36,12 @@ class ExtensionContractTests(unittest.TestCase):
         self.assertIn("!active", handler)
         self.assertIn("command.length > 40", handler)
 
+    def test_chatgpt_tab_activation_recovers_content_script_heartbeat(self):
+        background = (EXTENSION / "background.js").read_text()
+        self.assertIn('chrome.tabs?.onActivated?.addListener?.(({tabId}) => { ensureChatGPTTabHeartbeat(tabId); });', background)
+        self.assertIn('chrome.tabs?.onUpdated?.addListener?.((tabId, changeInfo)', background)
+        self.assertIn('files: ["chatgpt.js"]', background)
+
 
 if __name__ == "__main__":
     unittest.main()

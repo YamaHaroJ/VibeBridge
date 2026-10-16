@@ -16,10 +16,17 @@ class ProjectSwitchTests(unittest.TestCase):
             self.assertFalse(handler.require_extension_origin())
         send.assert_called_once_with(403, {"error": "Untrusted browser origin"})
 
-    def test_get_allows_extension_origin(self):
+    def test_get_rejects_unrelated_extension_origin(self):
         handler = object.__new__(server.Handler)
         handler.headers = {"Origin": "chrome-extension://abcdefghijklmnop"}
-        with patch.object(handler, "send_json") as send:
+        with patch.object(server, "expected_extension_origin", return_value="chrome-extension://ponmlkjihgfedcba"), patch.object(handler, "send_json") as send:
+            self.assertFalse(handler.require_extension_origin())
+        send.assert_called_once_with(403, {"error": "Untrusted browser origin"})
+
+    def test_get_allows_pinned_extension_origin(self):
+        handler = object.__new__(server.Handler)
+        handler.headers = {"Origin": "chrome-extension://ponmlkjihgfedcba"}
+        with patch.object(server, "expected_extension_origin", return_value="chrome-extension://ponmlkjihgfedcba"), patch.object(handler, "send_json") as send:
             self.assertTrue(handler.require_extension_origin())
         send.assert_not_called()
 

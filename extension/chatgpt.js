@@ -453,7 +453,7 @@
         const savedConversation = await chrome.storage.local.get(["conversationProjects", "activeProject", "project"]);
         const prior = savedConversation.conversationProjects?.[conversation] || [];
         const knownProjects = (Array.isArray(prior) ? prior : [prior]).filter(Boolean);
-        const activeProject = knownProjects[0] || savedConversation.activeProject || savedConversation.project || "";
+        // The popup selection is the explicit user choice and must override stale conversation history.\n        const activeProject = savedConversation.activeProject || savedConversation.project || knownProjects[0] || "";
         result = await chrome.runtime.sendMessage({
           type: "VIBEBRIDGE_RESOLVE_CONTEXTS",
           text: original,

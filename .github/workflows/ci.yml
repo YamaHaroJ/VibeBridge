@@ -28,3 +28,4 @@ jobs:
           node --check extension/chatgpt.js
           node --check extension/popup.js
           node tests/test_extension_bridge.js
+          node tests/test_chatgpt_content_script.js

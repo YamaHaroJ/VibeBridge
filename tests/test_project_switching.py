@@ -149,6 +149,18 @@ class ProjectSwitchTests(unittest.TestCase):
         )
 
 
+    @patch.object(server, "github_projects", side_effect=RuntimeError("repository listing unavailable"))
+    @patch.object(server, "remote_repo_context", return_value="PROJECT: VibeBridge\\nREMOTE MEMORY")
+    def test_selected_remote_context_does_not_require_repository_listing(self, remote_context, _github):
+        context = server.project_context("github:YamaHaroJ/VibeBridge")
+        self.assertEqual(context, "PROJECT: VibeBridge\\nREMOTE MEMORY")
+        remote_context.assert_called_once_with("YamaHaroJ/VibeBridge")
+
+    def test_remote_project_context_rejects_invalid_slug(self):
+        with self.assertRaisesRegex(ValueError, "Invalid GitHub repository path"):
+            server.project_context("github:../VibeBridge")
+
+
 
 if __name__ == "__main__":
     unittest.main()

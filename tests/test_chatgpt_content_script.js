@@ -69,6 +69,7 @@ class Element {
   click() {
     this.clickCount = (this.clickCount || 0) + 1;
     for (const fn of (this.listeners.click || [])) fn({target:this, preventDefault(){}, stopPropagation(){}, stopImmediatePropagation(){}});
+    if (typeof this.onclick === "function") this.onclick();
   }
   dispatchEvent() { return true; }
 }
@@ -162,10 +163,31 @@ async function runScenario(sendMessage) {
       throw new Error("Unexpected message " + message.type);
     });
     assert.equal(h.composer.value, "Continue VibeBridge", "context resolution never mutates the user's draft");
-    assert.equal(h.send.clickCount, 1, "original send is replayed exactly once");
+    assert.equal(h.send.clickCount, undefined, "context-ready prompt waits for an explicit user choice");
     assert.ok(h.notices.some(m => m.type === "VIBEBRIDGE_RESOLVE_CONTEXTS"));
     const notice = h.document.getElementById("vibebridge-notice-message");
-    assert.match(notice.textContent, /automatic injection is paused to protect your message/i);
+    assert.match(notice.textContent, /choose whether to attach it/i);
+    const actions = h.document.getElementById("vibebridge-notice-actions");
+    const plain = actions.children.find(node => node.dataset.vibebridgeContextAction === "plain");
+    assert.ok(plain, "user can choose to send without context");
+    plain.click();
+    assert.equal(h.composer.value, "Continue VibeBridge", "plain send preserves the draft byte-for-byte");
+    assert.equal(h.send.clickCount, 1, "plain send submits exactly once");
+  }
+  {
+    const h = await runScenario(async message => {
+      if (message.type === "VIBEBRIDGE_RESOLVE_CONTEXTS") {
+        return {matched:true, context:"MOCK PROJECT CONTEXT", projects:[{name:"VibeBridge",path:"/Users/test/VibeBridge"}]};
+      }
+      throw new Error("Unexpected message " + message.type);
+    });
+    const actions = h.document.getElementById("vibebridge-notice-actions");
+    const attach = actions.children.find(node => node.dataset.vibebridgeContextAction === "attach");
+    assert.ok(attach, "user can explicitly attach context");
+    attach.click();
+    assert.match(h.composer.value, /MOCK PROJECT CONTEXT/, "context is inserted only after explicit opt-in");
+    assert.match(h.composer.value, /USER REQUEST:\\nContinue VibeBridge/);
+    assert.equal(h.send.clickCount, 1, "context-enriched message is sent exactly once");
   }
   {
     const h = await runScenario(async () => { throw new Error("Extension context invalidated."); });
@@ -181,5 +203,5 @@ async function runScenario(sendMessage) {
     const notice = h.document.getElementById("vibebridge-notice-message");
     assert.match(notice.textContent, /original message will still be sent/i);
   }
-  console.log("ChatGPT content-script DOM simulation: 3 scenarios passed");
+  console.log("ChatGPT content-script DOM simulation: 4 scenarios passed");
 })().catch(error => { console.error(error); process.exitCode = 1; });

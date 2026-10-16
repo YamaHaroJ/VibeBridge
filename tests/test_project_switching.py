@@ -47,6 +47,20 @@ class ProjectSwitchTests(unittest.TestCase):
         self.assertNotIn("\\n\\nREADME", context)
 
     @patch.object(server.subprocess, "run")
+    @patch.object(server.subprocess, "run")
+    def test_remote_context_survives_optional_checkpoint_timeout(self, run):
+        readme = base64.b64encode(b"# VibeBridge").decode()
+        memory = base64.b64encode(b"# Project Memory").decode()
+        run.side_effect = [
+            type("Completed", (), {"returncode": 0, "stdout": readme, "stderr": ""})(),
+            type("Completed", (), {"returncode": 0, "stdout": memory, "stderr": ""})(),
+            server.subprocess.TimeoutExpired(cmd="gh api", timeout=4),
+        ]
+        context = server.remote_repo_context("YamaHaroJ/VibeBridge")
+        self.assertIn("# VibeBridge", context)
+        self.assertIn("# Project Memory", context)
+        self.assertNotIn("ROLLING CONVERSATION CHECKPOINTS", context)
+
     def test_remote_context_reports_total_failure(self, run):
         run.return_value = type("Completed", (), {"returncode": 1, "stdout": "", "stderr": "HTTP 401: authentication failed"})()
         with self.assertRaisesRegex(RuntimeError, "Could not load useful context"):

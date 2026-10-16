@@ -129,9 +129,9 @@ class ExtensionFlowContractTests(unittest.TestCase):
         self.assertIn('id="auto-memory"', self.popup_html)
         self.assertIn("autoMemoryCheckpoints", self.popup_source)
         self.assertIn("savedPreferences.autoMemoryCheckpoints", self.content_script)
-        self.assertIn("VIBEBRIDGE MEMORY CHECKPOINT REQUIREMENT", self.content_script)
-        self.assertIn('Use only the matched repository from the supplied context', self.content_script)
-        self.assertIn("The extension will hide this block and save it to GitHub", self.content_script)
+        self.assertIn("When useful, append a compact fenced vibebridge-memory JSON checkpoint", self.content_script)
+        self.assertIn('Include only durable project summary, handoff, todos, and decisions', self.content_script)
+        self.assertIn("automatic saving", self.content_script)
         self.assertIn('pre.style.display = "none"', self.content_script)
 
     def test_browser_heartbeat_reports_loaded_version_without_conversation_data(self):

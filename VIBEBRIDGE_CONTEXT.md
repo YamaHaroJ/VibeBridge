@@ -40,3 +40,11 @@
 - Requested new Mac diagnostics on issue #331; result has not arrived at handoff update time.
 - Still not complete: current live loaded version/heartbeat, real Chrome command-result loop in a newly opened ChatGPT thread, and automatic reload after a subsequent version bump. Do not close issue #302 until those acceptance checks pass.
 - Next action: retrieve issue #331 diagnostics; if live extension remains old, bootstrap-reload once in `chrome://extensions`, then verify loaded version `0.2.99` and run fresh-thread command/result acceptance.
+
+
+## Live verification update — 2026-10-16 23:52 UTC
+
+- Mac diagnostics task #331 PASS: local agent running on 127.0.0.1:43127; checkout `513aa6c` clean; disk manifest `0.2.99`; two live `chatgpt.com` tabs report extension `0.2.99` with fresh heartbeat at 23:50:25 UTC. Updater LaunchAgent is loaded/configured with RunAtLoad and 5-second interval; its process is normally idle between runs.
+- Authenticated local terminal smoke task #332 PASS in 0.24s through the local `/run` route; output: `VibeBridge terminal relay OK`.
+- Still unverified: command/result completion in a freshly opened ChatGPT conversation, composer safety in live Chrome, auto-reload after a future version bump, automatic project detection/concurrent task acceptance. Keep issue #302 open until these pass.
+- Next action: run a dedicated fresh-thread command/result acceptance and composer-preservation E2E; then exercise updater with a controlled version bump and verify rollback/recovery evidence.

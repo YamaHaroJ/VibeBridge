@@ -315,7 +315,7 @@ def sync_message_checkpoint(summary, conversation):
             elif "404" not in (get.stderr + get.stdout):
                 errors.append(slug + ": " + (get.stderr or get.stdout or "Could not read checkpoint").strip()[:250])
                 break
-            sections = re.findall(r"(?ms)^## Conversation: ([^\\n]+)\\n(.*?)(?=^## Conversation: |\\Z)", existing)
+            sections = re.findall(r"(?ms)^## Conversation: ([^\n]+)\n(.*?)(?=^## Conversation: |\Z)", existing)
             stamp = datetime.now().astimezone().isoformat(timespec="seconds")
             # Keep an evolving build timeline for this conversation. The new
             # summary/handoff is authoritative, while recent project-building

@@ -1312,8 +1312,36 @@ def run_remote_task(task):
     return success, "\n\n".join(output)[-12000:]
 
 
+_remote_task_pool = None
+_remote_task_seen_lock = threading.Lock()
+
+
+def _process_remote_issue(number, task):
+    """Run and report one validated task independently of the polling loop."""
+    try:
+        ok, detail = run_remote_task(task)
+        state = "PASS" if ok else "FAIL"
+        body = "Mac runner task **" + task + "**: **" + state + "**\\n\\n" + detail
+    except Exception as exc:
+        body = "Mac runner task **" + task + "**: **FAIL**\\n\\nRunner exception: " + str(exc)[:1000]
+    try:
+        subprocess.run(
+            ["gh", "issue", "comment", str(number), "--repo", REMOTE_TASK_REPO, "--body", body],
+            capture_output=True, text=True, timeout=10
+        )
+        subprocess.run(
+            ["gh", "issue", "close", str(number), "--repo", REMOTE_TASK_REPO],
+            capture_output=True, text=True, timeout=10
+        )
+    except Exception as exc:
+        print("VibeBridge task report failed for issue " + str(number) + ": " + str(exc)[:300], flush=True)
+
+
 def remote_task_worker():
-    """Poll authenticated GitHub issue metadata and run only owner-authored enum tasks."""
+    """Poll the owner-authored enum queue and dispatch up to four tasks concurrently."""
+    global _remote_task_pool
+    from concurrent.futures import ThreadPoolExecutor
+    _remote_task_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="vibebridge-task")
     while True:
         try:
             listed = subprocess.run(
@@ -1332,24 +1360,15 @@ def remote_task_worker():
                     login = str(author.get("login", ""))
                     task = title.removeprefix("VibeBridge task: ").strip()
                     if (not isinstance(number, int) or login.lower() != REMOTE_TASK_OWNER.lower()
-                            or title != "VibeBridge task: " + task or task not in REMOTE_TASKS
-                            or number in _remote_task_seen):
+                            or title != "VibeBridge task: " + task or task not in REMOTE_TASKS):
                         continue
-                    _remote_task_seen.add(number)
-                    ok, detail = run_remote_task(task)
-                    state = "PASS" if ok else "FAIL"
-                    body = "Mac runner task **" + task + "**: **" + state + "**\n\n" + detail
-                    # GitHub CLI uses the authenticated local account; issue content is never evaluated.
-                    subprocess.run(
-                        ["gh", "issue", "comment", str(number), "--repo", REMOTE_TASK_REPO, "--body", body],
-                        capture_output=True, text=True, timeout=10
-                    )
-                    subprocess.run(
-                        ["gh", "issue", "close", str(number), "--repo", REMOTE_TASK_REPO],
-                        capture_output=True, text=True, timeout=10
-                    )
+                    with _remote_task_seen_lock:
+                        if number in _remote_task_seen:
+                            continue
+                        _remote_task_seen.add(number)
+                    _remote_task_pool.submit(_process_remote_issue, number, task)
         except Exception as exc:
-            print("VibeBridge remote-task worker:", str(exc)[:500])
+            print("VibeBridge remote-task worker:", str(exc)[:500], flush=True)
         time.sleep(REMOTE_TASK_POLL_SECONDS)
 
 

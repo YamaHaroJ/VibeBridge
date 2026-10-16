@@ -36,6 +36,14 @@ class ExtensionContractTests(unittest.TestCase):
         self.assertIn("!active", handler)
         self.assertIn("command.length > 40", handler)
 
+    def test_periodic_chatgpt_recovery_alarm_is_declared_and_registered(self):
+        manifest = json.loads((EXTENSION / "manifest.json").read_text())
+        background = (EXTENSION / "background.js").read_text()
+        self.assertIn("alarms", manifest["permissions"])
+        self.assertIn('chrome.alarms?.create?.(CHATGPT_RECOVERY_ALARM, {periodInMinutes: 1})', background)
+        self.assertIn('chrome.alarms?.onAlarm?.addListener?.(alarm => {', background)
+        self.assertIn("if (alarm?.name === CHATGPT_RECOVERY_ALARM) recoverOpenChatGPTTabs();", background)
+
     def test_chatgpt_tab_activation_recovers_content_script_heartbeat(self):
         background = (EXTENSION / "background.js").read_text()
         self.assertIn('chrome.tabs?.onActivated?.addListener?.(({tabId}) => { ensureChatGPTTabHeartbeat(tabId); });', background)

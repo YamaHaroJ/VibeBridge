@@ -620,9 +620,9 @@ def _build_project_context(project):
 
 # Cache assembled context briefly: ChatGPT can trigger multiple overlapping
 # context lookups for the same project while a message is being composed.
-# A short TTL avoids repeated Git/gh subprocesses without hiding real edits for
-# more than a moment. Cache is bounded and guarded for concurrent HTTP threads.
-_CONTEXT_CACHE_TTL = 2.0
+# A five-second TTL avoids repeated Git/gh subprocesses during one interaction
+# while keeping local edits visible quickly. Cache is bounded and guarded for concurrent HTTP threads.
+_CONTEXT_CACHE_TTL = 5.0
 _CONTEXT_CACHE_MAX = 64
 _context_cache = {}
 _context_cache_lock = threading.Lock()
@@ -1236,7 +1236,7 @@ class Handler(BaseHTTPRequestHandler):
 REMOTE_TASK_REPO = "YamaHaroJ/VibeBridge"
 REMOTE_TASK_OWNER = "YamaHaroJ"
 REMOTE_TASKS = {"validate", "test", "diagnostics", "terminal-smoke", "macoptimizer-build", "macoptimizer-dedupe"}
-REMOTE_TASK_POLL_SECONDS = 2
+REMOTE_TASK_POLL_SECONDS = 1
 REMOTE_TASK_LIST_ARGS = ["gh", "issue", "list", "--repo", REMOTE_TASK_REPO, "--state", "open", "--json", "number,title,body,author", "--limit", "100"]
 _remote_task_seen = set()
 

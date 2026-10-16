@@ -97,10 +97,24 @@
     if (!el || el.dataset?.vibebridgeSanitizing === "true" ||
         el.dataset?.vibebridgeContextInjection === "true") return false;
     const current = readComposer(el);
-    if (!/VIBEBRIDGE PROJECT CONTEXT|VIBEBRIDGE PROJECT CONTINUITY|PERSISTENT PROJECT MEMORY|END VIBEBRIDGE PROJECT CONTEXT|VIBEBRIDGE MEMORY CHECKPOINT REQUIREMENT/i.test(current)) return false;
+    // Recognize both old uppercase wrappers and the exact prefix used by the
+    // later "Project background for continuity" builds.
+    if (!/Project background for continuity|VIBEBRIDGE PROJECT CONTEXT|VIBEBRIDGE PROJECT CONTINUITY|PERSISTENT PROJECT MEMORY|END VIBEBRIDGE PROJECT CONTEXT|VIBEBRIDGE MEMORY CHECKPOINT REQUIREMENT/i.test(current)) return false;
     const marker = /USER REQUEST:\s*/i;
     const match = marker.exec(current);
-    const cleaned = match ? current.slice(match.index + match[0].length).trim() : "";
+    let cleaned = "";
+    if (match) {
+      cleaned = current.slice(match.index + match[0].length).trim();
+    } else {
+      // The old injector placed the real prompt after a final Markdown divider.
+      // Use the LAST divider because README/memory context can contain earlier
+      // horizontal rules. If no delimiter exists, fail closed rather than send
+      // a context dump as though it were the user's request.
+      const divider = /\r?\n\s*---\s*\r?\n/g;
+      let lastDivider = null;
+      for (const candidate of current.matchAll(divider)) lastDivider = candidate;
+      if (lastDivider) cleaned = current.slice(lastDivider.index + lastDivider[0].length).trim();
+    }
     el.dataset.vibebridgeSanitizing = "true";
     try { writeComposer(el, cleaned); } finally {
       queueMicrotask(() => { if (el.dataset) delete el.dataset.vibebridgeSanitizing; });

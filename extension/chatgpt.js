@@ -1,12 +1,13 @@
 (() => {
   const loadedFileVersion = chrome.runtime.getManifest?.().version || "unknown";
+  window.__vibeBridgeLoadedFileVersion = loadedFileVersion;
   // Keep a lightweight ping/heartbeat endpoint available even when this file is
   // injected into a tab that already has an older content-script instance.
   if (!window.__vibeBridgePingInstalled) {
     window.__vibeBridgePingInstalled = true;
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message?.type === "VIBEBRIDGE_CONTENT_SCRIPT_PING") {
-        sendResponse({alive: true, version: loadedFileVersion, coreVersion: window.__vibeBridgeInstalledVersion || "not-installed", host: location.hostname});
+        sendResponse({alive: true, version: window.__vibeBridgeLoadedFileVersion || loadedFileVersion, coreVersion: window.__vibeBridgeInstalledVersion || "not-installed", host: location.hostname});
       }
     });
   }

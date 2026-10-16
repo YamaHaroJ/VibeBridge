@@ -21,7 +21,7 @@ class ProjectSwitchTests(unittest.TestCase):
         self.assertEqual(len(result["stdout"].encode()), 128)
         self.assertEqual(len(result["stderr"].encode()), 96)
         self.assertTrue(result["stdout"].endswith("\n"))
-        self.assertTrue(result["stderr"].endswith("\\n"))
+        self.assertTrue(result["stderr"].endswith("\n"))
 
     def test_request_body_requires_valid_nonnegative_content_length(self):
         for value in (None, "", "-1", "+1", "1.5", "abc"):

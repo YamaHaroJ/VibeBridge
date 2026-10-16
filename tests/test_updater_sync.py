@@ -10,6 +10,13 @@ from agent.updater import deploy_current_checkout, sync_extension_tree
 
 class ExtensionTreeSyncTests(unittest.TestCase):
 
+    def test_dirty_managed_runtime_changes_are_never_overwritten(self):
+        source = Path(updater.__file__).read_text(encoding="utf-8")
+        self.assertIn('if managed_status:', source)
+        self.assertIn('Update deferred because agent/, extension/, or tests/ has local changes.', source)
+        self.assertIn('preserving all files', source)
+
+
     @patch("agent.updater.shutil.which", return_value=None)
     @patch("agent.updater.run")
     def test_validation_runs_full_regression_suite_before_deployment(self, run, _node):

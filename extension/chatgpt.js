@@ -412,6 +412,7 @@
     event.stopImmediatePropagation();
     busy = true;
     button.disabled = true;
+    let shouldResumeSend = true;
     try {
       if (!(await isEnabled())) {
         showNotice("VibeBridge is off. Your message will be sent without project context.");
@@ -487,6 +488,9 @@
     } catch (error) {
       const message = String(error?.message || error || "Unknown error");
       const invalidated = /extension context invalidated|context invalidated|extension context.*invalid/i.test(message);
+      // Do not auto-submit the un-enriched original message after the extension
+      // context dies; leave it in the composer so the user can inspect/resend.
+      if (invalidated) shouldResumeSend = false;
       const notice = invalidated
         ? "VibeBridge's extension was updated or reloaded while this ChatGPT tab was open. Reload this tab to reconnect. Your message was not sent with project context; check the prompt before resending."
         : "VibeBridge could not load project context: " + message + "\nYour original message will still be sent without project context. Check the local agent and GitHub CLI connection in the extension popup.";
@@ -495,9 +499,11 @@
     } finally {
       busy = false;
       button.disabled = false;
-      bypassNextSend = true;
-      button.click();
-      setTimeout(() => { bypassNextSend = false; }, 800);
+      if (shouldResumeSend) {
+        bypassNextSend = true;
+        button.click();
+        setTimeout(() => { bypassNextSend = false; }, 800);
+      }
     }
   }, true);
 })();

@@ -36,7 +36,17 @@ class Element {
     if (selector.includes("button") && this.tagName === "BUTTON") return this;
     return null;
   }
-  querySelector() { return null; }
+  querySelector(selector) {
+    const find = node => {
+      for (const child of node.children) {
+        if (selector.startsWith("#") && child.id === selector.slice(1)) return child;
+        const found = find(child);
+        if (found) return found;
+      }
+      return null;
+    };
+    return find(this);
+  }
   querySelectorAll() { return []; }
   after(item) { item.parentElement = this.parentElement; if (this.parentElement) this.parentElement.appendChild(item); }
   focus() {}
@@ -73,6 +83,10 @@ async function runScenario(sendMessage) {
       return search(root);
     },
     querySelector(selector) {
+      if (selector.startsWith("#")) {
+        const found = this.getElementById(selector.slice(1));
+        if (found) return found;
+      }
       if (selector === "#prompt-textarea" || selector === 'textarea[placeholder]') return composer;
       if (selector === 'button[data-testid="send-button"]' || selector === 'button[aria-label*="Send"]') return send;
       if (selector === "form") return null;

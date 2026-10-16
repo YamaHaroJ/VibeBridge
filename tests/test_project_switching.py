@@ -9,6 +9,19 @@ import server
 
 
 class ProjectSwitchTests(unittest.TestCase):
+    def test_command_timeout_kills_process_group_and_returns(self):
+        import time
+        import subprocess
+        started = time.monotonic()
+        with self.assertRaises(subprocess.TimeoutExpired):
+            server.run_bounded_command(
+                [sys.executable, "-c",
+                 "import subprocess,sys,time; subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)']); time.sleep(30)"],
+                Path(__file__).resolve().parents[1],
+                timeout=0.25,
+            )
+        self.assertLess(time.monotonic() - started, 4)
+
     def test_bounded_command_keeps_only_output_tails(self):
         result = server.run_bounded_command(
             [sys.executable, "-c", "print('A' * 20000); import sys; print('B' * 10000, file=sys.stderr)"],

@@ -909,7 +909,7 @@ def resolve_project_set(message, known_projects=None, active=""):
     return resolved[:8]
 
 def local_diagnostics():
-    """Return a small allowlisted snapshot of VibeBridge services, never raw process arguments or logs."""
+    """Return allowlisted VibeBridge service and deployment metadata, never logs or process arguments."""
     def service_snapshot(label):
         if platform.system() != "Darwin":
             return {"label": label, "loaded": False, "state": "unavailable-on-this-platform", "pid": None}
@@ -933,6 +933,28 @@ def local_diagnostics():
 
     agent = service_snapshot("com.vibebridge.agent")
     updater = service_snapshot("com.vibebridge.updater")
+    checkout = Path.home() / "VibeBridge"
+    revision, dirty, extension_version = "unknown", None, "unknown"
+    try:
+        head = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"], cwd=str(checkout),
+            capture_output=True, text=True, timeout=4
+        )
+        if head.returncode == 0:
+            revision = head.stdout.strip()[:16] or "unknown"
+        status = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=normal"], cwd=str(checkout),
+            capture_output=True, text=True, timeout=4
+        )
+        if status.returncode == 0:
+            dirty = bool(status.stdout.strip())
+    except (OSError, subprocess.SubprocessError):
+        pass
+    try:
+        manifest = json.loads((checkout / "extension" / "manifest.json").read_text(encoding="utf-8"))
+        extension_version = str(manifest.get("version", "unknown"))[:40]
+    except (OSError, ValueError, TypeError):
+        pass
     return {
         "ok": True,
         "service": "VibeBridge",
@@ -941,7 +963,9 @@ def local_diagnostics():
         "osVersion": platform.mac_ver()[0] if platform.system() == "Darwin" else platform.release(),
         "agent": {**agent, "requestPid": os.getpid(), "port": PORT},
         "updater": updater,
-        "scope": "VibeBridge launch services only; no unrelated process names, arguments, environment, or logs are returned.",
+        "checkout": {"path": str(checkout), "revision": revision, "dirty": dirty,
+                     "extensionVersion": extension_version},
+        "scope": "VibeBridge services and checkout metadata only; no file paths from status, unrelated processes, arguments, environment, secrets, or logs are returned.",
     }
 
 

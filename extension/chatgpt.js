@@ -9,6 +9,7 @@
     if (area === "local" && changes.enabled) enabledState = changes.enabled.newValue !== false;
   });
   const marker = "VIBEBRIDGE PROJECT CONTEXT";
+  const extensionVersion = chrome.runtime.getManifest?.().version || "unknown";
   const commandMarker = "VIBEBRIDGE LOCAL COMMAND";
   const processedBlocks = new WeakSet();
   // Never replay commands embedded in conversation history when a tab opens.
@@ -263,7 +264,21 @@
     }
   }
 
+  // Expose a small live diagnostic so the page proves the current content script loaded.
+  function ensureBridgeStatus() {
+    let status = document.getElementById("vibebridge-live-status");
+    if (!status) {
+      status = document.createElement("div");
+      status.id = "vibebridge-live-status";
+      status.style.cssText = "position:fixed;right:12px;bottom:12px;z-index:999998;padding:5px 8px;border-radius:6px;background:#172033;color:#fff;font:11px system-ui;opacity:.82";
+      document.documentElement.appendChild(status);
+    }
+    status.textContent = "VibeBridge " + extensionVersion + " · scanning commands";
+  }
+  ensureBridgeStatus();
+
   const observer = new MutationObserver(() => {
+    ensureBridgeStatus();
     addCommandControls(true);
     saveAssistantCheckpoints();
   });

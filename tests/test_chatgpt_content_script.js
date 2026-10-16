@@ -162,7 +162,7 @@ async function runScenario(sendMessage) {
       throw new Error("Unexpected message " + message.type);
     });
     assert.match(h.composer.value, /MOCK PROJECT CONTEXT/, "resolved project context is attached to the outgoing prompt");
-    assert.ok(h.composer.value.includes("\\nVIBEBRIDGE PROJECT CONTINUITY"), "context wrapper uses real line breaks");
+    assert.ok(h.composer.value.includes("\nVIBEBRIDGE PROJECT CONTINUITY"), "context wrapper uses real line breaks");
     assert.match(h.composer.value, /Continue VibeBridge/, "original user request remains present");
     assert.equal((h.composer.value.match(/VIBEBRIDGE PROJECT CONTEXT/g) || []).length, 2, "context wrapper appears exactly once with matching end marker");
     assert.equal(h.send.clickCount, 1, "original send is replayed exactly once");

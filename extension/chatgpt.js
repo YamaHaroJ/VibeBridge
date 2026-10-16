@@ -136,10 +136,10 @@
       // ChatGPT may strip custom fence-language classes and preserve whitespace around
       // the marker. Match the marker at the start of the rendered code, then tolerate
       // an optional JSON code fence so the relay never asks the user to paste it in Terminal.
-      const normalizedBlock = rawBlock.replace(/^\\s+/, "");
+      const normalizedBlock = rawBlock.replace(/^\s+/, "");
       const markedBlock = normalizedBlock.startsWith(commandMarker);
       const hasCommandLanguage = /language-vibebridge-run|vibebridge-run/i.test(className);
-      const hasShellLanguage = /language-(bash|sh|zsh|shell)\\b/i.test(className);
+      const hasShellLanguage = /language-(bash|sh|zsh|shell)\b/i.test(className);
       let payload = null;
       // Handle ChatGPT rendering custom vibebridge-run fences as plain text, including
       // an opening "vibebridge-run id=..." line before the JSON payload.
@@ -158,11 +158,11 @@
       processedBlocks.add(pre);
 
       if (hasShellLanguage && !hasCommandLanguage && !markedBlock) {
-        payload = {command: ["bash", "-lc", rawBlock.replace(/^\\s*\`\`\`(?:bash|sh|zsh|shell)\\s*/i, "").replace(/\\s*\`\`\`$/, "").trim()]};
+        payload = {command: ["bash", "-lc", rawBlock.replace(/^\s*```(?:bash|sh|zsh|shell)\s*/i, "").replace(/\s*```$/, "").trim()]};
       } else if (!payload) {
         try {
           let jsonText = markedBlock ? normalizedBlock.slice(commandMarker.length).trim() : rawBlock;
-          jsonText = jsonText.replace(/^\`\`\`(?:json)?\\s*/i, "").replace(/\\s*\`\`\`$/, "").trim();
+          jsonText = jsonText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
           payload = JSON.parse(jsonText);
         } catch {
           const warning = document.createElement("div");

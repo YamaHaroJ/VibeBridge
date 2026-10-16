@@ -129,93 +129,13 @@
     const state = await chrome.storage.local.get(["enabled"]);
     return state.enabled !== false;
   }
-  function showNotice(text) {
-    let node = document.getElementById("vibebridge-notice");
-    if (!node) {
-      node = document.createElement("div");
-      node.id = "vibebridge-notice";
-      node.style.cssText = "position:fixed;z-index:999999;right:18px;bottom:88px;max-width:min(560px,calc(100vw - 36px));max-height:45vh;overflow:auto;padding:12px;border-radius:10px;background:#172033;color:#fff;font:13px system-ui;box-shadow:0 4px 18px #0005;white-space:pre-wrap;overflow-wrap:anywhere";
-      const message = document.createElement("div");
-      message.id = "vibebridge-notice-message";
-      const actions = document.createElement("div");
-      actions.id = "vibebridge-notice-actions";
-      actions.style.cssText = "display:flex;gap:8px;margin-top:10px;flex-wrap:wrap";
-      const copy = document.createElement("button");
-      copy.type = "button";
-      copy.textContent = "Copy error";
-      copy.style.cssText = "padding:5px 8px;border:0;border-radius:5px;cursor:pointer";
-      copy.addEventListener("click", async () => {
-        const value = node.dataset.fullText || "";
-        try {
-          await navigator.clipboard.writeText(value);
-          copy.textContent = "Copied";
-        } catch {
-          const field = document.createElement("textarea");
-          field.value = value;
-          field.style.cssText = "position:fixed;left:-9999px;top:0";
-          document.body.appendChild(field);
-          field.select();
-          const copied = document.execCommand("copy");
-          field.remove();
-          copy.textContent = copied ? "Copied" : "Select and copy the error text";
-        }
-      });
-      const close = document.createElement("button");
-      close.type = "button";
-      close.textContent = "Dismiss";
-      close.style.cssText = "padding:5px 8px;border:0;border-radius:5px;cursor:pointer";
-      close.addEventListener("click", () => { node.style.display = "none"; });
-      actions.append(copy, close);
-      node.append(message, actions);
-      document.body.appendChild(node);
-    }
-    if (node._vibebridgeDismissTimer) clearTimeout(node._vibebridgeDismissTimer);
-    node.dataset.fullText = String(text);
-    const transient = /^(Sending your original message without project context\.|Sending with project context\.|VibeBridge command finished\.)$/.test(String(text));
-    if (transient) {
-      node._vibebridgeDismissTimer = setTimeout(() => {
-        node.style.display = "none";
-        node._vibebridgeDismissTimer = null;
-      }, 7000);
-    }
-    const message = node.querySelector("#vibebridge-notice-message");
-    if (message) message.textContent = String(text);
-    node.style.display = "block";
-  }
+  // VibeBridge is hands-off: no overlay banners, notices, or context-choice buttons.
+  // Diagnostics remain available through the browser console when needed.
+  function showNotice(_text) {}
 
-  function showContextChoice(text, onAttach, onPlain) {
-    showNotice(text);
-    const notice = document.getElementById("vibebridge-notice");
-    const actions = notice?.querySelector("#vibebridge-notice-actions");
-    if (!actions) return;
-    let attach = Array.from(actions.children).find(node => node.dataset?.vibebridgeContextAction === "attach");
-    if (!attach) {
-      attach = document.createElement("button");
-      attach.type = "button";
-      attach.dataset.vibebridgeContextAction = "attach";
-      attach.textContent = "Attach context & send";
-      attach.style.cssText = "padding:5px 8px;border:0;border-radius:5px;cursor:pointer";
-      actions.appendChild(attach);
-    }
-    let plain = Array.from(actions.children).find(node => node.dataset?.vibebridgeContextAction === "plain");
-    if (!plain) {
-      plain = document.createElement("button");
-      plain.type = "button";
-      plain.dataset.vibebridgeContextAction = "plain";
-      plain.textContent = "Send without context";
-      plain.style.cssText = "padding:5px 8px;border:0;border-radius:5px;cursor:pointer";
-      actions.appendChild(plain);
-    }
-    attach.onclick = () => {
-      attach.remove();
-      plain.remove();
-      onAttach();
-    };
-    plain.onclick = () => {
-      attach.remove();
-      plain.remove();
-      onPlain();
-    };
+  // Attach resolved project context automatically; do not interrupt the send flow.
+  function showContextChoice(_text, onAttach, _onPlain) {
+    onAttach();
   }
 
   // ChatGPT may replace its Send button while the extension resolves context.

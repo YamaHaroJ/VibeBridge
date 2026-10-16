@@ -516,6 +516,11 @@ def resolve_project_set(message, known_projects=None, active=""):
     text = str(message or "").lower()
     known = known_projects if isinstance(known_projects, list) else []
     resolved = []
+    try:
+        repos = github_projects()
+    except RuntimeError:
+        repos = []
+    repos_by_slug = {str(repo.get("nameWithOwner", "")).lower(): repo for repo in repos}
 
     def add(project):
         if not isinstance(project, dict):
@@ -524,7 +529,8 @@ def resolve_project_set(message, known_projects=None, active=""):
         if not path or any(item["path"].lower() == path.lower() for item in resolved):
             return
         if path.startswith("github:"):
-            repo = github_repo_for_name(path)
+            slug = path[len("github:"):].lower()
+            repo = repos_by_slug.get(slug)
             if not repo:
                 return
             item = {"name": repo["name"], "path": "github:" + repo["nameWithOwner"],
@@ -550,10 +556,6 @@ def resolve_project_set(message, known_projects=None, active=""):
 
     # Resolve every connected repository explicitly mentioned, not just the first
     # match. This supports a single message discussing multiple related projects.
-    try:
-        repos = github_projects()
-    except RuntimeError:
-        repos = []
     aliases = {
         "autofill-insurance-extension": ("autofill", "insurance extension", "autofill extension"),
         "vibebridge": ("vibebridge", "vibe bridge"),

@@ -30,7 +30,7 @@ class ExtensionContractTests(unittest.TestCase):
         start = background.index('if (message.type === "VIBEBRIDGE_RUN_COMMAND")')
         end = background.index("const multiProject", start)
         handler = background[start:end]
-        self.assertIn('API + "/run"', handler)
+        self.assertIn('fetchAgent("/run"', handler)
         self.assertIn('"Authorization": "Bearer " + saved.token', handler)
         self.assertIn("JSON.stringify({project: active, command})", handler)
         self.assertIn("!active", handler)

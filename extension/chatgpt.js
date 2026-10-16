@@ -10,8 +10,14 @@
   });
   const marker = "VIBEBRIDGE PROJECT CONTEXT";
   const extensionVersion = chrome.runtime.getManifest?.().version || "unknown";
-  // Report extension version and ChatGPT host only; never send conversation text.
-  chrome.runtime.sendMessage({type: "VIBEBRIDGE_BROWSER_HEARTBEAT"}).catch(() => {});
+  // Report only extension version and ChatGPT host; never send conversation text.
+  function reportBrowserHeartbeat() {
+    chrome.runtime.sendMessage({type: "VIBEBRIDGE_BROWSER_HEARTBEAT"}).catch(() => {});
+  }
+  reportBrowserHeartbeat();
+  // Retry after temporary agent restarts and keep diagnostics current while ChatGPT is open.
+  window.setInterval(reportBrowserHeartbeat, 30000);
+  window.addEventListener("pageshow", reportBrowserHeartbeat);
   const commandMarker = "VIBEBRIDGE LOCAL COMMAND";
   const processedBlocks = new WeakSet();
   // Never replay commands embedded in conversation history when a tab opens.

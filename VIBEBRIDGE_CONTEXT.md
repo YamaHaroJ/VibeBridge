@@ -24,10 +24,10 @@
 
 ## Current session handoff — 2026-10-16
 
-- Latest change: `b2f8c14` adds a Mac-runner `terminal-smoke` task that checks the authenticated local `/run` route with a harmless fixed command and reports exit code/stdout/stderr without exposing the token. `be10c5b` makes the Mac `test` task run both JavaScript regression suites as well as Python unit tests.
-- Prior verified source fix: `c9b9875` pings the existing ChatGPT content script before reinjecting on tab activation; `cb47a66` adds regression assertions for ping-first recovery.
-- Manifest version remains `0.2.98`; no version bump for these workflow/test improvements.
-- CI passed on `cb47a66`; CI for later commits is running/queued and must be checked before claiming success.
-- Mac runtime, local checkout HEAD/dirty state, installed extension version, live tab heartbeat, and actual command round-trip remain unverified from this chat. GitHub connector has source/workflow read and repository-write access, but no callable workflow-dispatch or local-terminal action.
-- Next priority: get the Mac runner task dispatched and capture real terminal-smoke + full test exit statuses; then continue issue #302's fresh-thread local bridge integration. Do not claim local execution or deployment is fixed without evidence.
+- Latest verified remote HEAD: `dacaaf17f69f0128672b22fa8a5819e156b9863e`. Manifest version `0.2.98`.
+- **Actual Mac runner results now verified:** task `test` PASS — 87 Python tests, 8 background bridge scenarios, 5 ChatGPT content-script scenarios; all exit 0. Task `terminal-smoke` PASS — authenticated `/run` returned `VibeBridge terminal relay OK`, exit code 0. Task `diagnostics` PASS — local checkout revision `dacaaf1`, clean working tree, agent running on port 43127, extension `0.2.98`, live ChatGPT tab heartbeat connected.
+- **New issue:** local diagnostics reported `com.vibebridge.updater` loaded but `not running`. Investigate updater LaunchAgent scheduling/logs before considering update behavior fixed.
+- Source fixes: `c9b9875` pings the existing ChatGPT content script before reinjecting on tab activation; `cb47a66` tests ping-first recovery. Mac runner `test` task now includes both JavaScript suites; `terminal-smoke` checks authenticated command round-trip without exposing the token.
+- GitHub Actions `VibeBridge checks` and `Validate VibeBridge` passed at `dacaaf1`; macOS installer packaging was still running at last check.
+- Next priority: diagnose why the updater is loaded but not running, then verify its launch/recovery and installed-source synchronization. The Mac command bridge is now confirmed callable through the owner-authored fixed-task queue; use fixed tasks and capture their actual reports rather than claiming work ran without evidence.
 

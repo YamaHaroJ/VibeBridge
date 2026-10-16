@@ -505,7 +505,7 @@
         shouldResumeSend = false;
         showContextChoice(
           "Project context is ready. Choose whether to attach it to this message or send your original text unchanged.",
-          () => {
+          async () => {
             if (!composer || readComposer(composer).trim() !== original) {
               showNotice("Your draft changed while context was loading. Nothing was overwritten; send it unchanged or retry.");
               return;

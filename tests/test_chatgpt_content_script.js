@@ -171,6 +171,7 @@ async function runScenario(sendMessage) {
     const plain = actions.children.find(node => node.dataset.vibebridgeContextAction === "plain");
     assert.ok(plain, "user can choose to send without context");
     plain.click();
+    assert.equal(actions.children.some(node => node.dataset.vibebridgeContextAction), false, "context choices are removed after selection");
     assert.equal(h.composer.value, "Continue VibeBridge", "plain send preserves the draft byte-for-byte");
     assert.equal(h.send.clickCount, 1, "plain send submits exactly once");
   }
@@ -185,6 +186,7 @@ async function runScenario(sendMessage) {
     const attach = actions.children.find(node => node.dataset.vibebridgeContextAction === "attach");
     assert.ok(attach, "user can explicitly attach context");
     attach.click();
+    assert.equal(actions.children.some(node => node.dataset.vibebridgeContextAction), false, "context choices are removed after selection");
     assert.match(h.composer.value, /MOCK PROJECT CONTEXT/, "context is inserted only after explicit opt-in");
     assert.match(h.composer.value, /USER REQUEST:[\s\S]*Continue VibeBridge/);
     assert.equal(h.send.clickCount, 1, "context-enriched message is sent exactly once");

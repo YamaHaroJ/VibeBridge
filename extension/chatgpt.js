@@ -130,7 +130,11 @@
   let scannedBlocks = 0;
   let detectedBlocks = 0;
   function addCommandControls(allowAutoRun = false) {
-    const blocks = document.querySelectorAll('pre, [data-language], code');
+    // Command blocks only arrive in the newest assistant turn. Avoid rescanning
+    // every code block in a long conversation on each streaming mutation.
+    const assistantMessages = document.querySelectorAll('[data-message-author-role="assistant"]');
+    const latestAssistant = assistantMessages.length ? assistantMessages[assistantMessages.length - 1] : document;
+    const blocks = latestAssistant.querySelectorAll('pre, [data-language], code');
     scannedBlocks = blocks.length;
     for (const pre of blocks) {
       const preBlock = pre.tagName === "PRE" ? pre : pre.closest("pre");

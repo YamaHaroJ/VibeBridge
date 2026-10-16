@@ -116,7 +116,8 @@ class ExtensionFlowContractTests(unittest.TestCase):
         self.assertNotIn('function showContextChoice', self.content_script)
         self.assertNotIn("writeComposer(composer, addition + original)", self.content_script)
         self.assertIn("sanitizeBridgeComposer", self.content_script)
-        self.assertIn('"Loaded Chrome extension version: " + extensionVersion', self.content_script)
+        self.assertNotIn('id = "vibebridge-live-status"', self.content_script)
+        self.assertNotIn('"position:fixed;right:12px;bottom:12px', self.content_script)
 
     def test_assistant_memory_block_is_detected_and_forwarded(self):
         self.assertIn('language-vibebridge-memory|vibebridge-memory', self.content_script)
@@ -131,7 +132,7 @@ class ExtensionFlowContractTests(unittest.TestCase):
 
 
     def test_automatic_memory_is_explicitly_opt_in_and_scoped_to_matched_repository(self):
-        self.assertEqual(self.manifest["version"], "0.2.97")
+        self.assertEqual(self.manifest["version"], "0.2.98")
         self.assertIn('id="auto-memory"', self.popup_html)
         self.assertIn("autoMemoryCheckpoints", self.popup_source)
         self.assertNotIn("savedPreferences.autoMemoryCheckpoints", self.content_script)

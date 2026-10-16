@@ -897,9 +897,9 @@ def resolve_project_set(message, known_projects=None, active=""):
                           for alias in aliases.get(normalized, ()))
         if full_match or name_match or alias_match:
             if repo.get("localPath"):
-            explicit_mentions.append({"name": repo["name"], "path": repo["localPath"]})
-        else:
-            explicit_mentions.append({"name": name, "path": "github:" + full, "repository": full, "remote": True})
+                explicit_mentions.append({"name": repo["name"], "path": repo["localPath"]})
+            else:
+                explicit_mentions.append({"name": name, "path": "github:" + full, "repository": full, "remote": True})
 
     if switch_intent:
         # A switch starts a clean project scope and never carries stale context.

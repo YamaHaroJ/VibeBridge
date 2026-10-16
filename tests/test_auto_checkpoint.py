@@ -100,16 +100,16 @@ class ExtensionFlowContractTests(unittest.TestCase):
         cls.popup_html = (root / "extension" / "popup.html").read_text()
         cls.manifest = json.loads((root / "extension" / "manifest.json").read_text())
 
-    def test_send_flow_resolves_context_and_requires_explicit_context_choice(self):
+    def test_send_flow_automatically_attaches_detected_context_without_user_request_wrapper(self):
         self.assertIn('"VIBEBRIDGE_RESOLVE_CONTEXTS"', self.content_script)
         self.assertIn('conversationProjects[conversation] = merged.slice(-8)', self.content_script)
         self.assertIn('if (!enabledState || !original', self.content_script)
         self.assertIn('function showNotice(_text) {}', self.content_script)
-        self.assertIn('function showContextChoice(text, onAttach, onPlain)', self.content_script)
-        self.assertIn('Send with project context', self.content_script)
-        self.assertIn('Send original only', self.content_script)
+        self.assertIn('Automatically attach detected project context', self.content_script)
+        self.assertIn('writeComposer(composer, addition + original)', self.content_script)
+        self.assertNotIn('USER REQUEST:\\n', self.content_script)
+        self.assertNotIn('function showContextChoice', self.content_script)
         self.assertIn('readComposer(composer).trim() !== original', self.content_script)
-        self.assertIn('const extensionVersion = chrome.runtime.getManifest?.().version || "unknown";', self.content_script)
         self.assertIn('"Loaded Chrome extension version: " + extensionVersion', self.content_script)
 
     def test_assistant_memory_block_is_detected_and_forwarded(self):

@@ -62,15 +62,17 @@ class ExtensionFlowContractTests(unittest.TestCase):
         cls.background = (root / "extension" / "background.js").read_text()
         cls.server_source = (root / "agent" / "server.py").read_text()
 
-    def test_send_flow_resolves_context_without_mutating_user_composer(self):
+    def test_send_flow_resolves_context_and_attaches_automatically_without_banners(self):
         self.assertIn('"VIBEBRIDGE_RESOLVE_CONTEXTS"', self.content_script)
         self.assertIn('conversationProjects[conversation] = merged.slice(-8)', self.content_script)
         self.assertIn('if (!enabledState || !original', self.content_script)
-        self.assertIn('showContextChoice(', self.content_script)
-        self.assertIn('Send without context', self.content_script)
-        self.assertIn('Attach context & send', self.content_script)
+        self.assertIn('function showNotice(_text) {}', self.content_script)
+        self.assertIn('function showContextChoice(_text, onAttach, _onPlain)', self.content_script)
+        self.assertIn('onAttach();', self.content_script)
+        self.assertNotIn('Send without context', self.content_script)
+        self.assertNotIn('Attach context & send', self.content_script)
         self.assertIn('readComposer(composer).trim() !== original', self.content_script)
-        self.assertIn('bypassNextSend = true', self.content_script)
+        self.assertIn('clickCurrentSendButton()', self.content_script)
 
     def test_assistant_memory_block_is_detected_and_forwarded(self):
         self.assertIn('language-vibebridge-memory|vibebridge-memory', self.content_script)

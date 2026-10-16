@@ -1007,7 +1007,7 @@ class Handler(BaseHTTPRequestHandler):
 # are eligible. Results are posted to the issue and the issue is closed after processing.
 REMOTE_TASK_REPO = "YamaHaroJ/VibeBridge"
 REMOTE_TASK_OWNER = "YamaHaroJ"
-REMOTE_TASKS = {"validate", "test", "diagnostics"}
+REMOTE_TASKS = {"validate", "test", "diagnostics", "terminal-smoke"}
 REMOTE_TASK_POLL_SECONDS = 2
 REMOTE_TASK_LIST_ARGS = ["gh", "issue", "list", "--repo", REMOTE_TASK_REPO, "--state", "open", "--json", "number,title,body,author", "--limit", "100"]
 _remote_task_seen = set()
@@ -1033,6 +1033,32 @@ def run_remote_task(task):
         # Diagnostics is a fixed, allowlisted snapshot. Never dump general process
         # arguments or local logs into a GitHub issue.
         return True, "Local VibeBridge service snapshot:\n" + json.dumps(local_diagnostics(), indent=2)
+    elif task == "terminal-smoke":
+        # Exercise the actual authenticated HTTP /run route with a harmless fixed
+        # command. Never return or log the local bearer token.
+        import urllib.error
+        import urllib.request
+        if not root.is_dir():
+            raise RuntimeError("Expected checkout is missing: " + str(root))
+        token = TOKEN_FILE.read_text(encoding="utf-8").strip()
+        request_body = json.dumps({
+            "project": str(root),
+            "command": ["python3", "-c", "print('VibeBridge terminal relay OK')"]
+        }).encode("utf-8")
+        request = urllib.request.Request(
+            f"http://{HOST}:{PORT}/run",
+            data=request_body,
+            headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=20) as response:
+                result = json.loads(response.read().decode("utf-8"))
+        except (OSError, urllib.error.URLError, TimeoutError) as exc:
+            return False, "Authenticated local /run smoke test failed: " + str(exc)
+        if result.get("exitCode") != 0 or "VibeBridge terminal relay OK" not in result.get("stdout", ""):
+            return False, "Local /run route responded, but the harmless command did not pass: " + json.dumps(result)[:2000]
+        return True, "Authenticated local /run route PASS\nProject: " + str(result.get("project")) + "\nOutput: " + result["stdout"].strip()
     if not root.is_dir():
         raise RuntimeError("Expected checkout is missing: " + str(root))
     output = []

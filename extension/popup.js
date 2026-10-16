@@ -48,7 +48,12 @@ async function refreshBrowserStatus(token) {
     if (liveTabs.length) {
       const versions = [...new Set(liveTabs.map(tab => tab.version || "unknown"))].join(", ");
       const hosts = [...new Set(liveTabs.map(tab => tab.host))].join(", ");
-      renderStatus(browserStatus, browserStatusText, "ready", liveTabs.length + " ChatGPT tab(s) responding · v" + versions + " · " + hosts);
+      const recovered = liveTabs.filter(tab => tab.recovered).length;
+      const legacy = liveTabs.filter(tab => tab.coreVersion && tab.coreVersion !== tab.version).length;
+      let message = liveTabs.length + " ChatGPT tab(s) responding · v" + versions + " · " + hosts;
+      if (recovered) message += " · recovered " + recovered + " tab(s) without reload";
+      if (legacy) message += " · " + legacy + " tab(s) still have older project logic";
+      renderStatus(browserStatus, browserStatusText, legacy ? "setup" : "ready", message);
     } else if (tabs.length) {
       renderStatus(browserStatus, browserStatusText, "setup", tabs.length + " ChatGPT tab(s) open, but no content script responded. The loaded extension needs to be refreshed in Chrome.");
     } else {

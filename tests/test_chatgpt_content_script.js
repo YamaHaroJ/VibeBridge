@@ -130,7 +130,7 @@ async function runScenario(sendMessage) {
   };
   class MutationObserver { constructor(fn) { this.fn = fn; } observe() {} disconnect() {} }
   const context = {
-    window:{__vibeBridgeInstalled:false, getSelection:()=>({removeAllRanges(){},addRange(){}})},
+    window:{__vibeBridgeInstalled:false, getSelection:()=>({removeAllRanges(){},addRange(){}}), setInterval:()=>0, addEventListener(){}},
     document, location:{pathname:"/c/test-conversation",reload(){}},
     chrome, MutationObserver, Node:{ELEMENT_NODE:1},
     HTMLTextAreaElement:{prototype:{}}, HTMLInputElement:{prototype:{}},

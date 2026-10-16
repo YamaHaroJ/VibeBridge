@@ -66,7 +66,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const target = message.path || "";
       const url = new URL(API + "/filesystem/list");
       if (target) url.searchParams.set("path", target);
-      const response = await fetch(url.toString(), {
+      const response = await fetchAgent(url.pathname + url.search, {
         headers: {"Authorization": "Bearer " + saved.token}
       });
       const data = await response.json();
@@ -80,7 +80,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       const url = new URL(API + "/filesystem/read");
       url.searchParams.set("path", message.path);
-      const response = await fetch(url.toString(), {
+      const response = await fetchAgent(url.pathname + url.search, {
         headers: {"Authorization": "Bearer " + saved.token}
       });
       const data = await response.json();

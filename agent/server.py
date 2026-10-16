@@ -325,6 +325,18 @@ def sync_message_checkpoint(summary, conversation):
             history = []
             if history_match:
                 history = [line for line in history_match.group(1).splitlines() if line.strip().startswith("- ")]
+            # Make retries idempotent: if the durable checkpoint content is
+            # unchanged, do not create another GitHub commit just to refresh a
+            # timestamp. Compare only the stable body, excluding generated history.
+            existing_core = re.sub(
+                r"(?ms)^### Recent project-building history\n.*$",
+                "",
+                re.sub(r"(?m)^_Last updated: .*_\n?", "", previous_body),
+            ).strip()
+            if existing_core == summary_text.strip():
+                saved.append({"repository": slug, "path": path, "unchanged": True})
+                wrote = True
+                break
             if handoff:
                 compact_handoff = redact_checkpoint_text(re.sub(r"\s+", " ", handoff).strip())[:1200]
                 # Streaming retries or repeated assistant blocks must not append

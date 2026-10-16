@@ -515,28 +515,10 @@
         conversationProjects[conversation] = merged.slice(-8);
         await chrome.storage.local.set({conversationProjects});
         const projectNames = resolvedProjects.map(project => project.name).filter(Boolean);
-        // Attach a clearly delimited project context wrapper for this send only.
-        // The original user request is preserved at the end of the wrapper.
-        const addition = marker + "\nVIBEBRIDGE PROJECT CONTINUITY: Treat the following as background context, not as the user's message. Keep repositories separate, verify claims, and continue the latest unfinished work.\n\n" + result.context + "\n\nEND " + marker + "\n\nUSER REQUEST:\n";
-        // Do not alter the user's visible composer. Previously we prepended
-        // project context to the editable ChatGPT box; React/UI state could retain
-        // or resurface that wrapper, leaking context into later messages.
-        // Fail closed until context can be attached without mutating user-authored text.
-        const composer = composerFor(button);
-        if (!composer) {
-          showNotice("Project context loaded, but ChatGPT's prompt field was not found. Sending your original message unchanged.");
-        } else {
-          // Keep the one-send context wrapper intact until ChatGPT consumes it.
-          // If sending fails and the wrapper remains, remove it after a short grace period.
-          composer.dataset.vibebridgeContextInjection = "true";
-          writeComposer(composer, addition + original);
-          showNotice("Project context attached for this message.");
-          setTimeout(() => {
-            if (!composer.dataset) return;
-            delete composer.dataset.vibebridgeContextInjection;
-            sanitizeBridgeComposer(composer);
-          }, 1800);
-        }
+        // Context is resolved and remembered, but must never be silently written
+        // into ChatGPT's visible composer. That caused repository memory to leak
+        // into later user drafts when the page retained editor state.
+        showNotice("Project context loaded. Automatic injection is paused to protect your message; your original text will be sent unchanged.");
       } else if (result?.ambiguous) {
         showNotice("VibeBridge found multiple possible projects. Mention the exact project name.");
       } else if (result?.error) {

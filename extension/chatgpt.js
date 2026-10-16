@@ -551,11 +551,7 @@
     } finally {
       busy = false;
       button.disabled = false;
-      if (shouldResumeSend) {
-        bypassNextSend = true;
-        button.click();
-        setTimeout(() => { bypassNextSend = false; }, 800);
-      }
+      if (shouldResumeSend) clickCurrentSendButton();
     }
   }, true);
 })();

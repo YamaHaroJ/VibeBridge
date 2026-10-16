@@ -2,6 +2,12 @@
 
 ## Current implementation status — 2026-10-16
 
+- Extension target is `0.2.91` (automatic project detection/send; remove the literal `USER REQUEST` wrapper).
+- Project resolution is conversation-scoped: explicit project names in the current message take priority, and short follow-ups use projects previously detected in that conversation. Do not use the global active project as a fallback for a different conversation.
+- When a project matches, VibeBridge attaches background context automatically and sends the user's original text verbatim at the end. No choice buttons, extra confirmation step, `USER REQUEST:` label, or continuity wrapper should appear in the sent prompt. If no project matches, send the original text unchanged.
+- Browser simulation and Mac runner tests are being rerun for this change. Do not claim the live Chrome path is verified until diagnostics show the loaded extension heartbeat/version and the actual behavior is checked.
+
+
 - Extension target bumped to `0.2.90` in commit `c3f4a19`; follow-up test assertion updated in `94a7aee`.
 - The `extension/chatgpt.js` context send flow no longer automatically attaches project context: it presents explicit **Send with project context** and **Send original only** choices. The ChatGPT page badge now prefixes the version with `v` and describes it as the loaded extension version.
 - These remote commits are not yet proven deployed to the Mac or loaded by Chrome. Confirm on the Mac runner and wait for the browser heartbeat before claiming the user's visible version changed. The auto-send regression must be exercised in the real browser; unit checks alone are insufficient.

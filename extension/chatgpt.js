@@ -127,7 +127,7 @@
   }
 
   function addCommandControls(allowAutoRun = false) {
-    const blocks = document.querySelectorAll('main pre, main [data-language], main code, [data-message-author-role="assistant"] pre, [data-message-author-role="assistant"] [data-language], [data-message-author-role="assistant"] code');
+    const blocks = document.querySelectorAll('pre, [data-language], code');
     for (const pre of blocks) {
       const preBlock = pre.tagName === "PRE" ? pre : pre.closest("pre");
       const target = preBlock || pre;
@@ -135,6 +135,7 @@
       const code = target.querySelector("code") || (pre.tagName === "CODE" ? pre : null);
       const className = (code?.className || "") + " " + (target.className || "") + " " + (pre.className || "") + " " + (target.getAttribute?.("data-language") || "");
       const rawBlock = (code?.textContent || target.textContent || pre.textContent || "").trim();
+      if (!rawBlock || rawBlock.length > 200000) continue;
       // ChatGPT may strip custom fence-language classes and preserve whitespace around
       // the marker. Match the marker at the start of the rendered code, then tolerate
       // an optional JSON code fence so the relay never asks the user to paste it in Terminal.

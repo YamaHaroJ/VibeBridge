@@ -166,9 +166,22 @@ def main():
     # Archive-syncing a dirty checkout intentionally leaves HEAD behind. Remember
     # the deployed revision to prevent a five-second timer from rewriting files
     # and restarting the agent on every poll.
-    if synced == target:
-        log("GitHub revision already deployed: " + target[:12] + ". No files changed.")
-        return
+    if synced == target and previous == target:
+        # A stale deployment marker must never hide a missing extension update.
+        # Compare the on-disk manifest with the manifest in the fetched Git commit.
+        try:
+            import json
+            local_manifest = json.loads((ROOT / "extension" / "manifest.json").read_text(encoding="utf-8"))
+            target_manifest_text = run(["git", "show", target + ":extension/manifest.json"])
+            target_manifest = json.loads(target_manifest_text)
+            files_match = local_manifest.get("version") == target_manifest.get("version")
+        except (OSError, ValueError, RuntimeError) as exc:
+            files_match = False
+            log("Could not verify deployed extension manifest: " + str(exc))
+        if files_match:
+            log("GitHub revision already deployed: " + target[:12] + ". No files changed.")
+            return
+        log("Deployment marker matched GitHub but extension manifest did not; repairing deployment.")
     if previous == target and not status:
         if synced == target:
             log("Checkout and deployed runtime already at GitHub revision: " + target[:12] + ".")

@@ -22,6 +22,9 @@ chrome.runtime.onStartup?.addListener?.(() => { recoverOpenChatGPTTabs(); });
 chrome.tabs?.onUpdated?.addListener?.((tabId, changeInfo) => {
   if (changeInfo.status === "complete") ensureChatGPTTabHeartbeat(tabId);
 });
+// Recover a missing content script when the user returns to an existing ChatGPT tab.
+// This covers SPA/new-conversation cases where Chrome emits no full navigation event.
+chrome.tabs?.onActivated?.addListener?.(({tabId}) => { ensureChatGPTTabHeartbeat(tabId); });
 
 async function fetchAgent(path, options = {}, timeoutMs = 20000) {
   const controller = new AbortController();

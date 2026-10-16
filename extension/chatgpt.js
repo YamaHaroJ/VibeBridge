@@ -138,7 +138,19 @@
       // an optional JSON code fence so the relay never asks the user to paste it in Terminal.
       const normalizedBlock = rawBlock.replace(/^\s+/, "");
       const markedBlock = normalizedBlock.startsWith(commandMarker);
-      if (!/language-vibebridge-run|vibebridge-run/i.test(className) && !markedBlock) continue;
+      const hasCommandLanguage = /language-vibebridge-run|vibebridge-run/i.test(className);
+      // ChatGPT may strip custom fence-language classes. Recognize a valid command
+      // payload by shape as a fallback; it still requires an explicit Run click and
+      // confirmation, so this never executes commands automatically.
+      if (!hasCommandLanguage && !markedBlock) {
+        try {
+          const candidate = JSON.parse(normalizedBlock);
+          if (!candidate || !Array.isArray(candidate.command) || !candidate.command.length ||
+              !candidate.command.every(part => typeof part === "string")) continue;
+        } catch {
+          continue;
+        }
+      }
       processedBlocks.add(pre);
 
       let payload;

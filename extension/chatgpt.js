@@ -454,7 +454,11 @@
         const prior = savedConversation.conversationProjects?.[conversation] || [];
         const knownProjects = (Array.isArray(prior) ? prior : [prior]).filter(Boolean);
         // The popup selection is the explicit user choice and must override stale conversation history.
-        const activeProject = savedConversation.activeProject || savedConversation.project || knownProjects[0] || "";
+        // If setup never saved a selection, use this extension's own repository as a safe default.
+        const activeProject = savedConversation.activeProject || savedConversation.project || knownProjects[0] || "github:YamaHaroJ/VibeBridge";
+        if (!savedConversation.activeProject && !savedConversation.project && !knownProjects.length) {
+          await chrome.storage.local.set({activeProject, project: activeProject});
+        }
         // If the user selected a different project in the popup, do not send this
         // conversation's old project set: the server would otherwise attach both.
         const contextProjects = activeProject && !knownProjects.includes(activeProject)

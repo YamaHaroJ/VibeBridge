@@ -35,7 +35,7 @@ if not TOKEN_FILE.exists():
 TOKEN = TOKEN_FILE.read_text().strip()
 PAIRING_FILE = SUPPORT / "paired_extension_origin"
 BROWSER_STATUS_LOCK = threading.Lock()
-BROWSER_STATUS = {"connected": False, "version": None, "host": None, "lastSeen": None}
+BROWSER_STATUS = {"connected": False, "version": None, "host": None, "lastSeen": None, "tabs": {}}
 
 
 def discover_projects():
@@ -941,8 +941,24 @@ def resolve_project_set(message, known_projects=None, active=""):
     return resolved[:8]
 
 def browser_extension_snapshot():
+    now = datetime.now(timezone.utc)
     with BROWSER_STATUS_LOCK:
-        return dict(BROWSER_STATUS)
+        tabs = BROWSER_STATUS.get("tabs", {})
+        recent = []
+        for tab_id, item in list(tabs.items()):
+            try:
+                seen = datetime.fromisoformat(item["lastSeen"])
+                if seen.tzinfo is None:
+                    seen = seen.replace(tzinfo=timezone.utc)
+                age = (now - seen).total_seconds()
+            except (KeyError, TypeError, ValueError):
+                age = float("inf")
+            if age <= 120:
+                recent.append({**item, "tabId": tab_id, "ageSeconds": max(0, int(age))})
+        snapshot = {key: value for key, value in BROWSER_STATUS.items() if key != "tabs"}
+        snapshot["tabs"] = recent
+        snapshot["activeTabCount"] = len(recent)
+        return snapshot
 
 
 def local_diagnostics():
@@ -1153,8 +1169,17 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(400, {"error": "Invalid extension version"})
             if host not in {"chatgpt.com", "chat.openai.com"}:
                 return self.send_json(400, {"error": "Unrecognized ChatGPT host"})
+            tab_id = body.get("tabId")
+            if not isinstance(tab_id, int) or isinstance(tab_id, bool) or tab_id < 0:
+                return self.send_json(400, {"error": "Invalid browser tab ID"})
+            seen = datetime.now(timezone.utc).isoformat(timespec="seconds")
             with BROWSER_STATUS_LOCK:
-                BROWSER_STATUS.update({"connected": True, "version": version, "host": host, "lastSeen": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+                BROWSER_STATUS.update({"connected": True, "version": version, "host": host, "lastSeen": seen})
+                tabs = BROWSER_STATUS.setdefault("tabs", {})
+                tabs[tab_id] = {"version": version, "host": host, "lastSeen": seen}
+                if len(tabs) > 200:
+                    ordered = sorted(tabs.items(), key=lambda pair: pair[1].get("lastSeen", ""), reverse=True)
+                    BROWSER_STATUS["tabs"] = dict(ordered[:200])
             return self.send_json(200, {"ok": True})
         if path == "/checkpoint":
             try:

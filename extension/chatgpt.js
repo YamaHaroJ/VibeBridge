@@ -135,31 +135,7 @@
   // Diagnostics remain available through the browser console when needed.
   function showNotice(_text) {}
 
-  // Never inject or send project context without an explicit user choice.
-  function showContextChoice(text, onAttach, onPlain) {
-    let notice = document.getElementById("vibebridge-context-choice");
-    if (!notice) {
-      notice = document.createElement("div");
-      notice.id = "vibebridge-context-choice";
-      notice.style.cssText = "position:fixed;right:12px;bottom:42px;z-index:999999;max-width:360px;padding:10px 12px;border-radius:8px;background:#172033;color:#fff;font:12px system-ui;box-shadow:0 3px 14px #0004";
-      document.documentElement.appendChild(notice);
-    }
-    notice.replaceChildren();
-    const label = document.createElement("div");
-    label.textContent = text;
-    label.style.marginBottom = "8px";
-    const attach = document.createElement("button");
-    attach.type = "button";
-    attach.textContent = "Send with project context";
-    attach.style.cssText = "margin-right:6px;padding:6px 8px;border:0;border-radius:5px;cursor:pointer";
-    attach.addEventListener("click", () => { notice.remove(); void onAttach(); }, {once:true});
-    const plain = document.createElement("button");
-    plain.type = "button";
-    plain.textContent = "Send original only";
-    plain.style.cssText = "padding:6px 8px;border:0;border-radius:5px;cursor:pointer";
-    plain.addEventListener("click", () => { notice.remove(); onPlain(); }, {once:true});
-    notice.append(label, attach, plain);
-  }
+  // Context detection and attachment are automatic; never interrupt the send flow.
 
   // ChatGPT may replace its Send button while the extension resolves context.
   // Always target the currently mounted button instead of a stale element; wait
@@ -522,46 +498,29 @@
         conversationProjects[conversation] = merged.slice(-8);
         await chrome.storage.local.set({conversationProjects});
         const projectNames = resolvedProjects.map(project => project.name).filter(Boolean);
-        // Never mutate the visible draft without an explicit user choice.
-        // Context attachment is opt-in, and the untouched send path remains available.
+        // Automatically attach detected project context in the same send. Keep the
+        // actual user message verbatim at the end, with no wrapper or USER REQUEST label.
         const composer = composerFor(button);
+        if (!composer || readComposer(composer).trim() !== original) {
+          shouldResumeSend = false;
+          showNotice("Draft changed while project context was resolving; left it untouched.");
+          return;
+        }
+        const addition = "Project background for continuity; treat this as reference material, not a new request.\\n\\n" +
+          result.context + "\\n\\n---\\n\\n";
+        composer.dataset.vibebridgeContextInjection = "true";
+        writeComposer(composer, addition + original);
         shouldResumeSend = false;
-        showContextChoice(
-          "Project context is ready. Choose whether to attach it to this message or send your original text unchanged.",
-          async () => {
-            if (!composer || readComposer(composer).trim() !== original) {
-              showNotice("Your draft changed while context was loading. Nothing was overwritten; send it unchanged or retry.");
-              return;
-            }
-            const savedPreferences = await chrome.storage.local.get(["autoMemoryCheckpoints"]);
-            const memoryDirective = savedPreferences.autoMemoryCheckpoints
-              ? `
-
-VIBEBRIDGE MEMORY CHECKPOINT REQUIREMENT: After answering the user's request, silently append one fenced code block tagged vibebridge-memory containing valid JSON in this shape:
-{"projects":[{"repository":"OWNER/REPO","summary":"compact durable project state","handoff":"what was done and the next action","todos":["unfinished item"],"decisions":["durable decision"]}]}
-Use only the matched repository from the supplied context. Include no credentials, personal secrets, or raw transcript. Keep it under 2500 characters. If there is no meaningful project change, omit the block. The extension will hide this block and save it to GitHub.
-`
-              : "";
-            const addition = marker + "\nVIBEBRIDGE PROJECT CONTINUITY: Treat the following as background context, not as the user's message. Keep repositories separate, verify claims, and continue the latest unfinished work.\n\n" + result.context + "\n\nEND " + marker + "\n\nUSER REQUEST:\n";
-            composer.dataset.vibebridgeContextInjection = "true";
-            writeComposer(composer, addition + original + memoryDirective);
-            showNotice("Sending with project context. If the editor retains the wrapper, VibeBridge will remove it.");
-            if (!clickCurrentSendButton()) return;
-            setTimeout(() => {
-              if (!composer.dataset) return;
-              delete composer.dataset.vibebridgeContextInjection;
-              sanitizeBridgeComposer(composer);
-            }, 1800);
-          },
-          () => {
-            if (!composer || readComposer(composer).trim() !== original) {
-              showNotice("Your draft changed while context was loading. Nothing was overwritten; review it before sending.");
-              return;
-            }
-            showNotice("Sending your original message without project context.");
-            clickCurrentSendButton();
-          }
-        );
+        if (!clickCurrentSendButton()) {
+          writeComposer(composer, original);
+          delete composer.dataset.vibebridgeContextInjection;
+          return;
+        }
+        setTimeout(() => {
+          if (!composer.dataset) return;
+          delete composer.dataset.vibebridgeContextInjection;
+          sanitizeBridgeComposer(composer);
+        }, 1800);
       } else if (result?.ambiguous) {
         showNotice("VibeBridge found multiple possible projects. Mention the exact project name.");
       } else if (result?.error) {

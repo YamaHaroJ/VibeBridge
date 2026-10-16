@@ -39,7 +39,7 @@ jobs:
           VibeBridge macOS setup
 
           1. Double-click Install VibeBridge.command and approve the setup prompt.
-          2. The installer fetches current public master, installs the local-only agent, enables hourly updates, and copies the local token to the clipboard.
+          2. The installer fetches current public master, installs the local-only agent, enables automatic update checks every five seconds, and copies the local token to the clipboard.
           3. In Chrome, open chrome://extensions, enable Developer mode, click Load unpacked, and choose ~/VibeBridge/extension.
           4. Open the VibeBridge extension popup, paste the copied token, choose a project, and click Save settings.
           5. Click Check connection. GitHub CLI authentication is optional and only needed for repository discovery/creation.

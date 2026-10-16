@@ -278,6 +278,7 @@
       document.documentElement.appendChild(status);
     }
     status.textContent = "VibeBridge " + extensionVersion + " · blocks " + scannedBlocks + " · commands " + detectedBlocks;
+    status.title = "Content script active. Scanned code blocks: " + scannedBlocks + ". Recognized command blocks: " + detectedBlocks + ".";
   }
   ensureBridgeStatus();
   addCommandControls(false);

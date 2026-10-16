@@ -12,6 +12,7 @@ on:
           - validate
           - test
           - diagnostics
+          - terminal-smoke
 
 permissions:
   contents: read
@@ -68,6 +69,43 @@ jobs:
           python3 -m unittest discover -s tests -v 2>&1 | tee runner-results/unit-tests.txt
           node tests/test_extension_bridge.js 2>&1 | tee runner-results/extension-bridge-tests.txt
           node tests/test_chatgpt_content_script.js 2>&1 | tee runner-results/content-script-tests.txt
+
+      - name: Verify authenticated local command round-trip
+        if: env.TASK == 'terminal-smoke'
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN_FILE="$HOME/Library/Application Support/VibeBridge/token"
+          test -f "$TOKEN_FILE" || { echo "VibeBridge token file missing."; exit 1; }
+          python3 - <<'PY' | tee runner-results/terminal-smoke.txt
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+          from pathlib import Path
+
+          token_file = Path.home() / "Library/Application Support/VibeBridge/token"
+          token = token_file.read_text(encoding="utf-8").strip()
+          payload = json.dumps({
+              "project": str(Path.home() / "VibeBridge"),
+              "command": ["python3", "-c", "print('VibeBridge terminal relay OK')"]
+          }).encode()
+          request = urllib.request.Request(
+              "http://127.0.0.1:43127/run",
+              data=payload,
+              headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
+              method="POST",
+          )
+          try:
+              with urllib.request.urlopen(request, timeout=25) as response:
+                  result = json.loads(response.read().decode())
+          except Exception as exc:
+              raise SystemExit("Authenticated /run request failed: " + str(exc))
+          print(json.dumps({key: result.get(key) for key in ("project", "exitCode", "stdout", "stderr")}, indent=2))
+          if result.get("exitCode") != 0 or "VibeBridge terminal relay OK" not in result.get("stdout", ""):
+              raise SystemExit("Terminal relay smoke test failed.")
+          print("PASS: authenticated local command round-trip")
+          PY
 
       - name: Capture local-agent diagnostics
         if: env.TASK == 'diagnostics'

@@ -245,3 +245,26 @@ Important setup distinction: ChatGPT's GitHub connector is optional for VibeBrid
 - Unit suite passed 55 tests on issue #119 after a transient earlier run raced with the test-file update.
 - Next: keep hardening the browser relay and add integration coverage for the extension message/HTTP bridge. Extension files were not changed; version remains **0.2.62**.
 
+## Cross-chat handoff contract (2026-10-16)
+
+The memory's purpose is not merely to describe the repository. A new ChatGPT chat must be able to resume the actual unfinished task without asking the user to reconstruct the previous thread.
+
+Every assistant response to a VibeBridge-enriched user message must end with one `vibebridge-memory` fenced JSON block. The extension hides the block and sends it to the checkpoint endpoint. Each materially affected repository gets its own entry; never merge two repositories' goals or todos into one generic summary.
+
+Required per-repository entry:
+- `repository`: exact `owner/repo` slug.
+- `summary`: durable goal, architecture, current state, verified behavior/evidence, and unverified behavior.
+- `handoff`: the latest user request for this project (quote or faithfully preserve it), what the assistant actually changed/answered, test results and evidence, exact point to resume, next concrete action, and blockers.
+- `todos`: prioritized unfinished actions only; remove completed work.
+- `decisions`: durable choices and constraints that should survive new chats.
+- `updated`: ISO-8601 timestamp.
+
+Memory quality rules:
+1. Keep the durable summary short and stable; put fast-changing progress and the latest user request in the handoff.
+2. Record evidence precisely: commit SHA, workflow/test result, artifact/build version, and whether local Mac/Chrome runtime verification actually occurred.
+3. Distinguish implemented, CI-tested, deployed, and live-runtime-verified. A GitHub commit does not mean it is installed locally.
+4. When a message names multiple projects, create a separate handoff for each project actually affected. Do not let the active project overwrite explicit message mentions.
+5. Preserve the user's working style: build/test first, concise updates, hands-off Terminal workflow, and do not ask them to repeat context already attached.
+6. Never store secrets, private customer information, or raw conversation transcripts.
+
+Latest implementation update: commit `895bc8c` adds an explicit per-response checkpoint instruction to the injected prompt, requiring the hidden block to include the most recent user request, actual assistant action/result, verification evidence, exact resume point, next action, blockers, separate project summaries, todos, and decisions. Commit `537f3b9` bumps the extension to `0.2.74`. These changes are source commits until CI passes and the extension is loaded/reloaded in Chrome. The checkpoint parser already stores the durable summary, latest handoff, living todos, and decisions in `memory/AUTO_CHECKPOINT.md` per repository/conversation.

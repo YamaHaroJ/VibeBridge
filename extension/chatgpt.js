@@ -135,9 +135,30 @@
   // Diagnostics remain available through the browser console when needed.
   function showNotice(_text) {}
 
-  // Attach resolved project context automatically; do not interrupt the send flow.
-  function showContextChoice(_text, onAttach, _onPlain) {
-    onAttach();
+  // Never inject or send project context without an explicit user choice.
+  function showContextChoice(text, onAttach, onPlain) {
+    let notice = document.getElementById("vibebridge-context-choice");
+    if (!notice) {
+      notice = document.createElement("div");
+      notice.id = "vibebridge-context-choice";
+      notice.style.cssText = "position:fixed;right:12px;bottom:42px;z-index:999999;max-width:360px;padding:10px 12px;border-radius:8px;background:#172033;color:#fff;font:12px system-ui;box-shadow:0 3px 14px #0004";
+      document.documentElement.appendChild(notice);
+    }
+    notice.replaceChildren();
+    const label = document.createElement("div");
+    label.textContent = text;
+    label.style.marginBottom = "8px";
+    const attach = document.createElement("button");
+    attach.type = "button";
+    attach.textContent = "Send with project context";
+    attach.style.cssText = "margin-right:6px;padding:6px 8px;border:0;border-radius:5px;cursor:pointer";
+    attach.addEventListener("click", () => { notice.remove(); void onAttach(); }, {once:true});
+    const plain = document.createElement("button");
+    plain.type = "button";
+    plain.textContent = "Send original only";
+    plain.style.cssText = "padding:6px 8px;border:0;border-radius:5px;cursor:pointer";
+    plain.addEventListener("click", () => { notice.remove(); onPlain(); }, {once:true});
+    notice.append(label, attach, plain);
   }
 
   // ChatGPT may replace its Send button while the extension resolves context.

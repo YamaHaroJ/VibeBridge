@@ -19,6 +19,7 @@ const confirmConnect = document.querySelector("#confirm");
 const showLogs = document.querySelector("#show-logs");
 const reloadExtension = document.querySelector("#reload-extension");
 const autoRun = document.querySelector("#auto-run");
+const autoMemory = document.querySelector("#auto-memory");
 const logOutput = document.querySelector("#log-output");
 let ready = false;
 let initializeGeneration = 0;
@@ -85,6 +86,9 @@ async function requestBackgroundUpdate() {
 autoRun?.addEventListener("change", async () => {
   await chrome.storage.local.set({autoRunCommands: autoRun.checked});
 });
+autoMemory?.addEventListener("change", async () => {
+  await chrome.storage.local.set({autoMemoryCheckpoints: autoMemory.checked});
+});
 
 async function initialize() {
   const generation = ++initializeGeneration;
@@ -95,9 +99,10 @@ async function initialize() {
   renderStatus(status, statusText, "checking", "Checking local connection");
   renderStatus(githubStatus, githubStatusText, "checking", "Checking GitHub connection");
   try {
-    const saved = await chrome.storage.local.get(["token", "enabled", "autoRunCommands"]);
+    const saved = await chrome.storage.local.get(["token", "enabled", "autoRunCommands", "autoMemoryCheckpoints"]);
     if (!isCurrent()) return;
     autoRun.checked = saved.autoRunCommands === true;
+    autoMemory.checked = saved.autoMemoryCheckpoints === true;
     if (!saved.token) {
       ready = false;
       renderEnabled(false);

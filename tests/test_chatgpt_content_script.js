@@ -164,9 +164,9 @@ async function runScenario(sendMessage) {
       }
       throw new Error("Unexpected message " + message.type);
     });
-    assert.match(h.composer.value, /MOCK PROJECT CONTEXT/, "detected project context is attached automatically");
-    assert.ok(h.composer.value.endsWith("Continue VibeBridge"), "the original user message remains verbatim at the end");
-    assert.doesNotMatch(h.composer.value, /USER REQUEST:|VIBEBRIDGE PROJECT CONTINUITY|END VIBEBRIDGE PROJECT CONTEXT/, "internal wrapper labels are never sent");
+    assert.equal(h.composer.value, "Continue VibeBridge", "matched project context never mutates the visible composer");
+    assert.doesNotMatch(h.composer.value, /MOCK PROJECT CONTEXT|Project background for continuity|PERSISTENT PROJECT MEMORY/, "project context remains outside the user's message");
+
     assert.equal(h.getCurrentSend().clickCount, 1, "matched context sends automatically exactly once");
     assert.equal(h.document.getElementById("vibebridge-context-choice"), null, "automatic flow has no extra choice step");
   }

@@ -23,8 +23,23 @@ async function recoverOpenChatGPTTabs() {
     await Promise.all(tabs.map(tab => ensureChatGPTTabHeartbeat(tab.id)));
   } catch (_) {}
 }
-chrome.runtime.onInstalled?.addListener?.(() => { recoverOpenChatGPTTabs(); });
-chrome.runtime.onStartup?.addListener?.(() => { recoverOpenChatGPTTabs(); });
+const CHATGPT_RECOVERY_ALARM = "vibebridge-chatgpt-heartbeat-recovery";
+function scheduleChatGPTRecovery() {
+  try {
+    chrome.alarms?.create?.(CHATGPT_RECOVERY_ALARM, {periodInMinutes: 1});
+  } catch (_) {}
+}
+chrome.runtime.onInstalled?.addListener?.(() => {
+  scheduleChatGPTRecovery();
+  recoverOpenChatGPTTabs();
+});
+chrome.runtime.onStartup?.addListener?.(() => {
+  scheduleChatGPTRecovery();
+  recoverOpenChatGPTTabs();
+});
+chrome.alarms?.onAlarm?.addListener?.(alarm => {
+  if (alarm?.name === CHATGPT_RECOVERY_ALARM) recoverOpenChatGPTTabs();
+});
 chrome.tabs?.onUpdated?.addListener?.((tabId, changeInfo) => {
   if (changeInfo.status === "complete") ensureChatGPTTabHeartbeat(tabId);
 });

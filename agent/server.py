@@ -1243,13 +1243,25 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(400, {"error": str(e)})
         if path == "/update":
             try:
-                script = Path(__file__).with_name("updater.py")
+                # Always launch the stable bootstrap outside the checkout. If we
+                # launch Path(__file__).with_name("updater.py"), an outdated
+                # server can keep invoking the outdated updater and cannot repair
+                # either itself or its LaunchAgent configuration.
+                bootstrap = SUPPORT / "updater-bootstrap.py"
+                legacy = Path(__file__).with_name("updater.py")
+                if not bootstrap.is_file():
+                    # Compatibility fallback: let the legacy updater attempt
+                    # to bootstrap itself. Record this state instead of silently
+                    # pretending the stable path is active.
+                    script = legacy
+                else:
+                    script = bootstrap
                 if not script.is_file():
-                    return self.send_json(501, {"error": "Updater helper is not installed in this checkout yet."})
+                    return self.send_json(501, {"error": "No updater bootstrap or legacy updater is installed."})
                 log_file = SUPPORT / "update.log"
                 log_file.parent.mkdir(parents=True, exist_ok=True)
                 with log_file.open("a", encoding="utf-8") as handle:
-                    handle.write("\n[" + __import__("datetime").datetime.now().isoformat(timespec="seconds") + "] Update requested from extension.\n")
+                    handle.write("\n[" + __import__("datetime").datetime.now().isoformat(timespec="seconds") + "] Update requested from extension; launcher=" + str(script) + ".\n")
                 force_managed = body.get("forceManaged") is True
                 command = [__import__("sys").executable, str(script)]
                 if force_managed:
@@ -1263,7 +1275,7 @@ class Handler(BaseHTTPRequestHandler):
                     start_new_session=True,
                     close_fds=True,
                 )
-                return self.send_json(202, {"started": True, "message": "Update started. Check Update status in a few seconds."})
+                return self.send_json(202, {"started": True, "launcher": str(script), "message": "Update started. Check Update status in a few seconds."})
             except Exception as e:
                 return self.send_json(500, {"error": "Could not start updater: " + str(e)})
         if path == "/contexts":

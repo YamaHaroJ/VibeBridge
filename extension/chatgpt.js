@@ -465,13 +465,13 @@
         }
       } else {
         const conversation = conversationKey();
-        const savedConversation = await chrome.storage.local.get(["conversationProjects", "activeProject", "project"]);
+        const savedConversation = await chrome.storage.local.get(["conversationProjects"]);
         const prior = savedConversation.conversationProjects?.[conversation] || [];
         const knownProjects = (Array.isArray(prior) ? prior : [prior]).filter(Boolean);
         // The server resolves every explicitly mentioned project. Preserve only
         // this conversation's known project set for short follow-ups; no global
         // active-project default and no single-project fallback may override it.
-        const activeProject = savedConversation.activeProject || savedConversation.project || "";
+        const activeProject = knownProjects.length ? knownProjects[knownProjects.length - 1] : "";
         result = await chrome.runtime.sendMessage({
           type: "VIBEBRIDGE_RESOLVE_CONTEXTS",
           text: original,

@@ -92,7 +92,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             // Restricted pages, tab navigations, or Chrome policy can block injection.
           }
         }
-        return {host: new URL(tab.url).hostname, contentScript: reply?.alive === true, version: reply?.version || null, recovered};
+        return {tabId: tab.id, host: new URL(tab.url).hostname, contentScript: reply?.alive === true, version: reply?.version || null, coreVersion: reply?.coreVersion || null, recovered};
       }));
       sendResponse({tabs: results, extensionVersion: chrome.runtime.getManifest().version});
     });

@@ -42,6 +42,16 @@ class ExtensionContractTests(unittest.TestCase):
         self.assertIn('chrome.tabs?.onUpdated?.addListener?.((tabId, changeInfo)', background)
         self.assertIn('files: ["chatgpt.js"]', background)
 
+    def test_manual_chatgpt_probe_retries_heartbeat_after_script_injection(self):
+        background = (EXTENSION / "background.js").read_text()
+        start = background.index('if (message?.type === "VIBEBRIDGE_PROBE_CHATGPT_TABS")')
+        end = background.index('(async () => {', start)
+        probe = background[start:end]
+        self.assertIn('await chrome.scripting.executeScript({target: {tabId: tab.id}, files: ["chatgpt.js"]})', probe)
+        self.assertIn('for (let attempt = 0; attempt < 4 && !reply?.alive; attempt++)', probe)
+        self.assertIn('setTimeout(resolve, 100)', probe)
+        self.assertIn('contentScript: reply?.alive === true', probe)
+
     def test_heartbeat_recovery_pings_before_injecting_to_avoid_duplicate_setup(self):
         background = (EXTENSION / "background.js").read_text()
         start = background.index("async function ensureChatGPTTabHeartbeat")

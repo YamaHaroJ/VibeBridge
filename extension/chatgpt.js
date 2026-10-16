@@ -460,6 +460,18 @@
           projects: knownProjects.map(path => ({path})),
           activeProject
         });
+        // If multi-project resolution returns no match, make one explicit
+        // single-project attempt using the saved active project. This protects
+        // short follow-ups from being lost when conversation history is empty
+        // or the multi-project discovery path returns an incomplete result.
+        if (!result?.matched && activeProject) {
+          const fallback = await chrome.runtime.sendMessage({
+            type: "VIBEBRIDGE_RESOLVE_CONTEXT",
+            text: original,
+            activeProject
+          });
+          if (fallback?.matched || fallback?.error) result = fallback;
+        }
       }
       const rememberMatch = original.match(/remember (?:for this project|this for the project|that for this project)[:\-]?\s*(.+)/i);
       if (rememberMatch && rememberMatch[1]) {

@@ -393,6 +393,17 @@ def filesystem_listing(raw):
     return {"path": str(path), "parent": str(path.parent) if path != HOME_ROOT else None, "items": items}
 
 
+def validate_command_arguments(command):
+    """Bound command payloads before spawning a local process."""
+    if not isinstance(command, list) or not command:
+        raise ValueError("command must be a non-empty argument array")
+    if len(command) > 40:
+        raise ValueError("command may contain at most 40 arguments")
+    if not all(isinstance(arg, str) and len(arg) <= 4000 and "\\x00" not in arg for arg in command):
+        raise ValueError("each command argument must be a string of at most 4000 characters without NUL bytes")
+    return command
+
+
 def project_path(raw):
     value = str(raw or "").strip()
     if value.startswith("github:"):
@@ -1019,9 +1030,10 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception as e:
                     results.append({"command": cmd, "error": str(e)})
             return self.send_json(200, {"project": str(root), "results": results})
-        cmd = body.get("command", [])
-        if not isinstance(cmd, list) or not cmd or not all(isinstance(x, str) for x in cmd):
-            return self.send_json(400, {"error": "command must be a non-empty argument array"})
+        try:
+            cmd = validate_command_arguments(body.get("command", []))
+        except ValueError as exc:
+            return self.send_json(400, {"error": str(exc)})
         try:
             r = subprocess.run(cmd, cwd=str(root), capture_output=True, text=True, timeout=120)
             return self.send_json(200, {"project": str(root), "exitCode": r.returncode, "stdout": r.stdout[-20000:], "stderr": r.stderr[-8000:]})

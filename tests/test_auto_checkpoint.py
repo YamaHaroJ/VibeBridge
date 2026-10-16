@@ -41,5 +41,48 @@ class AutomaticCheckpointTests(unittest.TestCase):
         self.assertIn("owner/beta/contents/memory/AUTO_CHECKPOINT.md", " ".join(calls[5].args[0]))
 
 
+class ExtensionFlowContractTests(unittest.TestCase):
+    """Regression tests for the browser-to-checkpoint handoff contract.
+
+    These tests inspect the shipped content script and background bridge so the
+    test suite fails if the key message types or persistence steps are removed.
+    Full DOM behavior is covered by the browser mock in test_extension_flow.js.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        root = Path(__file__).resolve().parents[1]
+        cls.content_script = (root / "extension" / "chatgpt.js").read_text()
+        cls.background = (root / "extension" / "background.js").read_text()
+        cls.server_source = (root / "agent" / "server.py").read_text()
+
+    def test_send_flow_resolves_and_injects_context_for_every_enabled_message(self):
+        self.assertIn('"VIBEBRIDGE_RESOLVE_CONTEXTS"', self.content_script)
+        self.assertIn('writeComposer(composer, addition + original)', self.content_script)
+        self.assertIn('conversationProjects[conversation] = merged.slice(-8)', self.content_script)
+        self.assertIn('if (!enabledState || !original', self.content_script)
+
+    def test_assistant_memory_block_is_detected_and_forwarded(self):
+        self.assertIn('language-vibebridge-memory|vibebridge-memory', self.content_script)
+        self.assertIn('"VIBEBRIDGE_CHECKPOINT_MESSAGE"', self.content_script)
+        self.assertIn('summary, conversation: conversationKey()', self.content_script)
+        self.assertIn('pre.style.display = "none"', self.content_script)
+
+    def test_background_routes_checkpoint_to_authenticated_local_agent(self):
+        self.assertIn('"/checkpoint"', self.background)
+        self.assertIn('"Authorization": "Bearer " + saved.token', self.background)
+        self.assertIn('summary: payload.summary', self.background)
+
+    def test_server_persists_handoff_todos_and_decisions(self):
+        self.assertIn('### Latest conversation handoff', self.server_source)
+        self.assertIn('### Living todo list', self.server_source)
+        self.assertIn('### Durable decisions', self.server_source)
+        self.assertIn('memory/AUTO_CHECKPOINT.md', self.server_source)
+
+    def test_context_recovery_reads_shared_checkpoint(self):
+        self.assertIn('AUTO_CHECKPOINT.md', self.server_source)
+        self.assertIn('remote_repo_context', self.server_source)
+
+
 if __name__ == "__main__":
     unittest.main()

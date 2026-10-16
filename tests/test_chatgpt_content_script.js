@@ -164,7 +164,7 @@ async function runScenario(sendMessage) {
       throw new Error("Unexpected message " + message.type);
     });
     assert.match(h.composer.value, /MOCK PROJECT CONTEXT/, "resolved context is attached automatically");
-    assert.match(h.composer.value, /USER REQUEST:[\\s\\S]*Continue VibeBridge/);
+    assert.ok(h.composer.value.includes("USER REQUEST:\\nContinue VibeBridge"), "original request remains after the context wrapper");
     assert.equal(h.getCurrentSend().clickCount, 1, "context-enriched message sends automatically exactly once");
     assert.equal(h.document.getElementById("vibebridge-notice"), null, "no banner or context-choice UI is created");
   }

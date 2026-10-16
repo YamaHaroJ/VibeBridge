@@ -24,10 +24,11 @@
 
 ## Current session handoff — 2026-10-16
 
-- Latest remote HEAD: `257c1e62a0cf220aa5c6aa048462d6ce3b5efb43`. Manifest version remains `0.2.98`.
-- Confirmed Mac runner results from local `~/VibeBridge`: `test` PASS (87 Python tests, 8 bridge integration scenarios, 5 content-script scenarios; all exit 0); `terminal-smoke` PASS (authenticated `/run` returned `VibeBridge terminal relay OK`); `validate` PASS (Python compile, manifest JSON, shell syntax, JavaScript syntax).
-- Live Mac diagnostics at revision `c62f872`: agent running on port 43127, clean checkout, updater running, extension `0.2.98`, active ChatGPT heartbeat connected. Later snapshot reported no active tab; latest task is rechecking after updater diagnostics changes.
-- Added safe updater schedule/status fields to local diagnostics (`b285a1a`). CI caught a stale test fixture; fixed it in `257c1e6`. Do not claim CI green until the newest checks and Mac task report complete.
-- For fresh-thread continuity, this file is the handoff source; issue #302 contains acceptance criteria. New thread should first read current diagnostics and the latest handoff, not trust this snapshot as live state.
-- Next: verify latest CI + Mac tests; rerun diagnostics after local updater sync to confirm schedule/log fields and ChatGPT heartbeat; continue issue #302's fresh-thread authenticated command/result loop and close remaining acceptance criteria only with evidence.
+- Latest verified remote HEAD: `49852c75207200bcf1f589888d449b65ea868737`. Manifest version `0.2.98`.
+- Mac runner task `test` PASS on `257c1e6`: 87 Python tests, 8 background bridge scenarios, 5 content-script scenarios; all exit 0. `terminal-smoke` PASS: authenticated `/run` returned `VibeBridge terminal relay OK`. `validate` PASS: Python compile, manifest JSON, shell syntax, JavaScript syntax.
+- Automatic updater verified: local Mac advanced from `257c1e6` to `49852c7`, clean working tree, updater log says "Update complete". Updater plist has `RunAtLoad=true`, `StartInterval=5`; updater is normally idle between scheduled runs.
+- CI on `49852c7`: `VibeBridge checks` PASS, `Validate VibeBridge` PASS; macOS installer package was still running at last check.
+- Latest local diagnostics: agent running on port 43127, extension manifest `0.2.98`, checkout clean/current. Browser heartbeat had zero active ChatGPT tabs in the latest snapshot, so the live content-script heartbeat still needs verification with a ChatGPT tab open.
+- Issue #302 remains open. Current thread has proven the local command queue works and task results return through GitHub issues. Still required before marking P0 complete: run diagnostics with ChatGPT open, verify the heartbeat, and verify a genuinely fresh ChatGPT conversation can automatically locate current handoff + invoke the authorized local task without user relaying output. Do not call the fix list complete until this cross-thread acceptance test passes.
+- For a fresh thread: read this section and issue #302 first; check live local diagnostics before trusting this saved snapshot. Latest source changes include updater diagnostics `b285a1a`, diagnostics fixture fix `257c1e6`, and this handoff update `49852c7`.
 

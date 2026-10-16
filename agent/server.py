@@ -375,6 +375,14 @@ def filesystem_listing(raw):
 
 def project_path(raw):
     value = str(raw or "").strip()
+    if value.startswith("github:"):
+        slug = value[len("github:"):].strip().lower()
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", slug):
+            raise ValueError("Invalid GitHub repository path")
+        local = local_repo_map().get(slug)
+        if not local:
+            raise ValueError("This GitHub repository is not cloned locally. Clone it into ~/Projects or ~/Developer before running Mac terminal commands.")
+        value = local
     projects = discover_projects()
     matches = [item for item in projects if item["name"].lower() == value.lower() or item["path"].lower() == value.lower()]
     p = Path(matches[0]["path"]) if len(matches) == 1 else Path(value).expanduser().resolve()

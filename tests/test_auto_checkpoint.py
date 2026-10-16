@@ -139,7 +139,7 @@ class ExtensionFlowContractTests(unittest.TestCase):
 
     def test_browser_heartbeat_reports_loaded_version_without_conversation_data(self):
         self.assertIn('"VIBEBRIDGE_BROWSER_HEARTBEAT"', self.content_script)
-        self.assertIn('window.setInterval(reportBrowserHeartbeat, 30000)', self.content_script)
+        self.assertIn('window.__vibeBridgeHeartbeatTimer = window.setInterval(reportHeartbeatFromThisFile, 30000)', self.content_script)
         self.assertIn('id="browser-status"', self.popup_html)
         self.assertIn('refreshBrowserStatus(saved.token)', self.popup_source)
         self.assertIn('"ChatGPT extension heartbeat: "', self.popup_source)

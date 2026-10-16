@@ -135,7 +135,7 @@ async function initialize() {
     confirmConnect.textContent = "Connect";
     confirmConnect.disabled = !consentCheck.checked;
   }
-});
+}
 toggle.addEventListener("click", async () => {
   if (!ready || toggle.disabled) return;
   const next = toggle.getAttribute("aria-checked") !== "true";

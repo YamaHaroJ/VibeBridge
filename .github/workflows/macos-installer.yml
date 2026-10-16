@@ -15,6 +15,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate package inputs
         run: |
+          python3 -m unittest discover -s tests -v
           python3 -m py_compile agent/server.py agent/updater.py
           python3 -m json.tool extension/manifest.json >/dev/null
           bash -n agent/install.sh

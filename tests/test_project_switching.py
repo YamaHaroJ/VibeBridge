@@ -20,7 +20,7 @@ class ProjectSwitchTests(unittest.TestCase):
         self.assertEqual(result["exitCode"], 0)
         self.assertEqual(len(result["stdout"].encode()), 128)
         self.assertEqual(len(result["stderr"].encode()), 96)
-        self.assertTrue(result["stdout"].endswith("\\n"))
+        self.assertTrue(result["stdout"].endswith("\n"))
         self.assertTrue(result["stderr"].endswith("\\n"))
 
     def test_request_body_requires_valid_nonnegative_content_length(self):

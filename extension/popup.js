@@ -11,7 +11,6 @@ const status = document.querySelector("#status");
 const statusText = document.querySelector("#status-text");
 const githubStatus = document.querySelector("#github-status");
 const githubStatusText = document.querySelector("#github-status-text");
-const activeProjectSelect = document.querySelector("#active-project");
 const projectCopy = document.querySelector("#project-copy");
 const connect = document.querySelector("#connect");
 const consent = document.querySelector("#consent");
@@ -83,13 +82,6 @@ async function requestBackgroundUpdate() {
   }
 }
 
-activeProjectSelect?.addEventListener("change", async () => {
-  const selected = activeProjectSelect.value;
-  if (!selected) return;
-  await chrome.storage.local.set({activeProject: selected, project: selected});
-  projectCopy.textContent = "Saved project: " + selected.replace(/^github:/, "");
-});
-
 autoRun?.addEventListener("change", async () => {
   await chrome.storage.local.set({autoRunCommands: autoRun.checked});
 });
@@ -127,111 +119,11 @@ async function initialize() {
     toggle.disabled = false;
     connect.classList.add("hidden");
 
-    try {
-      const data = await callAgent("/github-projects", saved.token);
-      if (!isCurrent()) return;
-      const repositories = data.repositories || [];
-      const count = repositories.length;
-      const savedProject = await chrome.storage.local.get(["activeProject", "project"]);
-      let selectedPath = savedProject.activeProject || savedProject.project || "";
-      activeProjectSelect.replaceChildren(new Option("Choose a GitHub project…", ""));
-      const choices = [];
-      for (const repository of repositories) {
-        const slug = repository.nameWithOwner || repository.full_name || "";
-        if (!slug) continue;
-        const path = repository.localPath || ("github:" + slug);
-        choices.push({slug, path});
-        activeProjectSelect.add(new Option(slug, path));
-      }
-      // First-time setup: default to VibeBridge when it is available, so short
-      // follow-ups can work immediately instead of failing with no active repo.
-      if (!selectedPath && choices.length) {
-        const preferred = choices.find(item => /(?:^|\/)vibebridge$/i.test(item.slug));
-        selectedPath = (preferred || choices[0]).path;
-        await chrome.storage.local.set({activeProject: selectedPath, project: selectedPath});
-      }
-      activeProjectSelect.value = selectedPath;
-      activeProjectSelect.disabled = repositories.length === 0;
-      projectCopy.textContent = selectedPath
-        ? "Saved project: " + selectedPath.replace(/^github:/, "")
-        : "Choose once; VibeBridge will reuse it for short follow-ups.";
-      renderStatus(githubStatus, githubStatusText, "ready", "GitHub connected · " + count + " repositories");
-    } catch (error) {
-      if (!isCurrent()) return;
-      // Keep the saved project visible and selectable even when repository
-      // discovery is temporarily unavailable. The active project is still a
-      // valid target for the authenticated context endpoint.
-      const savedProject = await chrome.storage.local.get(["activeProject", "project"]);
-      const selectedPath = savedProject.activeProject || savedProject.project || "";
-      activeProjectSelect.replaceChildren(new Option("Choose a GitHub project…", ""));
-      if (selectedPath) {
-        const label = selectedPath.replace(/^github:/, "");
-        activeProjectSelect.add(new Option(label + " (saved)", selectedPath));
-        activeProjectSelect.value = selectedPath;
-      }
-      activeProjectSelect.disabled = !selectedPath;
-      projectCopy.textContent = selectedPath
-        ? "Saved project: " + selectedPath.replace(/^github:/, "") + ". Repository discovery is temporarily unavailable."
-        : "Sign in to GitHub on this Mac to choose a project.";
-      renderStatus(githubStatus, githubStatusText, "setup", "GitHub repository list unavailable");
-      copy.textContent = "VibeBridge is connected to this Mac. The saved project remains available; check GitHub sign-in to browse other repositories.";
-    }
-  } catch {
-    if (!isCurrent()) return;
-    ready = false;
-    renderEnabled(false);
-    copy.textContent = "Start the local agent to finish setup.";
-    renderStatus(status, statusText, "setup", "Local agent not connected");
-    renderStatus(githubStatus, githubStatusText, "setup", "GitHub check waiting for local connection");
-    connect.classList.remove("hidden");
-  }
-}
-connect.addEventListener("click", () => {
-  consentCheck.checked = false;
-  confirmConnect.disabled = true;
-  consent.classList.remove("hidden");
-});
-consentCheck.addEventListener("change", () => {
-  confirmConnect.disabled = !consentCheck.checked;
-});
-document.querySelector("#cancel").addEventListener("click", () => consent.classList.add("hidden"));
-confirmConnect.addEventListener("click", async () => {
-  if (!consentCheck.checked) return;
-  // Cancel any popup-open initialization still in flight so its stale no-token
-  // result cannot bring the Connect button back after pairing succeeds.
-  initializeGeneration++;
-  confirmConnect.disabled = true;
-  confirmConnect.textContent = "Connecting…";
-  try {
-    // Always fetch the current token from the registered local Native Messaging
-    // host. A stale token in extension storage must not create a connect/reconnect loop.
-    const data = await new Promise((resolve, reject) => {
-      chrome.runtime.sendNativeMessage("com.vibebridge.agent", {type: "getToken"}, response => {
-        const runtimeError = chrome.runtime.lastError;
-        if (runtimeError) {
-          reject(new Error("Chrome cannot reach VibeBridge's Native Messaging host. Run bash ~/VibeBridge/agent/install.sh, then fully quit and reopen Chrome. Details: " + runtimeError.message));
-          return;
-        }
-        if (!response?.ok || !response.token) {
-          reject(new Error(response?.error || "The local Native Messaging host did not return a token."));
-          return;
-        }
-        resolve(response);
-      });
-    });
-    const token = data.token;
-    // Verify the new token before saving it so a failed pairing cannot overwrite
-    // a previously working connection.
-    await callAgent("/health", token);
-    await chrome.storage.local.set({token, connectionConsent: true});
-    consent.classList.add("hidden");
-    renderStatus(status, statusText, "ready", "Connected to this Mac");
-    copy.textContent = "Local connection confirmed. Checking GitHub features…";
-    ready = true;
-    renderEnabled(true);
-    toggle.disabled = false;
-    connect.classList.add("hidden");
-    await initialize();
+    // Project choice is resolved from each ChatGPT message. Do not pin a
+    // global active repository here: one conversation may discuss many projects.
+    projectCopy.textContent = "Automatic detection · supports multiple projects per message";
+    renderStatus(githubStatus, githubStatusText, "ready", "GitHub connection available for project detection");
+
   } catch (error) {
     consent.classList.add("hidden");
     renderStatus(status, statusText, "setup", error.message);

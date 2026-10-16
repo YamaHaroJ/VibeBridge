@@ -217,3 +217,12 @@ Important setup distinction: ChatGPT's GitHub connector is optional for VibeBrid
 - Commit `a2a51aa` changes pairing to always request a fresh token from Chrome Native Messaging (instead of reusing a potentially stale token), validates that token against `/health` before storing it, then immediately renders a visible connected state before refreshing the remaining status checks.
 - Commit `80b0690` bumps the extension manifest to **0.2.22** in accordance with the user's requirement: every extension reload must have a version bump so both sides can confirm the loaded build.
 - Must wait for updater to sync; user should see version 0.2.22 before reload. Then test Connect this Mac once. GitHub validation/runtime verification still pending at checkpoint.
+
+## Current checkpoint (2026-10-16): context reliability fixes
+- Current extension manifest version is **0.2.62**. Recent changes in this session touched only agent/tests, so no extension reload is required.
+- Commit `57130c2` lets explicit `github:owner/repo` context load without first listing all repositories. Commit `e756e31` makes optional local-project checkpoint fetching bounded and non-blocking on timeout.
+- Commit `1e6eb96` fixes the multi-project context header to use real line breaks. Commit `3d7a2be` centralizes formatting in `format_project_context_sections`.
+- Commit `62336e4` reduces optional remote checkpoint retrieval timeout to 4 seconds and catches OS errors. Commit `1b7b8bc` adds a timeout fallback regression test; `11abe5f` fixes its mock decorators.
+- Mac runner confirmed **52 tests passing** on the latest test run (issue #113). The intermediate run in issue #112 failed due to a duplicated mock decorator, which was fixed before #113.
+- Next: continue hardening context resolution and checkpointing; do not claim local installation/runtime state beyond what the Mac task runner verifies. Avoid extension edits unless necessary; if any extension file changes, bump manifest version first.
+

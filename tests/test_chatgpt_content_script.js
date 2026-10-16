@@ -122,7 +122,7 @@ async function runScenario(sendMessage) {
     async set() {}
   };
   const chrome = {
-    runtime: {getManifest:()=>({version:"test"}), async sendMessage(message) {
+    runtime: {getManifest:()=>({version:"test"}), onMessage:{addListener(){}}, async sendMessage(message) {
       notices.push(message);
       return await sendMessage(message);
     }},

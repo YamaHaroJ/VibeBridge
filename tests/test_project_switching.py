@@ -9,6 +9,20 @@ import server
 
 
 class ProjectSwitchTests(unittest.TestCase):
+    def test_status_command_handles_timeout_without_raising(self):
+        with patch.object(server.subprocess, "run", side_effect=server.subprocess.TimeoutExpired("git", 1)):
+            result = server.status_command(["git", "status"], timeout=1)
+        self.assertEqual(result["returncode"], 1)
+        self.assertEqual(result["stdout"], "")
+        self.assertIn("timed out", result["stderr"])
+
+    def test_status_command_handles_missing_executable_without_raising(self):
+        with patch.object(server.subprocess, "run", side_effect=FileNotFoundError("missing tool")):
+            result = server.status_command(["missing-tool"])
+        self.assertEqual(result["returncode"], 1)
+        self.assertEqual(result["stdout"], "")
+        self.assertIn("missing tool", result["stderr"])
+
     def test_agent_uses_threaded_http_server(self):
         source = (Path(__file__).resolve().parents[1] / "agent" / "server.py").read_text()
         self.assertIn("from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer", source)

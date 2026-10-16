@@ -206,5 +206,5 @@ async function runScenario(sendMessage, initialDraft = "Continue VibeBridge") {
     assert.equal(h.getCurrentSend().clickCount, 1, "recoverable agent error still sends the original once");
     assert.equal(h.document.getElementById("vibebridge-notice"), null, "recoverable errors do not create banners");
   }
-  console.log("ChatGPT content-script DOM simulation: 4 scenarios passed");
+  console.log("ChatGPT content-script DOM simulation: 5 scenarios passed");
 })().catch(error => { console.error(error); process.exitCode = 1; });

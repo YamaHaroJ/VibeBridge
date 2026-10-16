@@ -24,12 +24,13 @@
 
 ## Current session handoff — 2026-10-16
 
-- Verified remote HEAD: `6f7b46f1b54d5c8cee6332943b6b748fa2e219e0`.
-- Manifest version: `0.2.98`.
-- GitHub Actions: `Validate VibeBridge` passed (85 Python tests reported); `VibeBridge checks` passed; `macOS installer package` passed.
-- Status overlay removed from `extension/chatgpt.js`; composer sanitizer remains a no-op to protect visible drafts.
-- Mac runtime, local checkout HEAD/dirty state, installed extension version, live tab heartbeat, and local command round-trip remain unverified. This conversation has no callable local-terminal bridge or workflow-dispatch action; do not claim those checks ran.
-- Next action: close the cross-conversation bridge gap and verify a real Mac diagnostic/command round-trip before claiming runtime continuity.
+- Verified remote HEAD: `30fbeb4d69bdda96837d13ecf202b52354a6ae6e`.
+- Manifest version: `0.2.98` (no version bump in this change).
+- GitHub Actions on current HEAD: `VibeBridge checks`, `Validate VibeBridge`, and `macOS installer package` all passed. `VibeBridge checks` includes the regression assertion for ChatGPT-tab activation heartbeat recovery.
+- Recent commits: `01cbca6` reinjects the content script when an existing ChatGPT tab becomes active; `30fbeb4` adds a regression test for that recovery behavior.
+- The persistent floating status overlay was removed; composer sanitizer remains a no-op to protect visible drafts.
+- Mac runtime, local checkout HEAD/dirty state, installed extension version, live tab heartbeat, and local command round-trip remain unverified. This conversation has GitHub access but no callable local-terminal bridge or workflow-dispatch action; do not claim those checks ran.
+- Next action: make the authenticated local diagnostic/command bridge callable from a fresh ChatGPT conversation, then verify the real Mac command round-trip and test exit status.
 
 ## Current implementation status — 2026-10-16
 

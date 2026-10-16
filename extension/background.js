@@ -50,6 +50,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   ];
   if (!supported.includes(message?.type)) return;
 
+  if (message?.type === "VIBEBRIDGE_PROBE_CHATGPT_TABS") {
+    chrome.tabs.query({url: ["https://chatgpt.com/*", "https://chat.openai.com/*"]}, async tabs => {
+      const results = await Promise.all(tabs.map(async tab => {
+        try {
+          const reply = await chrome.tabs.sendMessage(tab.id, {type: "VIBEBRIDGE_CONTENT_SCRIPT_PING"});
+          return {host: new URL(tab.url).hostname, contentScript: reply?.alive === true, version: reply?.version || null};
+        } catch (_) {
+          return {host: new URL(tab.url).hostname, contentScript: false, version: null};
+        }
+      }));
+      sendResponse({tabs: results, extensionVersion: chrome.runtime.getManifest().version});
+    });
+    return true;
+  }
+
   (async () => {
     const saved = await chrome.storage.local.get(["token", "activeProject", "project"]);
     if (!saved.token) {

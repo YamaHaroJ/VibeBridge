@@ -171,6 +171,14 @@ def remote_repo_context(slug):
         parts.append("REMOTE CONTEXT WARNINGS: " + "; ".join(errors))
     return "\n\n".join(parts)[:18000]
 
+def format_project_context_sections(sections):
+    """Join named project contexts with real line breaks."""
+    return "\n\n".join(
+        "===== PROJECT CONTEXT: " + str(name) + " =====\n" + str(context)
+        for name, context in sections
+    )[:36000]
+
+
 def sync_message_checkpoint(summary, conversation):
     import base64
     from datetime import datetime
@@ -883,7 +891,7 @@ class Handler(BaseHTTPRequestHandler):
                 for project in projects:
                     try:
                         context = project_context(project["path"])
-                        sections.append("===== PROJECT CONTEXT: " + project["name"] + " =====\n" + context)
+                        sections.append((project["name"], context))
                         loaded.append(project)
                     except Exception as exc:
                         errors.append(project["name"] + ": " + str(exc)[:250])
@@ -892,7 +900,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(200, {
                     "matched": True,
                     "projects": loaded,
-                    "context": "\n\n".join(sections)[:36000],
+                    "context": format_project_context_sections(sections),
                     "errors": errors
                 })
             except Exception as e:

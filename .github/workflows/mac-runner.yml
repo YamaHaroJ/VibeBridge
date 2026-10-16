@@ -66,6 +66,8 @@ jobs:
         run: |
           set -o pipefail
           python3 -m unittest discover -s tests -v 2>&1 | tee runner-results/unit-tests.txt
+          node tests/test_extension_bridge.js 2>&1 | tee runner-results/extension-bridge-tests.txt
+          node tests/test_chatgpt_content_script.js 2>&1 | tee runner-results/content-script-tests.txt
 
       - name: Capture local-agent diagnostics
         if: env.TASK == 'diagnostics'

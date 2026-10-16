@@ -231,3 +231,11 @@ Important setup distinction: ChatGPT's GitHub connector is optional for VibeBrid
 - Commit `6036b92` adds a regression test for a Git metadata timeout. Mac runner test request #114 is pending.
 - Latest confirmed Mac runner result before this change: 52 tests passed on issue #113. Do not assume #114 passed until its result arrives.
 
+## Terminal relay verification work (2026-10-16)
+- Live Mac diagnostics confirmed agent and updater are both running on macOS 15.8.2; agent PID 37480 was listening on port 43127 at the time of the check (issue #116).
+- Fixed a real command-routing gap: the extension can store `github:owner/repo` as the selected project, but the agent's `/run` route previously treated that slug as a filesystem path. Commit `8c10e99` now resolves a selected GitHub slug to its matching local checkout and clearly rejects remote-only repositories for local terminal commands.
+- Added regression coverage for local-slug mapping and remote-only rejection. Latest confirmed full suite: **55 tests passed** (issue #118) before the smoke-task addition.
+- Commits `ea6a468` and `501bd32` add a fixed, harmless `terminal-smoke` task. It calls the actual authenticated local `/run` HTTP endpoint with a hard-coded Python print command and never exposes the bearer token. This is intended to verify the live Mac terminal relay rather than only unit-test it.
+- Next: confirm tests pass on current master, then request `VibeBridge task: terminal-smoke`. This verifies the local agent HTTP execution route and project resolution, but not yet the Chrome content-script button end-to-end.
+- No extension source changed; manifest stays **0.2.62**, so no Chrome reload is required for these agent changes.
+

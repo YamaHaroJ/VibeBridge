@@ -490,6 +490,81 @@ def match_project(message, active=""):
 
 
 
+
+def resolve_project_set(message, known_projects=None, active=""):
+    """Resolve all explicitly discussed projects plus the projects already established in this conversation."""
+    text = str(message or "").lower()
+    known = known_projects if isinstance(known_projects, list) else []
+    resolved = []
+
+    def add(project):
+        if not isinstance(project, dict):
+            return
+        path = str(project.get("path") or "").strip()
+        if not path or any(item["path"].lower() == path.lower() for item in resolved):
+            return
+        if path.startswith("github:"):
+            repo = github_repo_for_name(path)
+            if not repo:
+                return
+            item = {"name": repo["name"], "path": "github:" + repo["nameWithOwner"],
+                    "repository": repo["nameWithOwner"], "remote": True}
+        else:
+            try:
+                root = project_path(path)
+            except (ValueError, OSError):
+                return
+            item = {"name": root.name, "path": str(root)}
+        resolved.append(item)
+
+    # Preserve the conversation's known project set. Only accept paths resolved
+    # through the same local-root/GitHub allowlists used by normal project loading.
+    for value in known[:8]:
+        add(value if isinstance(value, dict) else {"path": value})
+
+    local_projects = discover_projects()
+    for item in local_projects:
+        name = str(item.get("name", "")).lower()
+        if name and re.search(r"(?<![a-z0-9])" + re.escape(name).replace(r"\\-", r"[-_ ]+") + r"(?![a-z0-9])", text):
+            add(item)
+
+    # Resolve every connected repository explicitly mentioned, not just the first
+    # match. This supports a single message discussing multiple related projects.
+    try:
+        repos = github_projects()
+    except RuntimeError:
+        repos = []
+    aliases = {
+        "autofill-insurance-extension": ("autofill", "insurance extension", "autofill extension"),
+        "vibebridge": ("vibebridge", "vibe bridge"),
+        "macoptimizer": ("macoptimizer", "mac optimizer"),
+    }
+    for repo in repos:
+        full = str(repo.get("nameWithOwner", "")).lower()
+        name = str(repo.get("name", "")).lower()
+        normalized = name.replace("_", "-")
+        name_pattern = re.escape(normalized).replace(r"\\-", r"[-_ ]+")
+        full_match = bool(full and re.search(r"(?<![a-z0-9])" + re.escape(full) + r"(?![a-z0-9_.-])", text))
+        name_match = bool(name_pattern and re.search(r"(?<![a-z0-9])" + name_pattern + r"(?![a-z0-9])", text))
+        alias_match = any(re.search(r"(?<![a-z0-9])" + re.escape(alias) + r"(?![a-z0-9])", text)
+                          for alias in aliases.get(normalized, ()))
+        if full_match or name_match or alias_match:
+            if repo.get("localPath"):
+                add({"name": repo["name"], "path": repo["localPath"]})
+            else:
+                add({"name": repo["name"], "path": "github:" + repo["nameWithOwner"],
+                     "repository": repo["nameWithOwner"], "remote": True})
+
+    if not resolved and active:
+        try:
+            project, _reason = match_project(message, active)
+            if project:
+                add(project)
+        except (RuntimeError, ValueError):
+            pass
+
+    return resolved[:8]
+
 def local_diagnostics():
     """Return a small allowlisted snapshot of VibeBridge services, never raw process arguments or logs."""
     def service_snapshot(label):

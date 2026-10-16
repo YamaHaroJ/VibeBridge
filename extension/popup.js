@@ -304,7 +304,7 @@ reloadExtension?.addEventListener("click", async () => {
     const response = await fetch("http://127.0.0.1:43127/update", {
       method: "POST",
       headers: {Authorization: "Bearer " + saved.token, "Content-Type": "application/json"},
-      body: "{}"
+      body: JSON.stringify({forceManaged: true})
     });
     const started = await response.json();
     if (!response.ok) throw new Error(started.error || "Could not start GitHub sync.");

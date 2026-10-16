@@ -406,6 +406,34 @@ def project_context(project):
     if memory:
         parts.append("PERSISTENT PROJECT MEMORY:\n" + memory)
     checkpoint = read_text(p / "memory" / "AUTO_CHECKPOINT.md", 9000)
+    # Checkpoints are written to GitHub after each assistant response. For a local
+    # checkout, fetch the shared checkpoint so a different ChatGPT conversation
+    # receives the latest handoff even when the local file has not been pulled.
+    try:
+        remote_slug = subprocess.run(
+            ["git", "remote", "get-url", "origin"], cwd=str(p),
+            capture_output=True, text=True, timeout=5
+        )
+        if remote_slug.returncode == 0:
+            url = remote_slug.stdout.strip().removesuffix(".git")
+            if url.startswith("git@github.com:"):
+                slug = url[len("git@github.com:"):]
+            elif "github.com/" in url:
+                slug = url.split("github.com/", 1)[1]
+            else:
+                slug = ""
+            if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", slug):
+                shared = subprocess.run(
+                    ["gh", "api", f"repos/{slug}/contents/memory/AUTO_CHECKPOINT.md", "--jq", ".content"],
+                    capture_output=True, text=True, timeout=12
+                )
+                if shared.returncode == 0 and shared.stdout.strip():
+                    import base64
+                    shared_text = base64.b64decode("".join(shared.stdout.split()), validate=True).decode("utf-8", errors="replace").strip()
+                    if shared_text:
+                        checkpoint = shared_text
+    except (OSError, subprocess.TimeoutExpired, ValueError, base64.binascii.Error):
+        pass
     if checkpoint:
         parts.append("LATEST CROSS-CONVERSATION HANDOFFS AND LIVING TODOS:\n" + checkpoint)
     memory_file = MEMORY_DIR / (hashlib.sha256(str(p).encode()).hexdigest() + ".md")

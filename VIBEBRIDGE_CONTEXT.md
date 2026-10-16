@@ -1,5 +1,12 @@
 # VibeBridge Project Memory
 
+## Current implementation status — 2026-10-16
+
+- Latest extension manifest target is `0.2.89`.
+- Local diagnostics reported checkout revision `1e12a1b`, clean state, source manifest `0.2.88`, agent running on port `43127`, and `browserExtension.connected=false` with no reported version. This means the local source version is known, but the version loaded in Chrome is not yet verified.
+- The browser heartbeat sends only extension version and ChatGPT host to the local agent. It does not send conversation content. It becomes visible only after the updated content script runs on a ChatGPT page.
+- A source update or successful build does not reload an already-loaded unpacked Chrome extension. Do not claim automatic browser reload or end-to-end checkpoint success until verified on the actual Mac/Chrome session.
+
 ## Non-negotiable core product objective — read first
 
 VibeBridge exists to remove the user from the command/output relay loop. ChatGPT should be able to make changes on the user's Mac, run commands and tests, receive stdout/stderr/exit codes automatically, diagnose failures, apply fixes, and rerun verification without asking the user to copy/paste Terminal commands, manually relay terminal output, or send screenshots. This is the product's central purpose, not an optional convenience feature.

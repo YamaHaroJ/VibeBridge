@@ -830,12 +830,26 @@ def resolve_project_set(message, known_projects=None, active=""):
         if not isinstance(project, dict):
             return
         path = str(project.get("path") or "").strip()
-        if not path or any(item["path"].lower() == path.lower() for item in resolved):
+        if not path:
             return
+
+        # A local checkout and its GitHub slug are the same project identity.
+        # Normalize known remote aliases to the local checkout before de-duplication
+        # so one message never injects the same README/memory twice (once locally
+        # and again as a remote repository context).
         if path.startswith("github:"):
             slug = path[len("github:"):].strip()
             if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", slug):
                 return
+            repo = repos_by_slug.get(slug.lower())
+            if repo and repo.get("localPath"):
+                path = str(repo["localPath"]).strip()
+                project = {**project, "name": repo.get("name") or slug.rsplit("/", 1)[-1], "path": path}
+
+        if any(item["path"].lower() == path.lower() for item in resolved):
+            return
+        if path.startswith("github:"):
+            slug = path[len("github:"):].strip()
             normalized_slug = slug.lower()
             repo = repos_by_slug.get(normalized_slug)
             # Preserve a previously selected remote project even if repository
@@ -882,6 +896,9 @@ def resolve_project_set(message, known_projects=None, active=""):
         alias_match = any(re.search(r"(?<![a-z0-9])" + re.escape(alias) + r"(?![a-z0-9])", text)
                           for alias in aliases.get(normalized, ()))
         if full_match or name_match or alias_match:
+            if repo.get("localPath"):
+            explicit_mentions.append({"name": repo["name"], "path": repo["localPath"]})
+        else:
             explicit_mentions.append({"name": name, "path": "github:" + full, "repository": full, "remote": True})
 
     if switch_intent:

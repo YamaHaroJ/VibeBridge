@@ -128,7 +128,7 @@ class ExtensionFlowContractTests(unittest.TestCase):
 
 
     def test_automatic_memory_is_explicitly_opt_in_and_scoped_to_matched_repository(self):
-        self.assertEqual(self.manifest["version"], "0.2.93")
+        self.assertEqual(self.manifest["version"], "0.2.94")
         self.assertIn('id="auto-memory"', self.popup_html)
         self.assertIn("autoMemoryCheckpoints", self.popup_source)
         self.assertIn("savedPreferences.autoMemoryCheckpoints", self.content_script)
@@ -147,6 +147,8 @@ class ExtensionFlowContractTests(unittest.TestCase):
         self.assertIn('"/extension-status"', self.background)
         self.assertIn('"VIBEBRIDGE_BROWSER_STATUS"', self.background)
         self.assertIn('"VIBEBRIDGE_PROBE_CHATGPT_TABS"', self.background)
+        self.assertIn('chrome.runtime.onStartup?.addListener?', self.background)
+        self.assertIn('chrome.tabs?.onUpdated?.addListener?', self.background)
         self.assertIn('"VIBEBRIDGE_CONTENT_SCRIPT_PING"', self.content_script)
         self.assertIn('chrome.scripting.executeScript', self.background)
         self.assertIn('data.browserExtension || {connected: false, version: null, host: null, lastSeen: null}', self.background)

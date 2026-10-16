@@ -127,13 +127,13 @@
   }
 
   function addCommandControls(allowAutoRun = false) {
-    const blocks = document.querySelectorAll('[data-message-author-role="assistant"] pre, [data-message-author-role="assistant"] [data-language], [data-message-author-role="assistant"] code, main pre, main [data-language], main code');
+    const blocks = document.querySelectorAll('main pre, main [data-language], main code, [data-message-author-role="assistant"] pre, [data-message-author-role="assistant"] [data-language], [data-message-author-role="assistant"] code');
     for (const pre of blocks) {
       const preBlock = pre.tagName === "PRE" ? pre : pre.closest("pre");
       const target = preBlock || pre;
       if (processedBlocks.has(pre) || processedBlocks.has(target)) continue;
       const code = target.querySelector("code") || (pre.tagName === "CODE" ? pre : null);
-      const className = (code?.className || "") + " " + (target.className || "") + " " + (pre.className || "");
+      const className = (code?.className || "") + " " + (target.className || "") + " " + (pre.className || "") + " " + (target.getAttribute?.("data-language") || "");
       const rawBlock = (code?.textContent || target.textContent || pre.textContent || "").trim();
       // ChatGPT may strip custom fence-language classes and preserve whitespace around
       // the marker. Match the marker at the start of the rendered code, then tolerate

@@ -141,16 +141,19 @@
       const hasCommandLanguage = /language-vibebridge-run|vibebridge-run/i.test(className);
       const hasShellLanguage = /language-(bash|sh|zsh|shell)\\b/i.test(className);
       let payload = null;
-      // Accept structured VibeBridge commands even if ChatGPT strips custom language tags.
+      // Handle ChatGPT rendering custom vibebridge-run fences as plain text, including
+      // an opening "vibebridge-run id=..." line before the JSON payload.
       if (!hasCommandLanguage && !markedBlock && !hasShellLanguage) {
-        try {
-          const candidate = JSON.parse(normalizedBlock);
-          if (!candidate || !Array.isArray(candidate.command) || !candidate.command.length ||
-              !candidate.command.every(part => typeof part === "string")) continue;
-          payload = candidate;
-        } catch {
-          continue;
+        const jsonStart = normalizedBlock.indexOf("{");
+        const jsonEnd = normalizedBlock.lastIndexOf("}");
+        if (jsonStart >= 0 && jsonEnd > jsonStart) {
+          try {
+            const candidate = JSON.parse(normalizedBlock.slice(jsonStart, jsonEnd + 1));
+            if (candidate && Array.isArray(candidate.command) && candidate.command.length &&
+                candidate.command.every(part => typeof part === "string")) payload = candidate;
+          } catch {}
         }
+        if (!payload) continue;
       }
       processedBlocks.add(pre);
 
@@ -172,7 +175,7 @@
       if (!payload || !Array.isArray(payload.command) || !payload.command.length ||
           !payload.command.every(part => typeof part === "string")) {
         const warning = document.createElement("div");
-        warning.textContent = "VibeBridge command must be a shell block or JSON with a non-empty string array named command.";
+        warning.textContent = "VibeBridge command must contain a shell command or JSON command array.";
         warning.style.cssText = "color:#b91c1c;font:12px system-ui;margin:6px 0";
         pre.after(warning);
         continue;

@@ -131,7 +131,7 @@ class ExtensionFlowContractTests(unittest.TestCase):
 
 
     def test_automatic_memory_is_explicitly_opt_in_and_scoped_to_matched_repository(self):
-        self.assertEqual(self.manifest["version"], "0.2.96")
+        self.assertEqual(self.manifest["version"], "0.2.97")
         self.assertIn('id="auto-memory"', self.popup_html)
         self.assertIn("autoMemoryCheckpoints", self.popup_source)
         self.assertNotIn("savedPreferences.autoMemoryCheckpoints", self.content_script)

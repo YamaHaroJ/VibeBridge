@@ -62,14 +62,12 @@ class ExtensionFlowContractTests(unittest.TestCase):
         cls.background = (root / "extension" / "background.js").read_text()
         cls.server_source = (root / "agent" / "server.py").read_text()
 
-    def test_send_flow_attaches_context_once_and_cleans_stale_wrapper(self):
+    def test_send_flow_resolves_context_without_mutating_user_composer(self):
         self.assertIn('"VIBEBRIDGE_RESOLVE_CONTEXTS"', self.content_script)
         self.assertIn('conversationProjects[conversation] = merged.slice(-8)', self.content_script)
         self.assertIn('if (!enabledState || !original', self.content_script)
-        self.assertIn('writeComposer(composer, addition + original)', self.content_script)
-        self.assertIn('composer.dataset.vibebridgeContextInjection = "true"', self.content_script)
-        self.assertIn('delete composer.dataset.vibebridgeContextInjection', self.content_script)
-        self.assertIn('sanitizeBridgeComposer(composer)', self.content_script)
+        self.assertIn('automatic injection is paused to protect your message', self.content_script)
+        self.assertNotIn('writeComposer(composer, addition + original)', self.content_script)
 
     def test_assistant_memory_block_is_detected_and_forwarded(self):
         self.assertIn('language-vibebridge-memory|vibebridge-memory', self.content_script)

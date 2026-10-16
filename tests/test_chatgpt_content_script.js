@@ -161,11 +161,13 @@ async function runScenario(sendMessage) {
       }
       throw new Error("Unexpected message " + message.type);
     });
-    assert.equal(h.composer.value, "Continue VibeBridge", "context resolution must not mutate the user's prompt");
+    assert.match(h.composer.value, /MOCK PROJECT CONTEXT/, "resolved project context is attached to the outgoing prompt");
+    assert.match(h.composer.value, /Continue VibeBridge/, "original user request remains present");
+    assert.equal((h.composer.value.match(/VIBEBRIDGE PROJECT CONTEXT/g) || []).length, 2, "context wrapper appears exactly once with matching end marker");
     assert.equal(h.send.clickCount, 1, "original send is replayed exactly once");
     assert.ok(h.notices.some(m => m.type === "VIBEBRIDGE_RESOLVE_CONTEXTS"));
     const notice = h.document.getElementById("vibebridge-notice-message");
-    assert.match(notice.textContent, /automatic injection is paused/i);
+    assert.match(notice.textContent, /context attached for this message/i);
   }
   {
     const h = await runScenario(async () => { throw new Error("Extension context invalidated."); });

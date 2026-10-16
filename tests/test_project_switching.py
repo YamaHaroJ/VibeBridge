@@ -79,5 +79,37 @@ class ProjectSwitchTests(unittest.TestCase):
             server.match_project("Switch to TotallyMissingProject", "github:YamaHaroJ/VibeBridge")
 
 
+    @patch.object(server, "discover_projects", return_value=[])
+    @patch.object(server, "github_projects")
+    def test_resolve_project_set_keeps_multiple_explicit_projects(self, github_projects, _local):
+        github_projects.return_value = [
+            {"name": "Autofill-Insurance-Extension", "nameWithOwner": "YamaHaroJ/Autofill-Insurance-Extension", "localPath": None},
+            {"name": "VibeBridge", "nameWithOwner": "YamaHaroJ/VibeBridge", "localPath": None},
+            {"name": "MacOptimizer", "nameWithOwner": "YamaHaroJ/MacOptimizer", "localPath": None},
+        ]
+        projects = server.resolve_project_set("Update VibeBridge and Autofill Insurance Extension")
+        self.assertEqual(
+            {project["repository"] for project in projects},
+            {"YamaHaroJ/VibeBridge", "YamaHaroJ/Autofill-Insurance-Extension"},
+        )
+
+    @patch.object(server, "discover_projects", return_value=[])
+    @patch.object(server, "github_projects")
+    def test_resolve_project_set_preserves_known_project_and_adds_new_one(self, github_projects, _local):
+        github_projects.return_value = [
+            {"name": "Autofill-Insurance-Extension", "nameWithOwner": "YamaHaroJ/Autofill-Insurance-Extension", "localPath": None},
+            {"name": "VibeBridge", "nameWithOwner": "YamaHaroJ/VibeBridge", "localPath": None},
+        ]
+        projects = server.resolve_project_set(
+            "Now update Autofill Insurance Extension too",
+            [{"path": "github:YamaHaroJ/VibeBridge"}],
+        )
+        self.assertEqual(
+            {project["repository"] for project in projects},
+            {"YamaHaroJ/VibeBridge", "YamaHaroJ/Autofill-Insurance-Extension"},
+        )
+
+
+
 if __name__ == "__main__":
     unittest.main()

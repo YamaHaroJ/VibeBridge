@@ -132,8 +132,23 @@ async function initialize() {
       renderStatus(githubStatus, githubStatusText, "ready", "GitHub connected · " + count + " repositories");
     } catch (error) {
       if (!isCurrent()) return;
-      renderStatus(githubStatus, githubStatusText, "setup", "GitHub sign-in required");
-      copy.textContent = "VibeBridge is connected to this Mac. Sign in to GitHub on this Mac to enable repository features.";
+      // Keep the saved project visible and selectable even when repository
+      // discovery is temporarily unavailable. The active project is still a
+      // valid target for the authenticated context endpoint.
+      const savedProject = await chrome.storage.local.get(["activeProject", "project"]);
+      const selectedPath = savedProject.activeProject || savedProject.project || "";
+      activeProjectSelect.replaceChildren(new Option("Choose a GitHub project…", ""));
+      if (selectedPath) {
+        const label = selectedPath.replace(/^github:/, "");
+        activeProjectSelect.add(new Option(label + " (saved)", selectedPath));
+        activeProjectSelect.value = selectedPath;
+      }
+      activeProjectSelect.disabled = !selectedPath;
+      projectCopy.textContent = selectedPath
+        ? "Saved project: " + selectedPath.replace(/^github:/, "") + ". Repository discovery is temporarily unavailable."
+        : "Sign in to GitHub on this Mac to choose a project.";
+      renderStatus(githubStatus, githubStatusText, "setup", "GitHub repository list unavailable");
+      copy.textContent = "VibeBridge is connected to this Mac. The saved project remains available; check GitHub sign-in to browse other repositories.";
     }
   } catch {
     if (!isCurrent()) return;

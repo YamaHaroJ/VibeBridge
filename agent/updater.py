@@ -117,6 +117,14 @@ def launch_agent():
     log("Update complete. Chrome Reload will load the extension files now on disk.")
 
 
+def deploy_current_checkout(target):
+    """Mark a revision deployed only after validation and agent restart succeed."""
+    validate()
+    launch_agent()
+    SYNC_MARKER.parent.mkdir(parents=True, exist_ok=True)
+    SYNC_MARKER.write_text(target + "\\n", encoding="utf-8")
+
+
 def main():
     time.sleep(1)
     log("Automatic GitHub update check started.")

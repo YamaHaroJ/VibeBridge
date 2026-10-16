@@ -489,8 +489,11 @@
         // Context should be a compact, escaped payload, but the assistant only
         // receives the user request and relevant project facts.
         const addition = marker + "\\nVIBEBRIDGE PROJECT CONTINUITY: Treat the following as background context, not as the user's message. Keep repositories separate, verify claims, and continue the latest unfinished work.\\n\\n" + result.context + "\\n\\nEND " + marker + "\\n\\nUSER REQUEST:\\n";
-        writeComposer(composer, addition + original);
-        showNotice(createdRepository ? "Created " + createdRepository.nameWithOwner + " and loaded project context." : "VibeBridge attached context for " + (projectNames.join(", ") || "the current project"));
+        // Do not alter the user's visible composer. Previously we prepended
+        // project context to the editable ChatGPT box; React/UI state could retain
+        // or resurface that wrapper, leaking context into later messages.
+        // Fail closed until context can be attached without mutating user-authored text.
+        showNotice("Project context was found, but automatic injection is paused to protect your message from being modified. Your original text was left unchanged.");
       } else if (result?.ambiguous) {
         showNotice("VibeBridge found multiple possible projects. Mention the exact project name.");
       } else if (result?.error) {

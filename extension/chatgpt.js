@@ -256,7 +256,8 @@
     const composer = composerFor(button);
     const original = readComposer(composer).trim();
     if (!enabledState || !original || original.includes(marker) || original.includes("VIBEBRIDGE DISABLED")) return;
-    if (!shouldResolve(original)) return;
+    // When VibeBridge is enabled, resolve context for every user message. Short
+    // follow-ups like “you should” and “it should” still depend on project history.
 
     event.preventDefault();
     event.stopPropagation();

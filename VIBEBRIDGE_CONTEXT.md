@@ -311,3 +311,11 @@ Latest implementation update: commit `895bc8c` adds an explicit per-response che
 - Commit `10d9d2565592a581a6eac8defce2e939e5cef1b0` adds success and nonzero-exit tests for the background worker's authenticated `/run` relay. CI passed: the bridge test reported 8 scenarios passed and Python tests reported 77/77 passed.
 - Commit `8a9c9817cd41fb282d16ae3c3fc6939334ab7e19` formalizes the non-negotiable goal: ChatGPT must run local tasks, receive results, diagnose, fix, and retest without the user manually relaying terminal output or screenshots.
 - IMPORTANT LIMITATION: these checks prove the Mac agent route and background-worker contract, not the full live ChatGPT DOM → content script auto-run → Mac command → automatically submitted result loop. That browser-level end-to-end loop remains unverified. Automatic command execution requires the extension's `autoRunCommands` setting to be true; do not assume it is enabled. Next priority is a safe, automated end-to-end test of the real extension flow and a reliable status signal for the active hands-off setting, without asking the user to paste terminal output.
+
+## Latest handoff (2026-10-16, after composer safety regression)
+
+- Fixed the recurring context leak regression: extension/chatgpt.js now resolves and stores project context but does not write it into ChatGPT's visible composer. It displays that automatic injection is paused; the user's original draft is sent unchanged. Do not re-enable silent composer mutation.
+- Updated tests/test_chatgpt_content_script.js to assert the prompt stays unchanged, and tests/test_auto_checkpoint.py to enforce the non-mutating contract.
+- Bumped extension version to 0.2.82.
+- Latest validation on commit a8e1cf640fd28223ad125598b51c535779db3b10: Validate VibeBridge and VibeBridge checks passed; macOS installer workflow was still running at last check. Earlier Chrome package workflow passed on 1b41f093ec15374b1f3bbfe10544a33bb65f7093.
+- This is GitHub source, not proof the user's installed Chrome extension has updated. The real ChatGPT DOM → extension → Mac agent loop is still not end-to-end verified. Next: confirm installer packaging, then use the Mac runner to validate version 0.2.82 and safely test context resolution without composer changes. Do not ask the user to relay Terminal output.

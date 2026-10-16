@@ -1,5 +1,7 @@
 import sys
 import unittest
+import json
+import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -60,6 +62,40 @@ class RemoteTaskTests(unittest.TestCase):
             ["node", "tests/test_chatgpt_content_script.js"],
         ])
         self.assertIn("node tests/test_chatgpt_content_script.js", output)
+
+    @patch.object(server.subprocess, "run")
+    @patch.object(server.platform, "system", return_value="Darwin")
+    @patch.object(server.platform, "mac_ver", return_value=("15.8.2", ("", "", ""), ""))
+    def test_local_diagnostics_reports_revision_version_and_dirty_boolean_without_file_names(
+            self, _mac_ver, _system, run):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "VibeBridge"
+            manifest = root / "extension" / "manifest.json"
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text(json.dumps({"version": "0.2.87"}), encoding="utf-8")
+            def result_for(args, **kwargs):
+                if args[:2] == ["/bin/launchctl", "print"]:
+                    return type("Completed", (), {
+                        "returncode": 0, "stdout": "state = running\\n pid = 1234\\n", "stderr": ""
+                    })()
+                if args[:3] == ["git", "rev-parse", "--short"]:
+                    return type("Completed", (), {
+                        "returncode": 0, "stdout": "abc1234\\n", "stderr": ""
+                    })()
+                if args[:3] == ["git", "status", "--porcelain"]:
+                    return type("Completed", (), {
+                        "returncode": 0, "stdout": " M private-file.txt\\n", "stderr": ""
+                    })()
+                raise AssertionError("Unexpected diagnostics command: " + repr(args))
+            run.side_effect = result_for
+            with patch.object(server.Path, "home", return_value=Path(tmp)):
+                (root / "agent").mkdir()
+                result = server.local_diagnostics()
+        self.assertEqual(result["checkout"]["revision"], "abc1234")
+        self.assertEqual(result["checkout"]["extensionVersion"], "0.2.87")
+        self.assertTrue(result["checkout"]["dirty"])
+        self.assertNotIn("private-file.txt", json.dumps(result))
+        self.assertEqual(run.call_count, 4)
 
     def test_task_enum_is_closed(self):
         self.assertEqual(server.REMOTE_TASK_POLL_SECONDS, 1)

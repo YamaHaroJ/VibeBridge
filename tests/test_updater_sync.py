@@ -16,6 +16,12 @@ class ExtensionTreeSyncTests(unittest.TestCase):
         self.assertIn('if managed_status and force_managed:', source)
         self.assertIn('Update deferred because managed runtime paths have local edits.', source)
         self.assertIn('preserving all files', source)
+    def test_stale_revision_marker_cannot_hide_extension_version_mismatch(self):
+        source = Path(updater.__file__).read_text(encoding="utf-8")
+        self.assertIn("if synced == target and previous == target:", source)
+        self.assertIn('target_manifest_text = run(["git", "show", target + ":extension/manifest.json"])', source)
+        self.assertIn('files_match = local_manifest.get("version") == target_manifest.get("version")', source)
+        self.assertIn("Deployment marker matched GitHub but extension manifest did not; repairing deployment.", source)
 
 
     @patch("agent.updater.shutil.which", return_value=None)

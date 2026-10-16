@@ -98,7 +98,6 @@ cat > "$UPDATER_PLIST" <<EOF_UPDATER
 <key>ProgramArguments</key><array><string>$PYTHON</string><string>$ROOT/agent/updater.py</string></array>
 <key>WorkingDirectory</key><string>$ROOT</string>
 <key>StartInterval</key><integer>5</integer><key>RunAtLoad</key><true/>
-<key>RunAtLoad</key><true/>
 <key>EnvironmentVariables</key><dict><key>PATH</key><string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
 <key>StandardOutPath</key><string>$SUPPORT/updater.log</string>
 <key>StandardErrorPath</key><string>$SUPPORT/updater-error.log</string>

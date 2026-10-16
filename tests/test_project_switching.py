@@ -301,5 +301,25 @@ class ProjectSwitchTests(unittest.TestCase):
 
 
 
+    @patch.object(server, "discover_projects", return_value=[
+        {"name": "VibeBridge", "path": "/Users/test/VibeBridge"},
+    ])
+    @patch.object(server, "project_path", side_effect=lambda value: Path("/Users/test/VibeBridge"))
+    @patch.object(server, "github_projects", return_value=[
+        {"name": "VibeBridge", "nameWithOwner": "YamaHaroJ/VibeBridge",
+         "localPath": "/Users/test/VibeBridge"},
+    ])
+    def test_known_remote_slug_and_local_checkout_dedupe_to_one_project(self, _github, _path, _discover):
+        projects = server.resolve_project_set(
+            "keep working on VibeBridge",
+            [{"path": "github:YamaHaroJ/VibeBridge"}],
+            "",
+        )
+        self.assertEqual(len(projects), 1)
+        self.assertEqual(projects[0]["path"], "/Users/test/VibeBridge")
+        self.assertFalse(projects[0].get("remote", False))
+
+
+
 if __name__ == "__main__":
     unittest.main()

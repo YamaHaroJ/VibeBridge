@@ -116,13 +116,22 @@ async function initialize() {
       const repositories = data.repositories || [];
       const count = repositories.length;
       const savedProject = await chrome.storage.local.get(["activeProject", "project"]);
-      const selectedPath = savedProject.activeProject || savedProject.project || "";
+      let selectedPath = savedProject.activeProject || savedProject.project || "";
       activeProjectSelect.replaceChildren(new Option("Choose a GitHub project…", ""));
+      const choices = [];
       for (const repository of repositories) {
         const slug = repository.nameWithOwner || repository.full_name || "";
         if (!slug) continue;
         const path = repository.localPath || ("github:" + slug);
+        choices.push({slug, path});
         activeProjectSelect.add(new Option(slug, path));
+      }
+      // First-time setup: default to VibeBridge when it is available, so short
+      // follow-ups can work immediately instead of failing with no active repo.
+      if (!selectedPath && choices.length) {
+        const preferred = choices.find(item => /(?:^|\/)vibebridge$/i.test(item.slug));
+        selectedPath = (preferred || choices[0]).path;
+        await chrome.storage.local.set({activeProject: selectedPath, project: selectedPath});
       }
       activeProjectSelect.value = selectedPath;
       activeProjectSelect.disabled = repositories.length === 0;

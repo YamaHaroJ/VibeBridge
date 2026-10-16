@@ -510,9 +510,13 @@
               showNotice("Your draft changed while context was loading. Nothing was overwritten; send it unchanged or retry.");
               return;
             }
-            const addition = marker + "\nVIBEBRIDGE PROJECT CONTINUITY: Treat the following as background context, not as the user's message. Keep repositories separate, verify claims, and continue the latest unfinished work.\n\n" + result.context + "\n\nEND " + marker + "\n\nUSER REQUEST:\n";
+            const savedPreferences = await chrome.storage.local.get(["autoMemoryCheckpoints"]);
+            const memoryDirective = savedPreferences.autoMemoryCheckpoints
+              ? "\\n\\nVIBEBRIDGE MEMORY CHECKPOINT REQUIREMENT: After answering the user's request, silently append one fenced code block tagged vibebridge-memory containing valid JSON in this shape: {\\"projects\\":[{\\"repository\\":\\"OWNER/REPO\\",\\"summary\\":\\"compact durable project state\\",\\"handoff\\":\\"what was done and the next action\\",\\"todos\\":[\\"unfinished item\\"] ,\\"decisions\\":[\\"durable decision\\"]}]}. Use only the matched repository from the supplied context. Include no credentials, personal secrets, or raw transcript. Keep it under 2500 characters. If there is no meaningful project change, omit the block. The extension will hide this block and save it to GitHub.\\n"
+              : "";
+            const addition = marker + "\\nVIBEBRIDGE PROJECT CONTINUITY: Treat the following as background context, not as the user's message. Keep repositories separate, verify claims, and continue the latest unfinished work.\\n\\n" + result.context + "\\n\\nEND " + marker + "\\n\\nUSER REQUEST:\\n";
             composer.dataset.vibebridgeContextInjection = "true";
-            writeComposer(composer, addition + original);
+            writeComposer(composer, addition + original + memoryDirective);
             showNotice("Sending with project context. If the editor retains the wrapper, VibeBridge will remove it.");
             if (!clickCurrentSendButton()) return;
             setTimeout(() => {

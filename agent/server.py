@@ -785,6 +785,35 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(202, {"started": True, "message": "Update started. Check Update status in a few seconds."})
             except Exception as e:
                 return self.send_json(500, {"error": "Could not start updater: " + str(e)})
+        if path == "/contexts":
+            try:
+                projects = resolve_project_set(
+                    body.get("message", ""),
+                    body.get("projects", []),
+                    body.get("active", "")
+                )
+                if not projects:
+                    return self.send_json(200, {"matched": False, "projects": [], "reason": "no-project-match"})
+                sections = []
+                loaded = []
+                errors = []
+                for project in projects:
+                    try:
+                        context = project_context(project["path"])
+                        sections.append("===== PROJECT CONTEXT: " + project["name"] + " =====\\n" + context)
+                        loaded.append(project)
+                    except Exception as exc:
+                        errors.append(project["name"] + ": " + str(exc)[:250])
+                if not loaded:
+                    return self.send_json(400, {"error": "; ".join(errors) or "Could not load project context."})
+                return self.send_json(200, {
+                    "matched": True,
+                    "projects": loaded,
+                    "context": "\\n\\n".join(sections)[:36000],
+                    "errors": errors
+                })
+            except Exception as e:
+                return self.send_json(400, {"error": str(e)})
         if path == "/context":
             try:
                 project, reason = match_project(body.get("message", ""), body.get("active", ""))

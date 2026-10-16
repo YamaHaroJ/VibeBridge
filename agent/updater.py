@@ -41,6 +41,8 @@ def run(args, timeout=90, check=True):
 
 
 def validate():
+    # Do not deploy a runtime update unless its regression suite passes first.
+    run([sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"], timeout=120)
     run([sys.executable, "-m", "py_compile", "agent/server.py", "agent/updater.py"])
     run([sys.executable, "-m", "json.tool", "extension/manifest.json"])
     if shutil.which("node"):

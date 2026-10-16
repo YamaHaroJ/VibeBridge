@@ -143,7 +143,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Local command failed");
-      return {ok: true, ...data};
+      // HTTP 200 means the agent handled the request, not that the command succeeded.
+      // Preserve stdout/stderr while exposing the process exit status to the UI.
+      return {...data, ok: data.exitCode === 0};
     }
 
     const multiProject = message.type === "VIBEBRIDGE_RESOLVE_CONTEXTS";

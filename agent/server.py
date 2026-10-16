@@ -8,6 +8,7 @@ import secrets
 import subprocess
 import threading
 import time
+import tempfile
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -391,6 +392,27 @@ def filesystem_listing(raw):
         except OSError:
             continue
     return {"path": str(path), "parent": str(path.parent) if path != HOME_ROOT else None, "items": items}
+
+
+def run_bounded_command(command, cwd, timeout=120, stdout_limit=20000, stderr_limit=8000):
+    """Run a command with disk-backed capture so noisy processes cannot exhaust RAM."""
+    with tempfile.TemporaryFile(mode="w+b") as stdout_file, tempfile.TemporaryFile(mode="w+b") as stderr_file:
+        result = subprocess.run(
+            command, cwd=str(cwd), stdout=stdout_file, stderr=stderr_file,
+            timeout=timeout, check=False
+        )
+
+        def tail(handle, limit):
+            handle.seek(0, os.SEEK_END)
+            size = handle.tell()
+            handle.seek(max(0, size - limit))
+            return handle.read().decode("utf-8", errors="replace")
+
+        return {
+            "exitCode": result.returncode,
+            "stdout": tail(stdout_file, stdout_limit),
+            "stderr": tail(stderr_file, stderr_limit),
+        }
 
 
 def validate_command_arguments(command):
@@ -1042,8 +1064,8 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError as exc:
             return self.send_json(400, {"error": str(exc)})
         try:
-            r = subprocess.run(cmd, cwd=str(root), capture_output=True, text=True, timeout=120)
-            return self.send_json(200, {"project": str(root), "exitCode": r.returncode, "stdout": r.stdout[-20000:], "stderr": r.stderr[-8000:]})
+            result = run_bounded_command(cmd, root, timeout=120)
+            return self.send_json(200, {"project": str(root), **result})
         except subprocess.TimeoutExpired:
             return self.send_json(408, {"error": "Command timed out"})
         except OSError as e:

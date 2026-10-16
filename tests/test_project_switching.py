@@ -9,6 +9,27 @@ import server
 
 
 class ProjectSwitchTests(unittest.TestCase):
+    def test_get_rejects_non_extension_browser_origin(self):
+        handler = object.__new__(server.Handler)
+        handler.headers = {"Origin": "https://attacker.example"}
+        with patch.object(handler, "send_json") as send:
+            self.assertFalse(handler.require_extension_origin())
+        send.assert_called_once_with(403, {"error": "Untrusted browser origin"})
+
+    def test_get_allows_extension_origin(self):
+        handler = object.__new__(server.Handler)
+        handler.headers = {"Origin": "chrome-extension://abcdefghijklmnop"}
+        with patch.object(handler, "send_json") as send:
+            self.assertTrue(handler.require_extension_origin())
+        send.assert_not_called()
+
+    def test_get_allows_non_browser_local_client_without_origin(self):
+        handler = object.__new__(server.Handler)
+        handler.headers = {}
+        with patch.object(handler, "send_json") as send:
+            self.assertTrue(handler.require_extension_origin())
+        send.assert_not_called()
+
     @patch.object(server, "discover_projects", return_value=[])
     @patch.object(server, "github_projects")
     def test_explicit_autofill_alias_overrides_active_vibebridge(self, github_projects, _local):

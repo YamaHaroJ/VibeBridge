@@ -76,15 +76,15 @@ class RemoteTaskTests(unittest.TestCase):
             def result_for(args, **kwargs):
                 if args[:2] == ["/bin/launchctl", "print"]:
                     return type("Completed", (), {
-                        "returncode": 0, "stdout": "state = running\\n pid = 1234\\n", "stderr": ""
+                        "returncode": 0, "stdout": "state = running\n pid = 1234\n", "stderr": ""
                     })()
                 if args[:3] == ["git", "rev-parse", "--short"]:
                     return type("Completed", (), {
-                        "returncode": 0, "stdout": "abc1234\\n", "stderr": ""
+                        "returncode": 0, "stdout": "abc1234\n", "stderr": ""
                     })()
                 if args[:3] == ["git", "status", "--porcelain"]:
                     return type("Completed", (), {
-                        "returncode": 0, "stdout": " M private-file.txt\\n", "stderr": ""
+                        "returncode": 0, "stdout": " M private-file.txt\n", "stderr": ""
                     })()
                 raise AssertionError("Unexpected diagnostics command: " + repr(args))
             run.side_effect = result_for

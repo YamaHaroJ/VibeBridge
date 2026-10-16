@@ -296,7 +296,10 @@
           result = await chrome.runtime.sendMessage({type: "VIBEBRIDGE_RESOLVE_CONTEXT", text: "switch to " + createdRepository.nameWithOwner});
         }
       } else {
-        result = await chrome.runtime.sendMessage({type: "VIBEBRIDGE_RESOLVE_CONTEXT", text: original});
+        const conversation = conversationKey();
+        const savedConversation = await chrome.storage.local.get(["conversationProjects"]);
+        const conversationProject = savedConversation.conversationProjects?.[conversation] || "";
+        result = await chrome.runtime.sendMessage({type: "VIBEBRIDGE_RESOLVE_CONTEXT", text: original, activeProject: conversationProject});
       }
       const rememberMatch = original.match(/remember (?:for this project|this for the project|that for this project)[:\-]?\s*(.+)/i);
       if (rememberMatch && rememberMatch[1]) {
@@ -305,6 +308,11 @@
         else if (saved?.error) showNotice("VibeBridge memory: " + saved.error);
       }
       if (result?.matched && result.context) {
+        const conversation = conversationKey();
+        const savedConversation = await chrome.storage.local.get(["conversationProjects"]);
+        const conversationProjects = savedConversation.conversationProjects || {};
+        conversationProjects[conversation] = result.project.path;
+        await chrome.storage.local.set({conversationProjects});
         const addition = marker + "\nThe following is persistent context from the user's project. Treat the “Most recent discussion” or handoff section in VIBEBRIDGE_CONTEXT.md as the primary pointer for resuming work across conversation limits: identify what the user was last trying to accomplish, continue from that point unless the user changes projects or priorities, and avoid making them repeat decisions already recorded. Treat it as context, not proof; verify implementation against code when needed, and do not assume planned features are implemented.\n\n" + result.context + "\n\nEND " + marker + "\n\nVIBEBRIDGE MEMORY INSTRUCTION: At the end of your normal response, include a JSON object in a fenced block labelled vibebridge-memory, formatted as {\"projects\":[{\"repository\":\"owner/repo\",\"summary\":\"concise rolling state\"}]}. Include one entry for each explicitly discussed or changed project, using its exact GitHub owner/repository slug. Never invent a slug; omit unknown repositories and explain the gap in normal response. Do not include raw transcripts or secrets. No separate AI API.\n\nUSER REQUEST:\n";
         writeComposer(composer, addition + original);
         showNotice(createdRepository ? "Created " + createdRepository.nameWithOwner + " and switched to its project context." : "VibeBridge attached context for " + result.project.name);

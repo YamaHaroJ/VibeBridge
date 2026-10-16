@@ -450,14 +450,15 @@
         }
       } else {
         const conversation = conversationKey();
-        const savedConversation = await chrome.storage.local.get(["conversationProjects"]);
+        const savedConversation = await chrome.storage.local.get(["conversationProjects", "activeProject", "project"]);
         const prior = savedConversation.conversationProjects?.[conversation] || [];
         const knownProjects = (Array.isArray(prior) ? prior : [prior]).filter(Boolean);
+        const activeProject = knownProjects[0] || savedConversation.activeProject || savedConversation.project || "";
         result = await chrome.runtime.sendMessage({
           type: "VIBEBRIDGE_RESOLVE_CONTEXTS",
           text: original,
           projects: knownProjects.map(path => ({path})),
-          activeProject: knownProjects[0] || ""
+          activeProject
         });
       }
       const rememberMatch = original.match(/remember (?:for this project|this for the project|that for this project)[:\-]?\s*(.+)/i);

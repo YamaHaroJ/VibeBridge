@@ -162,7 +162,15 @@ def main():
         log("GitHub revision already deployed: " + target[:12] + ". No files changed.")
         return
     if previous == target and not status:
-        log("Checkout already at GitHub revision: " + target[:12] + ".")
+        if synced == target:
+            log("Checkout and deployed runtime already at GitHub revision: " + target[:12] + ".")
+            return
+        # HEAD may have advanced before launch_agent() succeeded on an earlier
+        # run. Do not mark this revision deployed until validation and restart
+        # both succeed; otherwise a transient launchctl failure strands updates.
+        log("Checkout has target revision but deployment marker is stale; retrying validation and agent restart.")
+        validate()
+        launch_agent()
         SYNC_MARKER.parent.mkdir(parents=True, exist_ok=True)
         SYNC_MARKER.write_text(target + "\n", encoding="utf-8")
         return

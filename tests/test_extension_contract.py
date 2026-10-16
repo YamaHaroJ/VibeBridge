@@ -42,6 +42,17 @@ class ExtensionContractTests(unittest.TestCase):
         self.assertIn('chrome.tabs?.onUpdated?.addListener?.((tabId, changeInfo)', background)
         self.assertIn('files: ["chatgpt.js"]', background)
 
+    def test_heartbeat_recovery_pings_before_injecting_to_avoid_duplicate_setup(self):
+        background = (EXTENSION / "background.js").read_text()
+        start = background.index("async function ensureChatGPTTabHeartbeat")
+        end = background.index("async function recoverOpenChatGPTTabs", start)
+        recovery = background[start:end]
+        ping = recovery.index('chrome.tabs.sendMessage(tabId, {type: "VIBEBRIDGE_CONTENT_SCRIPT_PING"})')
+        inject = recovery.index('chrome.scripting.executeScript({target: {tabId}, files: ["chatgpt.js"]})')
+        self.assertLess(ping, inject, "check for a live content script before injecting")
+        self.assertIn("if (reply?.alive) return;", recovery)
+        self.assertIn("catch (_) {}", recovery, "failed ping must fall through to reinjection")
+
 
 if __name__ == "__main__":
     unittest.main()

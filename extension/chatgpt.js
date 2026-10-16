@@ -1,5 +1,6 @@
 (() => {
   const loadedFileVersion = chrome.runtime.getManifest?.().version || "unknown";
+  const extensionVersion = loadedFileVersion;
   window.__vibeBridgeLoadedFileVersion = loadedFileVersion;
   // Keep a lightweight ping/heartbeat endpoint available even when this file is
   // injected into a tab that already has an older content-script instance.

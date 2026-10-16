@@ -14,7 +14,8 @@ class ExtensionTreeSyncTests(unittest.TestCase):
     @patch("agent.updater.run")
     def test_validation_runs_full_regression_suite_before_deployment(self, run, _node):
         updater.validate()
-        first_command, first_timeout = run.call_args_list[0].args
+        first_command = run.call_args_list[0].args[0]
+        first_timeout = run.call_args_list[0].kwargs["timeout"]
         self.assertEqual(first_command[1:5], ["-m", "unittest", "discover", "-s"])
         self.assertIn("tests", first_command)
         self.assertEqual(first_timeout, 120)

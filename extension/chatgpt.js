@@ -510,7 +510,7 @@
       } else if (result?.error) {
         showNotice("VibeBridge: " + result.error + "\nYour original message will still be sent. Check the local agent and GitHub CLI connection in the extension popup.");
       } else {
-        showNotice("VibeBridge did not attach project context. Reason: " + (result?.reason || "unknown") + ". Active project: " + (activeProject || "(none)") + ". Conversation projects: " + (knownProjects.join(", ") || "(none)") + ". Your original message will still be sent. Open the extension popup and verify the selected project.");
+        showNotice("VibeBridge did not attach project context. Reason: " + (result?.reason || (result?.error ? "agent-error: " + result.error : "no-match")) + ". Active project: " + (activeProject || "(none)") + ". Conversation projects: " + (knownProjects.join(", ") || "(none)") + ". Agent endpoint: 127.0.0.1:43127. Your original message will still be sent. Copy this diagnostic if the issue continues.");
       }
     } catch (error) {
       const message = String(error?.message || error || "Unknown error");

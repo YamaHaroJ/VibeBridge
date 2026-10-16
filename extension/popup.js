@@ -39,18 +39,27 @@ function renderStatus(element, label, state, message) {
 }
 async function refreshBrowserStatus(token) {
   try {
-    const local = await callAgent("/diagnostics/local", token);
+    const [local, probe] = await Promise.all([
+      callAgent("/diagnostics/local", token),
+      chrome.runtime.sendMessage({type: "VIBEBRIDGE_PROBE_CHATGPT_TABS"})
+    ]);
+    const tabs = Array.isArray(probe?.tabs) ? probe.tabs : [];
+    const liveTabs = tabs.filter(tab => tab.contentScript);
+    if (liveTabs.length) {
+      const versions = [...new Set(liveTabs.map(tab => tab.version || "unknown"))].join(", ");
+      const hosts = [...new Set(liveTabs.map(tab => tab.host))].join(", ");
+      renderStatus(browserStatus, browserStatusText, "ready", liveTabs.length + " ChatGPT tab(s) responding · v" + versions + " · " + hosts);
+    } else if (tabs.length) {
+      renderStatus(browserStatus, browserStatusText, "setup", tabs.length + " ChatGPT tab(s) open, but no content script responded. The loaded extension needs to be refreshed in Chrome.");
+    } else {
+      renderStatus(browserStatus, browserStatusText, "setup", "No ChatGPT tabs detected. Open ChatGPT in any tab to establish the heartbeat.");
+    }
     const browser = local.browserExtension || {};
     const seen = browser.lastSeen ? new Date(browser.lastSeen) : null;
     const fresh = Boolean(browser.connected && seen && Date.now() - seen.getTime() < 120000);
-    if (fresh) {
-      renderStatus(browserStatus, browserStatusText, "ready", "ChatGPT tab connected · v" + browser.version + " · " + browser.host);
-    } else {
-      renderStatus(browserStatus, browserStatusText, "setup", "Waiting for ChatGPT tab heartbeat · source v" + (local.checkout?.extensionVersion || "unknown"));
-    }
-    browserStatus.title = seen ? "Last heartbeat: " + seen.toLocaleString() : "No heartbeat received yet";
+    browserStatusText.textContent += fresh ? " · agent heartbeat recent" : " · agent heartbeat pending";
   } catch (error) {
-    renderStatus(browserStatus, browserStatusText, "setup", "ChatGPT heartbeat unavailable: " + error.message);
+    renderStatus(browserStatus, browserStatusText, "setup", "ChatGPT tab probe failed: " + error.message);
   }
 }
 async function callAgent(path, token, timeoutMs = 8000) {

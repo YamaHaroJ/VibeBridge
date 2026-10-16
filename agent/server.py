@@ -1085,16 +1085,26 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 if not projects:
                     return self.send_json(200, {"matched": False, "projects": [], "reason": "no-project-match"})
+                # Load independent project contexts concurrently instead of serially.
+                # Preserve the original project order in the response.
+                from concurrent.futures import ThreadPoolExecutor
+                def load_one(project):
+                    try:
+                        return project, project_context(project["path"]), None
+                    except Exception as exc:
+                        return project, None, str(exc)[:250]
+                with ThreadPoolExecutor(max_workers=min(8, max(1, len(projects))),
+                                         thread_name_prefix="vibebridge-context") as pool:
+                    results = list(pool.map(load_one, projects))
                 sections = []
                 loaded = []
                 errors = []
-                for project in projects:
-                    try:
-                        context = project_context(project["path"])
-                        sections.append((project["name"], context))
-                        loaded.append(project)
-                    except Exception as exc:
-                        errors.append(project["name"] + ": " + str(exc)[:250])
+                for project, context, error in results:
+                    if error is not None:
+                        errors.append(project["name"] + ": " + error)
+                        continue
+                    sections.append((project["name"], context))
+                    loaded.append(project)
                 if not loaded:
                     return self.send_json(400, {"error": "; ".join(errors) or "Could not load project context."})
                 return self.send_json(200, {

@@ -327,3 +327,10 @@ Latest implementation update: commit `895bc8c` adds an explicit per-response che
 - Mac authenticated `/run` smoke test passed in 0.18 seconds and printed `VibeBridge terminal relay OK`. Diagnostics confirmed the agent is running on 127.0.0.1:43127 and the updater LaunchAgent is loaded.
 - GitHub Validate VibeBridge and VibeBridge checks passed on ff5874a. The macOS installer workflow was still running at last check.
 - The source safety fix remains: context resolution does not mutate the visible ChatGPT composer. Chrome extension manifest version is 0.2.82. Installed Chrome behavior and full browser-to-Mac auto-loop are still not proven; next priority is a safe user-approved context attach flow and real browser-level verification, without silently rewriting drafts.
+
+## Latest handoff (2026-10-16, explicit context consent)
+
+- Replaced automatic composer mutation with an explicit choice after context resolution: the user can click **Attach context & send** or **Send without context**. If the draft changes while loading, VibeBridge refuses to overwrite it. The context buttons are removed immediately after a choice to prevent duplicate sends.
+- Added four DOM-simulation scenarios, including untouched draft/no-context send and opt-in context attachment. Mac runner on commit 47b5022 passed **78 Python tests**, **8 background bridge scenarios**, and **4 ChatGPT content-script scenarios**. `Validate VibeBridge`, `VibeBridge checks`, and Chrome extension packaging passed; macOS installer workflow was still running at last check.
+- Extension version: **0.2.84**. Mac diagnostics previously confirmed agent running at 127.0.0.1:43127 and updater loaded; authenticated `/run` smoke test passed.
+- Important: the DOM simulation is not a live Chrome end-to-end test. Verify the installed extension on the Mac before claiming the user-visible flow works. Continue preserving the user's draft and never silently inject context.

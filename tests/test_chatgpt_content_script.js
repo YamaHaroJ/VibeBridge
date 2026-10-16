@@ -178,7 +178,7 @@ async function runScenario(sendMessage, initialDraft = "Continue VibeBridge") {
       "PERSISTENT PROJECT MEMORY: old context",
       "---",
       "there\'s the user\'s actual request"
-    ].join("\\n\\n");
+    ].join("\n\n");
     const h = await runScenario(async message => {
       if (message.type === "VIBEBRIDGE_RESOLVE_CONTEXTS") return {matched:false, reason:"no-match"};
       throw new Error("Unexpected message " + message.type);

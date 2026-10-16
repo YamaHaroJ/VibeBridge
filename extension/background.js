@@ -3,6 +3,7 @@ const API = "http://127.0.0.1:43127";
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const supported = [
     "VIBEBRIDGE_RESOLVE_CONTEXT",
+    "VIBEBRIDGE_RESOLVE_CONTEXTS",
     "VIBEBRIDGE_REMEMBER",
     "VIBEBRIDGE_RUN_COMMAND",
     "VIBEBRIDGE_CREATE_REPOSITORY",
@@ -145,15 +146,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return {ok: true, ...data};
     }
 
-    const response = await fetch(API + "/context", {
+    const multiProject = message.type === "VIBEBRIDGE_RESOLVE_CONTEXTS";
+    const response = await fetch(API + (multiProject ? "/contexts" : "/context"), {
       method: "POST",
       headers: {"Authorization": "Bearer " + saved.token, "Content-Type": "application/json"},
-      body: JSON.stringify({message: message.text || "", active: message.activeProject || active})
+      body: JSON.stringify({
+        message: message.text || "",
+        active: message.activeProject || active,
+        projects: Array.isArray(message.projects) ? message.projects.slice(0, 8) : []
+      })
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Could not load project context");
     if (data.matched && data.project?.path) {
       await chrome.storage.local.set({activeProject: data.project.path, project: data.project.path});
+    } else if (data.matched && Array.isArray(data.projects) && data.projects.length) {
+      // Keep the first resolved project as the legacy active project for commands
+      // and older popup features; conversation context itself can contain many.
+      await chrome.storage.local.set({activeProject: data.projects[0].path, project: data.projects[0].path});
     }
     return data;
   })().then(sendResponse).catch(error => sendResponse({matched: false, ok: false, error: error.message}));

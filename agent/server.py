@@ -5,6 +5,7 @@ import os
 import platform
 import re
 import secrets
+import signal
 import subprocess
 import threading
 import time
@@ -397,7 +398,7 @@ def filesystem_listing(raw):
 def run_bounded_command(command, cwd, timeout=120, stdout_limit=20000, stderr_limit=8000):
     """Run a command while retaining only bounded tails of stdout and stderr."""
     process = subprocess.Popen(
-        command, cwd=str(cwd), stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        command, cwd=str(cwd), stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True
     )
     tails = {"stdout": bytearray(), "stderr": bytearray()}
     limits = {"stdout": max(0, int(stdout_limit)), "stderr": max(0, int(stderr_limit))}
@@ -424,10 +425,14 @@ def run_bounded_command(command, cwd, timeout=120, stdout_limit=20000, stderr_li
     try:
         exit_code = process.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
-        process.kill()
+        # Kill descendants too; otherwise inherited pipes can keep readers blocked.
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
         process.wait()
         for reader in readers:
-            reader.join()
+            reader.join(timeout=2)
         raise
     for reader in readers:
         reader.join()

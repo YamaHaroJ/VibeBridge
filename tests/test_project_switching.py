@@ -106,6 +106,33 @@ class ProjectSwitchTests(unittest.TestCase):
         self.assertEqual(projects[0]["path"], "github:YamaHaroJ/VibeBridge")
 
     @patch.object(server, "discover_projects", return_value=[])
+    @patch.object(server, "github_projects", return_value=[])
+    def test_resolve_project_set_includes_active_project_for_short_followup(self, _github, _local):
+        projects = server.resolve_project_set(
+            "keep building",
+            [],
+            "github:YamaHaroJ/VibeBridge",
+        )
+        self.assertEqual(len(projects), 1)
+        self.assertEqual(projects[0]["repository"], "YamaHaroJ/VibeBridge")
+
+    @patch.object(server, "discover_projects", return_value=[])
+    @patch.object(server, "github_projects", return_value=[
+        {"name": "VibeBridge", "nameWithOwner": "YamaHaroJ/VibeBridge", "localPath": None},
+        {"name": "Autofill-Insurance-Extension", "nameWithOwner": "YamaHaroJ/Autofill-Insurance-Extension", "localPath": None},
+    ])
+    def test_explicit_switch_does_not_keep_old_active_project(self, _github, _local):
+        projects = server.resolve_project_set(
+            "switch to Autofill Insurance Extension",
+            [],
+            "github:YamaHaroJ/VibeBridge",
+        )
+        self.assertEqual(
+            {project["repository"] for project in projects},
+            {"YamaHaroJ/Autofill-Insurance-Extension"},
+        )
+
+    @patch.object(server, "discover_projects", return_value=[])
     @patch.object(server, "github_projects")
     def test_resolve_project_set_preserves_known_project_and_adds_new_one(self, github_projects, _local):
         github_projects.return_value = [

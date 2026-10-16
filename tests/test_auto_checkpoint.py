@@ -47,6 +47,22 @@ class AutomaticCheckpointTests(unittest.TestCase):
         self.assertIn("owner/beta/contents/memory/AUTO_CHECKPOINT.md", " ".join(calls[5].args[0]))
 
 
+    def test_checkpoint_redaction_removes_common_tokens_and_passwords(self):
+        sample = (
+            "Bearer abcdefghijklmnop sk-proj-abcdefghijklmnopqrstuvwxyz "
+            "ghp_abcdefghijklmnopqrstuvwxyz123456 password=hunter2 "
+            "client_secret:supersecret"
+        )
+        cleaned = server.redact_checkpoint_text(sample)
+        self.assertNotIn("abcdefghijklmnop", cleaned)
+        self.assertNotIn("sk-proj-abcdefghijklmnopqrstuvwxyz", cleaned)
+        self.assertNotIn("ghp_abcdefghijklmnopqrstuvwxyz123456", cleaned)
+        self.assertNotIn("hunter2", cleaned)
+        self.assertNotIn("supersecret", cleaned)
+        self.assertIn("[REDACTED API KEY]", cleaned)
+
+
+
 class ExtensionFlowContractTests(unittest.TestCase):
     """Regression tests for the browser-to-checkpoint handoff contract.
 

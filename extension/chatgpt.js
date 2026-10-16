@@ -352,23 +352,8 @@
     }
   }
 
-  // Expose a small live diagnostic so the page proves the current content script loaded.
-  function ensureBridgeStatus() {
-    let status = document.getElementById("vibebridge-live-status");
-    if (!status) {
-      status = document.createElement("div");
-      status.id = "vibebridge-live-status";
-      status.style.cssText = "position:fixed;right:12px;bottom:12px;z-index:999998;padding:5px 8px;border-radius:6px;background:#172033;color:#fff;font:11px system-ui;opacity:.82";
-      document.documentElement.appendChild(status);
-    }
-    const nextText = "VibeBridge v" + extensionVersion + " · blocks " + scannedBlocks + " · commands " + detectedBlocks;
-    const nextTitle = "Loaded Chrome extension version: " + extensionVersion + ". Scanned code blocks: " + scannedBlocks + ". Recognized command blocks: " + detectedBlocks + ".";
-    // Avoid triggering our own subtree MutationObserver indefinitely. Reassigning
-    // textContent replaces child nodes even when the displayed string is unchanged.
-    if (status.textContent !== nextText) status.textContent = nextText;
-    if (status.title !== nextTitle) status.title = nextTitle;
-  }
-  ensureBridgeStatus();
+  // Keep diagnostics in memory/console only; never overlay the user's ChatGPT page.
+  function ensureBridgeStatus() {}
   addCommandControls(false);
 
   // ChatGPT streams many DOM mutations per token. Debounce scans so we do not
@@ -380,7 +365,6 @@
     if (scanRunning) { scanAgain = true; return; }
     scanRunning = true;
     try {
-      ensureBridgeStatus();
       addCommandControls(true);
       await saveAssistantCheckpoints();
     } finally {
@@ -405,7 +389,7 @@
       const node = mutation.target?.nodeType === Node.ELEMENT_NODE
         ? mutation.target
         : mutation.target?.parentElement;
-      return !node?.closest?.("#vibebridge-live-status, .vibebridge-injected-control");
+      return !node?.closest?.(".vibebridge-injected-control");
     });
     if (relevant) scheduleScan();
   });

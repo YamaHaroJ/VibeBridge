@@ -217,10 +217,6 @@
         }
         if (!payload) continue;
       }
-      processedBlocks.add(pre);
-      processedBlocks.add(target);
-      detectedBlocks++;
-
       if (hasShellLanguage && !hasCommandLanguage && !markedBlock) {
         payload = {command: ["bash", "-lc", rawBlock.replace(/^\s*```(?:bash|sh|zsh|shell)\s*/i, "").replace(/\s*```$/, "").trim()]};
       } else if (!payload) {
@@ -229,21 +225,25 @@
           jsonText = jsonText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
           payload = JSON.parse(jsonText);
         } catch {
-          const warning = document.createElement("div");
-          warning.textContent = "VibeBridge command block is not valid JSON.";
-          warning.style.cssText = "color:#b91c1c;font:12px system-ui;margin:6px 0";
-          target.after(warning);
+          // The assistant may still be streaming this block. Leave it unprocessed
+          // so the next DOM mutation can retry parsing the completed JSON.
           continue;
         }
       }
       if (!payload || !Array.isArray(payload.command) || !payload.command.length ||
           !payload.command.every(part => typeof part === "string")) {
+        processedBlocks.add(pre);
+        processedBlocks.add(target);
         const warning = document.createElement("div");
         warning.textContent = "VibeBridge command must contain a shell command or JSON command array.";
         warning.style.cssText = "color:#b91c1c;font:12px system-ui;margin:6px 0";
         pre.after(warning);
         continue;
       }
+
+      processedBlocks.add(pre);
+      processedBlocks.add(target);
+      detectedBlocks++;
 
       const panel = document.createElement("div");
       panel.className = "vibebridge-injected-control";

@@ -1371,7 +1371,13 @@ def run_remote_task(task):
             ["node", "--check", "extension/popup.js"],
         ]
     elif task == "test":
-        commands = [["python3", "-m", "unittest", "discover", "-s", "tests", "-v"]]
+        # Run the Python suite plus both executable JavaScript regression suites
+        # on the Mac runner, not just syntax checks in hosted CI.
+        commands = [
+            ["python3", "-m", "unittest", "discover", "-s", "tests", "-v"],
+            ["node", "tests/test_extension_bridge.js"],
+            ["node", "tests/test_chatgpt_content_script.js"],
+        ]
     elif task == "diagnostics":
         # Diagnostics is a fixed, allowlisted snapshot. Never dump general process
         # arguments or local logs into a GitHub issue.

@@ -194,6 +194,7 @@
       }
 
       const panel = document.createElement("div");
+      panel.className = "vibebridge-injected-control";
       panel.style.cssText = "margin:8px 0;padding:10px;border:1px solid #64748b;border-radius:8px;font:13px system-ui";
       const description = document.createElement("div");
       description.textContent = "VibeBridge can run this command in the active local project.";

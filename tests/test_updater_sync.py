@@ -1,12 +1,24 @@
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
+from agent import updater
 from agent.updater import sync_extension_tree
 
 
 class ExtensionTreeSyncTests(unittest.TestCase):
+
+    @patch("agent.updater.shutil.which", return_value=None)
+    @patch("agent.updater.run")
+    def test_validation_runs_full_regression_suite_before_deployment(self, run, _node):
+        updater.validate()
+        first_command, first_timeout = run.call_args_list[0].args
+        self.assertEqual(first_command[1:5], ["-m", "unittest", "discover", "-s"])
+        self.assertIn("tests", first_command)
+        self.assertEqual(first_timeout, 120)
+
     def test_sync_preserves_registered_root_and_publishes_new_files(self):
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)

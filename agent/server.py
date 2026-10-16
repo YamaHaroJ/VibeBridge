@@ -57,26 +57,36 @@ def discover_projects():
 
 
 def local_repo_map():
-    found = {}
-    for project in discover_projects():
+    projects = discover_projects()
+    if not projects:
+        return {}
+
+    def repo_remote(project):
         try:
             remote = subprocess.run(
                 ["git", "remote", "get-url", "origin"],
                 cwd=project["path"], capture_output=True, text=True, timeout=5
             )
-            if remote.returncode == 0:
-                url = remote.stdout.strip().removesuffix(".git")
-                if url.startswith("git@github.com:"):
-                    slug = url[len("git@github.com:"):]
-                elif "github.com/" in url:
-                    slug = url.split("github.com/", 1)[1]
-                else:
-                    slug = ""
-                if slug:
-                    found[slug.lower()] = project["path"]
-        except Exception:
-            pass
-    return found
+            if remote.returncode != 0:
+                return None
+            url = remote.stdout.strip().removesuffix(".git")
+            if url.startswith("git@github.com:"):
+                slug = url[len("git@github.com:"):]
+            elif "github.com/" in url:
+                slug = url.split("github.com/", 1)[1]
+            else:
+                return None
+            return (slug.lower(), project["path"]) if slug else None
+        except (OSError, subprocess.SubprocessError):
+            return None
+
+    # Repo probes are independent. Bound concurrency to keep repository discovery
+    # responsive without launching one worker per checkout.
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=min(8, len(projects)),
+                            thread_name_prefix="vibebridge-repo-map") as pool:
+        results = pool.map(repo_remote, projects)
+        return {slug: path for item in results if item for slug, path in [item]}
 
 
 _github_projects_cache = {"expires": 0.0, "value": None}

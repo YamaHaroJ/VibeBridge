@@ -11,6 +11,8 @@ const status = document.querySelector("#status");
 const statusText = document.querySelector("#status-text");
 const githubStatus = document.querySelector("#github-status");
 const githubStatusText = document.querySelector("#github-status-text");
+const browserStatus = document.querySelector("#browser-status");
+const browserStatusText = document.querySelector("#browser-status-text");
 const projectCopy = document.querySelector("#project-copy");
 const connect = document.querySelector("#connect");
 const consent = document.querySelector("#consent");
@@ -34,6 +36,22 @@ function renderEnabled(value) {
 function renderStatus(element, label, state, message) {
   element.dataset.state = state;
   label.textContent = message;
+}
+async function refreshBrowserStatus(token) {
+  try {
+    const local = await callAgent("/diagnostics/local", token);
+    const browser = local.browserExtension || {};
+    const seen = browser.lastSeen ? new Date(browser.lastSeen) : null;
+    const fresh = Boolean(browser.connected && seen && Date.now() - seen.getTime() < 120000);
+    if (fresh) {
+      renderStatus(browserStatus, browserStatusText, "ready", "ChatGPT tab connected · v" + browser.version + " · " + browser.host);
+    } else {
+      renderStatus(browserStatus, browserStatusText, "setup", "Waiting for ChatGPT tab heartbeat · source v" + (local.checkout?.extensionVersion || "unknown"));
+    }
+    browserStatus.title = seen ? "Last heartbeat: " + seen.toLocaleString() : "No heartbeat received yet";
+  } catch (error) {
+    renderStatus(browserStatus, browserStatusText, "setup", "ChatGPT heartbeat unavailable: " + error.message);
+  }
 }
 async function callAgent(path, token, timeoutMs = 8000) {
   const controller = new AbortController();
@@ -128,6 +146,7 @@ async function initialize() {
     // global active repository here: one conversation may discuss many projects.
     projectCopy.textContent = "Automatic detection · supports multiple projects per message";
     renderStatus(githubStatus, githubStatusText, "ready", "GitHub connection available for project detection");
+    refreshBrowserStatus(saved.token);
 
   } catch (error) {
     consent.classList.add("hidden");
@@ -173,6 +192,7 @@ async function loadUpdateLogs() {
       "Agent LaunchAgent: " + (local.agent?.loaded ? local.agent.state + (local.agent.pid ? " (PID " + local.agent.pid + ")" : "") : local.agent?.state || "unknown"),
       "Updater LaunchAgent: " + (local.updater?.loaded ? local.updater.state + (local.updater.pid ? " (PID " + local.updater.pid + ")" : "") : local.updater?.state || "unknown"),
       "Snapshot: " + (local.timestamp || "unknown"),
+      "ChatGPT extension heartbeat: " + (local.browserExtension?.connected ? "v" + local.browserExtension.version + " on " + local.browserExtension.host + " · " + (local.browserExtension.lastSeen || "unknown time") : "not received"),
       ""
     ];
     if (data.currentRevision) parts.push("Installed code: " + data.currentRevision);

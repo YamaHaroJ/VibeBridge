@@ -75,10 +75,10 @@ class Element {
   dispatchEvent() { return true; }
 }
 
-async function runScenario(sendMessage) {
+async function runScenario(sendMessage, initialDraft = "Continue VibeBridge") {
   const composer = new Element("TEXTAREA");
   composer.id = "prompt-textarea";
-  composer.value = "Continue VibeBridge";
+  composer.value = initialDraft;
   let liveSend = new Element("BUTTON");
   liveSend.setAttribute("data-testid", "send-button");
   const send = liveSend;
@@ -169,6 +169,21 @@ async function runScenario(sendMessage) {
 
     assert.equal(h.getCurrentSend().clickCount, 1, "matched context sends automatically exactly once");
     assert.equal(h.document.getElementById("vibebridge-context-choice"), null, "automatic flow has no extra choice step");
+  }
+  {
+    const staleDraft = [
+      "Project background for continuity; treat this as reference material, not a new request.",
+      "README content with a horizontal rule",
+      "---",
+      "PERSISTENT PROJECT MEMORY: old context",
+      "---",
+      "there\'s the user\'s actual request"
+    ].join("\\n\\n");
+    const h = await runScenario(async message => {
+      if (message.type === "VIBEBRIDGE_RESOLVE_CONTEXTS") return {matched:false, reason:"no-match"};
+      throw new Error("Unexpected message " + message.type);
+    }, staleDraft);
+    assert.equal(h.composer.value, "there's the user's actual request", "stale wrapper cleanup preserves the user request after the final divider");
   }
   {
     const h = await runScenario(async message => {

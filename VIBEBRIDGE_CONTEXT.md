@@ -466,3 +466,10 @@ Latest implementation update: commit `895bc8c` adds an explicit per-response che
 - `extension/manifest.json` is still version `0.2.96`. The screenshot's tab title is not proof of the loaded extension version; use the popup's own build stamp and live tab diagnostic.
 - **Not yet verified and not to be claimed complete:** tests on the actual Mac runner after the latest commits; local checkout HEAD/dirty status; installed extension directory revision; actual loaded ChatGPT content-script revision; end-to-end ordinary-send and hands-off command loop; updater repair/reload behavior; and cross-conversation automatic persistence. This chat's available GitHub connector exposes source/workflow read and repository-write operations, but no terminal or workflow-dispatch operation to execute commands on the user's Mac. The workflow's issue reporter explicitly delegates local runner tasks rather than executing them.
 - Exact next action when Mac execution is available: run the repository's `.github/workflows/mac-runner.yml` workflow with task `test`, then `diagnostics`; compare the runner's `git` revision and agent/updater logs with the GitHub HEAD above, reload the extension, and verify popup live-tab version before calling deployment fixed.
+
+
+## Persistent tracking issue — P0
+- Canonical issue: https://github.com/YamaHaroJ/VibeBridge/issues/302
+- Status: OPEN. First priority is restoring local Mac command access in every new ChatGPT thread, with a real read-only diagnostic round trip and Mac test execution as acceptance criteria.
+- This issue is the canonical tracking list for the eight priorities; update its checklist and this handoff together after verified progress.
+- This conversation created issue #302 on 2026-10-16. No Mac command was executed here; no live bridge availability or runtime success is claimed.

@@ -398,3 +398,22 @@ Latest implementation update: commit `895bc8c` adds an explicit per-response che
 - The opt-in label warns that checkpoints are saved to GitHub; users should check repository visibility before enabling. No raw transcript is requested. Server-side credential redaction remains enabled.
 - Tests now assert opt-in wiring and repository scoping. Mac runner: 81 Python tests passed, 8 bridge integration scenarios passed, and 4 content-script DOM scenarios passed. GitHub validation, VibeBridge checks, and Chrome extension packaging passed on commit `9f610b5dad75eff8a5c85b830f83259f8238d324`; macOS installer packaging was still running at last poll.
 - This is the first opt-in prototype, not a verified live-browser end-to-end test. Next: test the setting and checkpoint lifecycle in Chrome, add duplicate/idempotency protection for repeated memory blocks, and verify deployment reports the new extension version.
+
+
+## Verified handoff — 2026-10-16 23:xx UTC (composer-safety patch)
+
+- Source of truth checked directly on GitHub `master`, not the local Mac checkout. Repository default branch is `master`.
+- Before this patch, `extension/manifest.json` declared version `0.2.96`; the visible screenshot showed a tab title saying `VibeBridge 0.2.95 Ready` and a separate popup badge saying `VibeBridge v0.2.96 · blocks 0 · commands 0`. This indicates inconsistent UI/runtime version reporting; it does not prove which full content-script build was active in the tab.
+- Confirmed in source: `extension/chatgpt.js` had `sanitizeBridgeComposer` write a cleaned string into the visible composer, and invoked it from the mutation observer and startup path. This contradicted the requirement not to mutate drafts automatically.
+- Changed `extension/chatgpt.js` to make stale-composer sanitization a no-op and removed the observer/startup calls. The script no longer automatically rewrites a stale context wrapper out of the visible draft. This intentionally leaves any legacy wrapper for explicit user review rather than risking deletion of user text.
+- Updated `tests/test_chatgpt_content_script.js` so the stale-wrapper scenario asserts the original draft remains unchanged.
+- Commits pushed directly to `master`: source fix `894f11bd8f0a5f80a47e7f1fac4c520cf2a797ee`; regression test `70f54a4bf387cf0cedb1de69e6e65d4f824da19d`. These were two sequential commits; CI/test results have NOT yet been inspected after these commits. Do not claim tests pass until the workflow run confirms it.
+- Still outstanding after this patch:
+  1. Inspect and fix any remaining automatic composer writes, distinguishing explicit user-requested command-result insertion from project-context injection.
+  2. Run and verify GitHub Actions regression, validation, extension packaging, and macOS installer workflows on the new HEAD.
+  3. Verify the Mac runner's local checkout revision/dirty flag and installed manifest version against GitHub, then check actual Chrome tab content-script version. GitHub source state is not proof of local deployment.
+  4. Audit updater's actual behavior and logs; updater source currently has a five-second polling adjustment and atomically publishes extension files, but live deployment is unverified.
+  5. Inspect current live-send/no-match behavior in a real ChatGPT tab, with no banners or context-choice UI per the user's stated preference.
+  6. Continue automatic project recognition and hands-off Mac operation only after safety and deployment checks.
+  7. For every project, keep this handoff precise: last actual action/command, exact result, branch/commit/version, tests with evidence, known failures, and one next action. Never infer success from intended work or stale summaries.
+- Important feature gap from the existing history remains: automatic rolling summaries of every completed user/assistant turn are not implemented. Current code saves only explicit `vibebridge-memory` blocks when that flow is triggered. Do not represent the full automatic summary pipeline as complete.

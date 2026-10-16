@@ -21,8 +21,9 @@ class RemoteTaskTests(unittest.TestCase):
             })()
             ok, output = server.run_remote_task("validate")
         self.assertTrue(ok)
+        self.assertIn("python3 -m unittest", output)
         self.assertIn("python3 -m py_compile", output)
-        self.assertEqual(run.call_count, 6)
+        self.assertEqual(run.call_count, 7)
         for call in run.call_args_list:
             self.assertIsInstance(call.args[0], list)
             self.assertNotIn("shell", call.kwargs)

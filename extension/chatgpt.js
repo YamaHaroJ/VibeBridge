@@ -7,9 +7,13 @@
   if (!window.__vibeBridgePingInstalled) {
     window.__vibeBridgePingInstalled = true;
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-      if (message?.type === "VIBEBRIDGE_CONTENT_SCRIPT_PING") {
+      if (message?.type !== "VIBEBRIDGE_CONTENT_SCRIPT_PING") return;
+      chrome.runtime.sendMessage({type: "VIBEBRIDGE_BROWSER_HEARTBEAT"}).then(() => {
         sendResponse({alive: true, version: window.__vibeBridgeLoadedFileVersion || loadedFileVersion, coreVersion: window.__vibeBridgeInstalledVersion || "not-installed", host: location.hostname});
-      }
+      }).catch(() => {
+        sendResponse({alive: true, version: window.__vibeBridgeLoadedFileVersion || loadedFileVersion, coreVersion: window.__vibeBridgeInstalledVersion || "not-installed", host: location.hostname, heartbeatError: true});
+      });
+      return true;
     });
   }
   function reportHeartbeatFromThisFile() {

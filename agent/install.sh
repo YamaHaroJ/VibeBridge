@@ -51,6 +51,44 @@ exec "$PYTHON" "$ROOT/agent/native_host.py" 2>>"$SUPPORT/native-host-error.log"
 EOF_NATIVE_LAUNCHER
 chmod 700 "$NATIVE_HOST_LAUNCHER"
 
+# Stable updater bootstrap lives outside the checkout it repairs. It refreshes
+# the updater source over HTTPS, validates it, then atomically publishes it.
+BOOTSTRAP="$SUPPORT/updater-bootstrap.py"
+cat > "$BOOTSTRAP" <<'PY_BOOTSTRAP'
+import os, pathlib, py_compile, tempfile, time, urllib.request
+support = pathlib.Path.home() / "Library/Application Support/VibeBridge"
+target = support / "stable-updater.py"
+stamp = support / "stable-updater-fetch-time"
+url = "https://raw.githubusercontent.com/YamaHaroJ/VibeBridge/master/agent/updater.py"
+support.mkdir(parents=True, exist_ok=True)
+try:
+    last = float(stamp.read_text().strip())
+except (OSError, ValueError):
+    last = 0.0
+if not target.is_file() or time.time() - last >= 60:
+    request = urllib.request.Request(url, headers={"User-Agent": "VibeBridge-Updater"})
+    with urllib.request.urlopen(request, timeout=12) as response:
+        source = response.read(1_000_001)
+    if not source or len(source) > 1_000_000:
+        raise SystemExit("Updater bootstrap rejected empty or oversized source")
+    fd, temp_name = tempfile.mkstemp(prefix=".stable-updater-", dir=str(support))
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(source)
+            stream.flush()
+            os.fsync(stream.fileno())
+        py_compile.compile(temp_name, doraise=True)
+        os.replace(temp_name, target)
+        stamp.write_text(str(time.time()), encoding="utf-8")
+    finally:
+        try:
+            os.unlink(temp_name)
+        except FileNotFoundError:
+            pass
+os.execv(os.sys.executable, [os.sys.executable, str(target)])
+PY_BOOTSTRAP
+chmod 700 "$BOOTSTRAP"
+
 # Register the Native Messaging host for the pinned VibeBridge extension ID.
 mkdir -p "$NATIVE_HOST_DIR"
 "$PYTHON" - "$NATIVE_HOST_MANIFEST" "$NATIVE_HOST_LAUNCHER" "$EXTENSION_ID" <<'PY_HOST'
@@ -95,7 +133,7 @@ cat > "$UPDATER_PLIST" <<EOF_UPDATER
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>Label</key><string>com.vibebridge.updater</string>
-<key>ProgramArguments</key><array><string>$PYTHON</string><string>$ROOT/agent/updater.py</string></array>
+<key>ProgramArguments</key><array><string>$PYTHON</string><string>$SUPPORT/updater-bootstrap.py</string></array>
 <key>WorkingDirectory</key><string>$ROOT</string>
 <key>StartInterval</key><integer>5</integer><key>RunAtLoad</key><true/>
 <key>EnvironmentVariables</key><dict><key>PATH</key><string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>

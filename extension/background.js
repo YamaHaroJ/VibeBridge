@@ -1,5 +1,20 @@
 const API = "http://127.0.0.1:43127";
 
+async function fetchAgent(path, options = {}, timeoutMs = 20000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(API + path, {...options, signal: controller.signal});
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error("VibeBridge local agent timed out while handling " + path + ".");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const supported = [
     "VIBEBRIDGE_RESOLVE_CONTEXT",
@@ -24,7 +39,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const active = message.activeProject || saved.activeProject || saved.project || "";
 
     if (message.type === "VIBEBRIDGE_LOCAL_DIAGNOSTICS") {
-      const response = await fetch(API + "/diagnostics/local", {
+      const response = await fetchAgent("/diagnostics/local", {
         headers: {"Authorization": "Bearer " + saved.token}
       });
       const data = await response.json();
@@ -140,7 +155,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         method: "POST",
         headers: {"Authorization": "Bearer " + saved.token, "Content-Type": "application/json"},
         body: JSON.stringify({project: active, command})
-      });
+      }, 150000);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Local command failed");
       // HTTP 200 means the agent handled the request, not that the command succeeded.

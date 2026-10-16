@@ -122,7 +122,7 @@ def deploy_current_checkout(target):
     validate()
     launch_agent()
     SYNC_MARKER.parent.mkdir(parents=True, exist_ok=True)
-    SYNC_MARKER.write_text(target + "\\n", encoding="utf-8")
+    SYNC_MARKER.write_text(target + "\n", encoding="utf-8")
 
 
 def main():
@@ -177,10 +177,7 @@ def main():
         # run. Do not mark this revision deployed until validation and restart
         # both succeed; otherwise a transient launchctl failure strands updates.
         log("Checkout has target revision but deployment marker is stale; retrying validation and agent restart.")
-        validate()
-        launch_agent()
-        SYNC_MARKER.parent.mkdir(parents=True, exist_ok=True)
-        SYNC_MARKER.write_text(target + "\n", encoding="utf-8")
+        deploy_current_checkout(target)
         return
 
     if not status:

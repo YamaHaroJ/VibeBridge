@@ -337,7 +337,11 @@
         showNotice("VibeBridge did not attach project context. No matching project was found; your original message will still be sent. Try the exact repository name or owner/repository.");
       }
     } catch (error) {
-      showNotice("VibeBridge could not load project context: " + error.message + "\nYour original message will still be sent. Check the local agent and GitHub CLI connection in the extension popup.");
+      const message = String(error?.message || error || "Unknown error");
+      const invalidated = /extension context invalidated|context invalidated|extension context.*invalid/i.test(message);
+      showNotice(invalidated
+        ? "VibeBridge's Chrome extension context was invalidated. This usually happens after an extension update or reload. This page's content script cannot be revived from inside the invalidated context. Refresh this ChatGPT tab to load VibeBridge again, then resend your message. Your original message has not been context-enriched."
+        : "VibeBridge could not load project context: " + message + "\nYour original message will still be sent without project context. Check the local agent and GitHub CLI connection in the extension popup.");
     } finally {
       busy = false;
       button.disabled = false;

@@ -159,13 +159,13 @@ def remote_repo_context(slug):
     try:
         checkpoint = subprocess.run(
             ["gh", "api", f"repos/{slug}/contents/memory/AUTO_CHECKPOINT.md", "--jq", ".content"],
-            capture_output=True, text=True, timeout=15
+            capture_output=True, text=True, timeout=4
         )
         if checkpoint.returncode == 0 and checkpoint.stdout.strip():
             checkpoint_text = base64.b64decode("".join(checkpoint.stdout.split()), validate=True).decode("utf-8", errors="replace").strip()
             if checkpoint_text:
                 parts.append("ROLLING CONVERSATION CHECKPOINTS (GitHub):\n" + checkpoint_text[:5000])
-    except (subprocess.TimeoutExpired, ValueError, base64.binascii.Error):
+    except (OSError, subprocess.TimeoutExpired, ValueError, base64.binascii.Error):
         pass
     if errors:
         parts.append("REMOTE CONTEXT WARNINGS: " + "; ".join(errors))

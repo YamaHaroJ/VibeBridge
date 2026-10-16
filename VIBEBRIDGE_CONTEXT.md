@@ -24,12 +24,10 @@
 
 ## Current session handoff — 2026-10-16
 
-- Latest remote HEAD: `046142f12a1261fafe9d66d4be9245c67b578746`. Manifest version `0.2.98`.
-- Actual Mac task `test` PASS: 87 Python tests, 8 background bridge scenarios, 5 content-script scenarios; all exit 0. Repeated after the diagnostics update, same result.
-- Actual Mac task `terminal-smoke` PASS: authenticated local `/run` returned `VibeBridge terminal relay OK`.
-- Actual Mac task `validate` PASS: Python compilation, manifest JSON, installer shell syntax, and JavaScript syntax checks all exit 0.
-- Live diagnostics at `c62f872`: agent loaded/running on port 43127, clean checkout, extension manifest `0.2.98`; at the later snapshot, browser heartbeat was disconnected with zero active ChatGPT tabs. This may mean ChatGPT was closed or its heartbeat stale; recheck with an active ChatGPT tab.
-- Updater LaunchAgent reports loaded but idle/not running. This is not alone proof of failure for a `StartInterval` job. Added safe updater schedule and last-status metadata to diagnostics in `b285a1a`; added regression assertion in `046142f`. The Mac diagnostic task ran before those newest changes had reached the local checkout, so the new fields still need verification after updater sync.
-- CI: `VibeBridge checks` passed at `b285a1a`; CI for `046142f` is running. Recheck before claiming final green.
-- Next: verify updater plist schedule/log fields after local sync; with ChatGPT open, re-probe browser heartbeat. Continue issue #302 until a fresh thread can autonomously discover and use the local bridge.
+- Latest remote HEAD: `257c1e62a0cf220aa5c6aa048462d6ce3b5efb43`. Manifest version remains `0.2.98`.
+- Confirmed Mac runner results from local `~/VibeBridge`: `test` PASS (87 Python tests, 8 bridge integration scenarios, 5 content-script scenarios; all exit 0); `terminal-smoke` PASS (authenticated `/run` returned `VibeBridge terminal relay OK`); `validate` PASS (Python compile, manifest JSON, shell syntax, JavaScript syntax).
+- Live Mac diagnostics at revision `c62f872`: agent running on port 43127, clean checkout, updater running, extension `0.2.98`, active ChatGPT heartbeat connected. Later snapshot reported no active tab; latest task is rechecking after updater diagnostics changes.
+- Added safe updater schedule/status fields to local diagnostics (`b285a1a`). CI caught a stale test fixture; fixed it in `257c1e6`. Do not claim CI green until the newest checks and Mac task report complete.
+- For fresh-thread continuity, this file is the handoff source; issue #302 contains acceptance criteria. New thread should first read current diagnostics and the latest handoff, not trust this snapshot as live state.
+- Next: verify latest CI + Mac tests; rerun diagnostics after local updater sync to confirm schedule/log fields and ChatGPT heartbeat; continue issue #302's fresh-thread authenticated command/result loop and close remaining acceptance criteria only with evidence.
 

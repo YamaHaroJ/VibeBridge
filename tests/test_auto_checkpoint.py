@@ -46,7 +46,7 @@ class ExtensionFlowContractTests(unittest.TestCase):
 
     These tests inspect the shipped content script and background bridge so the
     test suite fails if the key message types or persistence steps are removed.
-    Full DOM behavior is covered by the browser mock in test_extension_flow.js.
+    These are source-contract tests, not a full browser DOM simulation.
     """
 
     @classmethod

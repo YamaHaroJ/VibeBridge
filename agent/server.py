@@ -739,19 +739,22 @@ def resolve_project_set(message, known_projects=None, active=""):
         if full_match or name_match or alias_match:
             explicit_mentions.append({"name": name, "path": "github:" + full, "repository": full, "remote": True})
 
-    if explicit_mentions:
-        # The current message is the source of truth whenever it names projects.
-        # Do not silently mix in stale projects from earlier turns.
+    if switch_intent:
+        # A switch starts a clean project scope and never carries stale context.
         for project in explicit_mentions:
             add(project)
-    elif switch_intent:
-        # An unresolved explicit switch must not fall back to old context.
-        return []
+        if not explicit_mentions:
+            return []
     else:
+        # Preserve conversation continuity while adding all projects named now.
+        # When this message explicitly names a project, omit the global active
+        # project unless it was already part of this conversation's known set.
         for value in known[:8]:
             add(value if isinstance(value, dict) else {"path": value})
-        if not resolved and active:
+        if not explicit_mentions and not resolved and active:
             add({"path": active})
+        for project in explicit_mentions:
+            add(project)
 
     local_projects = discover_projects()
     for item in local_projects:

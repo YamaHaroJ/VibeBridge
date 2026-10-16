@@ -432,7 +432,7 @@ def project_context(project):
                     shared_text = base64.b64decode("".join(shared.stdout.split()), validate=True).decode("utf-8", errors="replace").strip()
                     if shared_text:
                         checkpoint = shared_text
-    except (OSError, subprocess.TimeoutExpired, ValueError, base64.binascii.Error):
+    except Exception:
         pass
     if checkpoint:
         parts.append("LATEST CROSS-CONVERSATION HANDOFFS AND LIVING TODOS:\n" + checkpoint)

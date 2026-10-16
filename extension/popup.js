@@ -63,6 +63,9 @@ async function refreshBrowserStatus(token) {
     const seen = browser.lastSeen ? new Date(browser.lastSeen) : null;
     const fresh = Boolean(browser.connected && seen && Date.now() - seen.getTime() < 120000);
     browserStatusText.textContent += fresh ? " · agent heartbeat recent" : " · agent heartbeat pending";
+    if (Number.isInteger(browser.activeTabCount)) {
+      browserStatusText.textContent += " · per-tab heartbeats: " + browser.activeTabCount;
+    }
   } catch (error) {
     renderStatus(browserStatus, browserStatusText, "setup", "ChatGPT tab probe failed: " + error.message);
   }

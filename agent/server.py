@@ -587,6 +587,17 @@ def resolve_project_set(message, known_projects=None, active=""):
     for value in known[:8]:
         add(value if isinstance(value, dict) else {"path": value})
 
+    # Short follow-ups (e.g. "keep building") rarely name a repository. When
+    # there is no explicit switch request, include the saved active project even
+    # if conversationProjects is empty or stale. Explicit switches still resolve
+    # their requested target without accidentally carrying the old project in.
+    switch_intent = bool(re.search(
+        r"\\b(?:switch|change|move)\\s+(?:the\\s+)?(?:project|repo|repository)?\\s*(?:to|over\\s+to)\\b|\\bopen\\s+(?:the\\s+)?(?:repo|repository)\\b",
+        text
+    ))
+    if active and not switch_intent:
+        add({"path": active})
+
     local_projects = discover_projects()
     for item in local_projects:
         name = str(item.get("name", "")).lower()

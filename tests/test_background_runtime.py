@@ -62,6 +62,14 @@ function send(message) {
   storage = {token: 'test-token', activeProject: '/tmp/project'};
   const invalid = await send({type: 'VIBEBRIDGE_RUN_COMMAND', command: 'git status'});
   if (invalid.ok !== false || !invalid.error.includes('Invalid command')) throw Error('invalid command not rejected');
+
+  context.fetch = async () => ({ok: false, async json() { return {error: 'agent rejected request'}; }});
+  const httpFailure = await send({type: 'VIBEBRIDGE_RUN_COMMAND', command: ['git', 'status']});
+  if (httpFailure.ok !== false || !httpFailure.error.includes('agent rejected request')) throw Error('HTTP error not surfaced');
+
+  let ignoredResponse = false;
+  const ignored = listener({type: 'UNSUPPORTED_MESSAGE'}, {}, () => { ignoredResponse = true; });
+  if (ignored !== undefined || ignoredResponse) throw Error('unsupported message should be ignored');
   process.stdout.write('background command bridge runtime tests PASS');
 })().catch(error => { console.error(error); process.exitCode = 1; });
 """

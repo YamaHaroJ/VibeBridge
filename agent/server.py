@@ -11,7 +11,7 @@ import threading
 import time
 import tempfile
 from datetime import datetime, timezone
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
@@ -1251,7 +1251,7 @@ def main():
     configure_fast_updates()
     print("VibeBridge listening on http://127.0.0.1:%d" % PORT)
     threading.Thread(target=remote_task_worker, name="vibebridge-remote-tasks", daemon=True).start()
-    HTTPServer((HOST, PORT), Handler).serve_forever()
+    ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
 
 
 if __name__ == "__main__":

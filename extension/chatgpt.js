@@ -283,8 +283,11 @@
         }
       };
       run.addEventListener("click", () => executeCommand(false));
+      // Automatic execution must require an explicit VibeBridge command marker.
+      // Generic JSON and ordinary shell code blocks are manual-only, even in hands-off mode.
+      const explicitlyMarkedCommand = hasCommandLanguage || markedBlock;
       chrome.storage.local.get(["autoRunCommands"], settings => {
-        if (allowAutoRun && allowAutomaticExecution && settings.autoRunCommands === true) {
+        if (allowAutoRun && explicitlyMarkedCommand && allowAutomaticExecution && settings.autoRunCommands === true) {
           description.textContent = "Hands-off mode is enabled: this command will run automatically on your Mac, then its result will be sent back to ChatGPT.";
           run.textContent = "Run automatically";
           executeCommand(true);

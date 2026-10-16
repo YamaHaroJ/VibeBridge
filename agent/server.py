@@ -392,6 +392,15 @@ def read_text(path, limit=9000):
         return ""
 
 
+def safe_git_output(args, cwd, timeout=5):
+    """Return optional Git metadata without letting a slow/broken Git block context."""
+    try:
+        result = subprocess.run(args, cwd=str(cwd), capture_output=True, text=True, timeout=timeout)
+        return result.stdout.strip() if result.returncode == 0 else ""
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+
+
 def project_context(project):
     if str(project).startswith("github:"):
         # A selected remote repository is already an explicit owner/repo slug.
@@ -406,18 +415,17 @@ def project_context(project):
         return remote_repo_context(slug)
     p = project_path(project)
     parts = [f"PROJECT: {p.name}", f"LOCAL PATH: {p}"]
-    remote = subprocess.run(["git", "remote", "get-url", "origin"], cwd=str(p), capture_output=True, text=True, timeout=5)
-    if remote.returncode == 0 and remote.stdout.strip():
-        parts.append("GITHUB REMOTE: " + remote.stdout.strip())
-    branch = subprocess.run(["git", "branch", "--show-current"], cwd=str(p), capture_output=True, text=True, timeout=5)
-    if branch.returncode == 0:
-        parts.append("BRANCH: " + branch.stdout.strip())
-    status = subprocess.run(["git", "status", "--short"], cwd=str(p), capture_output=True, text=True, timeout=5)
-    if status.returncode == 0:
-        parts.append("WORKING TREE: " + (status.stdout.strip() or "clean"))
-    commit = subprocess.run(["git", "log", "-1", "--oneline"], cwd=str(p), capture_output=True, text=True, timeout=5)
-    if commit.returncode == 0 and commit.stdout.strip():
-        parts.append("LATEST COMMIT: " + commit.stdout.strip())
+    remote = safe_git_output(["git", "remote", "get-url", "origin"], p)
+    if remote:
+        parts.append("GITHUB REMOTE: " + remote)
+    branch = safe_git_output(["git", "branch", "--show-current"], p)
+    if branch:
+        parts.append("BRANCH: " + branch)
+    status = safe_git_output(["git", "status", "--short"], p)
+    parts.append("WORKING TREE: " + (status or "clean"))
+    commit = safe_git_output(["git", "log", "-1", "--oneline"], p)
+    if commit:
+        parts.append("LATEST COMMIT: " + commit)
     readme = read_text(p / "README.md", 6500)
     if readme:
         parts.append("README SUMMARY SOURCE (README text):\n" + readme)

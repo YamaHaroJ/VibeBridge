@@ -519,34 +519,10 @@
         }
         conversationProjects[conversation] = merged.slice(-8);
         await chrome.storage.local.set({conversationProjects});
-        const projectNames = resolvedProjects.map(project => project.name).filter(Boolean);
-        // Automatically attach detected project context in the same send. Keep the
-        // actual user message verbatim at the end, with no wrapper or USER REQUEST label.
-        const composer = composerFor(button);
-        if (!composer || readComposer(composer).trim() !== original) {
-          shouldResumeSend = false;
-          showNotice("Draft changed while project context was resolving; left it untouched.");
-          return;
-        }
-        const savedPreferences = await chrome.storage.local.get(["autoMemoryCheckpoints"]);
-        const memoryDirective = savedPreferences.autoMemoryCheckpoints
-          ? "\\n\\nWhen useful, append a compact fenced vibebridge-memory JSON checkpoint to your answer for automatic saving. Include only durable project summary, handoff, todos, and decisions; no secrets or raw transcript. Omit it if there is no meaningful project change.\\n"
-          : "";
-        const addition = "Project background for continuity; treat this as reference material, not a new request.\\n\\n" +
-          result.context + memoryDirective + "\\n\\n---\\n\\n";
-        composer.dataset.vibebridgeContextInjection = "true";
-        writeComposer(composer, addition + original);
-        shouldResumeSend = false;
-        if (!clickCurrentSendButton()) {
-          writeComposer(composer, original);
-          delete composer.dataset.vibebridgeContextInjection;
-          return;
-        }
-        setTimeout(() => {
-          if (!composer.dataset) return;
-          delete composer.dataset.vibebridgeContextInjection;
-          sanitizeBridgeComposer(composer);
-        }, 1800);
+        // Context is stored for subsequent resolution, but MUST NOT be written
+        // into ChatGPT's visible editor. That mutation is the recurring context
+        // leak: React remounts can retain the injected text after our cleanup.
+        // Send the user's original request unchanged instead.
       } else if (result?.ambiguous) {
         showNotice("VibeBridge found multiple possible projects. Mention the exact project name.");
       } else if (result?.error) {

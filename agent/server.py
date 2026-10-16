@@ -988,8 +988,12 @@ class Handler(BaseHTTPRequestHandler):
                 log_file.parent.mkdir(parents=True, exist_ok=True)
                 with log_file.open("a", encoding="utf-8") as handle:
                     handle.write("\n[" + __import__("datetime").datetime.now().isoformat(timespec="seconds") + "] Update requested from extension.\n")
+                force_managed = body.get("forceManaged") is True
+                command = [__import__("sys").executable, str(script)]
+                if force_managed:
+                    command.append("--force-managed")
                 subprocess.Popen(
-                    [__import__("sys").executable, str(script)],
+                    command,
                     cwd=str(ROOTS[2]),
                     stdin=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL,

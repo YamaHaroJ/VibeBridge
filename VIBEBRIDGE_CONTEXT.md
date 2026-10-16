@@ -1,5 +1,19 @@
 # VibeBridge Project Memory
 
+## Non-negotiable core product objective — read first
+
+VibeBridge exists to remove the user from the command/output relay loop. ChatGPT should be able to make changes on the user's Mac, run commands and tests, receive stdout/stderr/exit codes automatically, diagnose failures, apply fixes, and rerun verification without asking the user to copy/paste Terminal commands, manually relay terminal output, or send screenshots. This is the product's central purpose, not an optional convenience feature.
+
+Acceptance criteria for every development workflow:
+1. ChatGPT can request a local operation through VibeBridge without the user typing a command.
+2. VibeBridge executes it on the selected, allowed local project and returns complete bounded output plus exit status directly into the active ChatGPT conversation.
+3. ChatGPT can use that result to decide the next operation and repeat the run/fix/test loop without the user manually forwarding results.
+4. Concurrent independent tasks can run in parallel where safe, while resource-heavy work is bounded by CPU-aware scheduling.
+5. The user is told to reload Chrome or approve an OS/browser permission only when that action genuinely cannot be automated; never present manual Terminal work or screenshot relay as the normal workflow.
+6. Report a capability as working only after an end-to-end test proves the ChatGPT page → extension → local Mac agent → command execution → result returned to ChatGPT loop. Unit tests or a GitHub commit alone do not prove this.
+
+Security constraints remain: authenticated loopback-only agent, allowed project roots, explicit setup consent, bounded timeouts/output, and safe handling of destructive commands. Do not weaken these safeguards to achieve hands-off operation. The target is an autonomous development loop within the user's authorized environment, not an unrestricted network-accessible shell.
+
 ## Mission
 VibeBridge is a local-first Mac agent plus Chrome extension that carries relevant project context into ChatGPT development prompts. The goal is to let the user continue working naturally across new ChatGPT conversations without repeatedly explaining the repository, current state, decisions, or next steps.
 

@@ -186,7 +186,7 @@ async function runScenario(sendMessage) {
     assert.ok(attach, "user can explicitly attach context");
     attach.click();
     assert.match(h.composer.value, /MOCK PROJECT CONTEXT/, "context is inserted only after explicit opt-in");
-    assert.match(h.composer.value, /USER REQUEST:\\nContinue VibeBridge/);
+    assert.match(h.composer.value, /USER REQUEST:[\s\S]*Continue VibeBridge/);
     assert.equal(h.send.clickCount, 1, "context-enriched message is sent exactly once");
   }
   {

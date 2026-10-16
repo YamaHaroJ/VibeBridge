@@ -54,12 +54,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "VIBEBRIDGE_PROBE_CHATGPT_TABS") {
     chrome.tabs.query({url: ["https://chatgpt.com/*", "https://chat.openai.com/*"]}, async tabs => {
       const results = await Promise.all(tabs.map(async tab => {
-        try {
-          const reply = await chrome.tabs.sendMessage(tab.id, {type: "VIBEBRIDGE_CONTENT_SCRIPT_PING"});
-          return {host: new URL(tab.url).hostname, contentScript: reply?.alive === true, version: reply?.version || null};
-        } catch (_) {
-          return {host: new URL(tab.url).hostname, contentScript: false, version: null};
+        const ping = async () => {
+          try { return await chrome.tabs.sendMessage(tab.id, {type: "VIBEBRIDGE_CONTENT_SCRIPT_PING"}); }
+          catch (_) { return null; }
+        };
+        let reply = await ping();
+        let recovered = false;
+        if (!reply?.alive) {
+          try {
+            await chrome.scripting.executeScript({target: {tabId: tab.id}, files: ["chatgpt.js"]});
+            recovered = true;
+            reply = await ping();
+          } catch (_) {
+            // Restricted pages, tab navigations, or Chrome policy can block injection.
+          }
         }
+        return {host: new URL(tab.url).hostname, contentScript: reply?.alive === true, version: reply?.version || null, recovered};
       }));
       sendResponse({tabs: results, extensionVersion: chrome.runtime.getManifest().version});
     });

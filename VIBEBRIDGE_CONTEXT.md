@@ -32,3 +32,11 @@
 - Issue #302 remains OPEN. Local command round trip and Mac test are verified, but the exact fresh-thread continuity acceptance and current-version live Chrome verification remain incomplete. New conversation should read this file, check live diagnostics rather than trust this summary, run `terminal-smoke`/tests via the existing task bridge, and compare remote/local HEAD before continuing.
 - Next action: bootstrap-reload extension once; then verify 0.2.99 live heartbeat, verify auto-reload on a later version bump, and run the new-thread continuity acceptance test.
 
+
+## Latest verification — 2026-10-16 23:50 UTC
+
+- Remote master HEAD: `513aa6c1aac4a78cc3c89a0632a0c129865b6d5c`; manifest `0.2.99`. GitHub workflows `VibeBridge checks`, `Validate VibeBridge`, `macOS installer package`, and fast task reporter passed on this SHA.
+- Mac runner task `test` completed PASS in 3.87s on issue #330: `python3 -m unittest discover -s tests -v` — 90 tests, exit 0; `node tests/test_extension_bridge.js` — 8 scenarios, exit 0; `node tests/test_chatgpt_content_script.js` — 5 scenarios, exit 0. Runner reports checkout `513aa6c1` and manifest `0.2.99`. This is fresh test-task evidence, not fresh live Chrome-version evidence.
+- Requested new Mac diagnostics on issue #331; result has not arrived at handoff update time.
+- Still not complete: current live loaded version/heartbeat, real Chrome command-result loop in a newly opened ChatGPT thread, and automatic reload after a subsequent version bump. Do not close issue #302 until those acceptance checks pass.
+- Next action: retrieve issue #331 diagnostics; if live extension remains old, bootstrap-reload once in `chrome://extensions`, then verify loaded version `0.2.99` and run fresh-thread command/result acceptance.

@@ -226,3 +226,8 @@ Important setup distinction: ChatGPT's GitHub connector is optional for VibeBrid
 - Mac runner confirmed **52 tests passing** on the latest test run (issue #113). The intermediate run in issue #112 failed due to a duplicated mock decorator, which was fixed before #113.
 - Next: continue hardening context resolution and checkpointing; do not claim local installation/runtime state beyond what the Mac task runner verifies. Avoid extension edits unless necessary; if any extension file changes, bump manifest version first.
 
+## Context resilience update (2026-10-16)
+- Commit `7eb72c1` adds `safe_git_output()` so optional local Git metadata commands that fail, are unavailable, or time out no longer abort project context assembly. Context still includes README and project memory.
+- Commit `6036b92` adds a regression test for a Git metadata timeout. Mac runner test request #114 is pending.
+- Latest confirmed Mac runner result before this change: 52 tests passed on issue #113. Do not assume #114 passed until its result arrives.
+

@@ -47,7 +47,22 @@ class Element {
     };
     return find(this);
   }
-  querySelectorAll() { return []; }
+  querySelectorAll(selector) {
+    const found = [];
+    const matches = node => {
+      if (selector === "pre" || selector === "code") return node.tagName === selector.toUpperCase();
+      const attr = selector.match(/^\[([^=]+)="([^"]+)"\]$/);
+      return !!attr && node.getAttribute(attr[1]) === attr[2];
+    };
+    const visit = node => {
+      for (const child of node.children) {
+        if (matches(child)) found.push(child);
+        visit(child);
+      }
+    };
+    visit(this);
+    return found;
+  }
   after(item) { item.parentElement = this.parentElement; if (this.parentElement) this.parentElement.appendChild(item); }
   focus() {}
   select() {}
@@ -58,7 +73,7 @@ class Element {
   dispatchEvent() { return true; }
 }
 
-async function runScenario(sendMessage) {
+async function runScenario(sendMessage, includeMemory = false) {
   const composer = new Element("TEXTAREA");
   composer.id = "prompt-textarea";
   composer.value = "Continue VibeBridge";
@@ -67,6 +82,18 @@ async function runScenario(sendMessage) {
   const body = new Element("BODY");
   const root = new Element("HTML");
   root.appendChild(body);
+  let memoryPre = null;
+  if (includeMemory) {
+    const assistant = new Element("ARTICLE");
+    assistant.setAttribute("data-message-author-role", "assistant");
+    memoryPre = new Element("PRE");
+    const code = new Element("CODE");
+    code.className = "language-vibebridge-memory";
+    code.textContent = JSON.stringify({projects:[{repository:"YamaHaroJ/VibeBridge",handoff:"test checkpoint"}]});
+    memoryPre.appendChild(code);
+    assistant.appendChild(memoryPre);
+    body.appendChild(assistant);
+  }
   const docListeners = {};
   const notices = [];
   const document = {
@@ -92,7 +119,7 @@ async function runScenario(sendMessage) {
       if (selector === "form") return null;
       return null;
     },
-    querySelectorAll() { return []; },
+    querySelectorAll(selector) { return root.querySelectorAll(selector); },
     execCommand() { return true; },
     createRange() { return {selectNodeContents(){}, deleteContents(){}, insertNode(){}, setStartAfter(){}, collapse(){}}; }
   };
@@ -110,7 +137,8 @@ async function runScenario(sendMessage) {
     }},
     storage: {local:storage, onChanged:{addListener(){}}}
   };
-  class MutationObserver { constructor(fn) { this.fn = fn; } observe() {} disconnect() {} }
+  const observers = [];
+  class MutationObserver { constructor(fn) { this.fn = fn; observers.push(this); } observe() {} disconnect() {} }
   const context = {
     window:{__vibeBridgeInstalled:false, getSelection:()=>({removeAllRanges(){},addRange(){}})},
     document, location:{pathname:"/c/test-conversation",reload(){}},
@@ -135,7 +163,7 @@ async function runScenario(sendMessage) {
   const pending = handler(event);
   await pending;
   await new Promise(resolve => setTimeout(resolve, 0));
-  return {composer, send, notices, event, body, document};
+  return {composer, send, notices, event, body, document, memoryPre, observers};
 }
 
 (async () => {
@@ -166,5 +194,19 @@ async function runScenario(sendMessage) {
     const notice = h.document.getElementById("vibebridge-notice-message");
     assert.match(notice.textContent, /original message will still be sent/i);
   }
-  console.log("ChatGPT content-script DOM simulation: 3 scenarios passed");
+  {
+    const h = await runScenario(async message => {
+      if (message.type === "VIBEBRIDGE_RESOLVE_CONTEXTS") return {matched:false};
+      if (message.type === "VIBEBRIDGE_CHECKPOINT_MESSAGE") return {saved:true};
+      throw new Error("Unexpected message " + message.type);
+    }, true);
+    h.observers[0].fn([{target:h.body,nodeType:1}]);
+    await new Promise(resolve => setTimeout(resolve, 250));
+    assert.equal(h.memoryPre.style.display, "none", "assistant memory block is hidden");
+    const checkpoint = h.notices.find(m => m.type === "VIBEBRIDGE_CHECKPOINT_MESSAGE");
+    assert.ok(checkpoint, "checkpoint is forwarded to the background worker");
+    assert.equal(checkpoint.payload.conversation, "test-conversation");
+    assert.match(h.document.getElementById("vibebridge-notice-message").textContent, /checkpoint saved/i);
+  }
+  console.log("ChatGPT content-script DOM simulation: 4 scenarios passed");
 })().catch(error => { console.error(error); process.exitCode = 1; });

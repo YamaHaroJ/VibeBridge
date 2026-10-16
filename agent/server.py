@@ -163,15 +163,29 @@ def remote_repo_context(slug):
     import base64
     loaded = []
     errors = []
-    for filename in ("README.md", "VIBEBRIDGE_CONTEXT.md"):
+
+    def fetch_file(filename):
         try:
             result = subprocess.run(
                 ["gh", "api", f"repos/{slug}/contents/{filename}", "--jq", ".content"],
                 capture_output=True, text=True, timeout=20
             )
-        except FileNotFoundError:
+            return filename, result, None
+        except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+            return filename, None, exc
+
+    # These independent GitHub reads run concurrently; total wait is bounded by
+    # the slowest request instead of the sum of both request times.
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix="vibebridge-remote-context") as pool:
+        futures = [pool.submit(fetch_file, filename)
+                   for filename in ("README.md", "VIBEBRIDGE_CONTEXT.md")]
+        results = [future.result() for future in futures]
+
+    for filename, result, error in results:
+        if isinstance(error, FileNotFoundError):
             raise RuntimeError("GitHub CLI (gh) is not installed, so remote project context cannot be loaded.")
-        except subprocess.TimeoutExpired:
+        if isinstance(error, subprocess.TimeoutExpired):
             errors.append(f"{filename}: GitHub request timed out")
             continue
         if result.returncode != 0:
@@ -209,7 +223,6 @@ def remote_repo_context(slug):
     if errors:
         parts.append("REMOTE CONTEXT WARNINGS: " + "; ".join(errors))
     return "\n\n".join(parts)[:18000]
-
 def format_project_context_sections(sections):
     """Join named project contexts with real line breaks."""
     return "\n\n".join(

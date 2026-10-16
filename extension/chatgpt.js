@@ -70,7 +70,8 @@
   // stale ChatGPT tab leaves it in the editable composer. Preserve only the real
   // user request; never send a repository context dump as user-authored text.
   function sanitizeBridgeComposer(el) {
-    if (!el || el.dataset?.vibebridgeSanitizing === "true") return false;
+    if (!el || el.dataset?.vibebridgeSanitizing === "true" ||
+        el.dataset?.vibebridgeContextInjection === "true") return false;
     const current = readComposer(el);
     if (!/VIBEBRIDGE PROJECT CONTEXT|VIBEBRIDGE PROJECT CONTINUITY|PERSISTENT PROJECT MEMORY|END VIBEBRIDGE PROJECT CONTEXT|VIBEBRIDGE MEMORY CHECKPOINT REQUIREMENT/i.test(current)) return false;
     const marker = /USER REQUEST:\s*/i;
@@ -522,7 +523,21 @@
         // project context to the editable ChatGPT box; React/UI state could retain
         // or resurface that wrapper, leaking context into later messages.
         // Fail closed until context can be attached without mutating user-authored text.
-        showNotice("Project context was found, but automatic injection is paused to protect your message from being modified. Your original text was left unchanged.");
+        const composer = composerFor(button);
+        if (!composer) {
+          showNotice("Project context loaded, but ChatGPT's prompt field was not found. Sending your original message unchanged.");
+        } else {
+          // Keep the one-send context wrapper intact until ChatGPT consumes it.
+          // If sending fails and the wrapper remains, remove it after a short grace period.
+          composer.dataset.vibebridgeContextInjection = "true";
+          writeComposer(composer, addition + original);
+          showNotice("Project context attached for this message.");
+          setTimeout(() => {
+            if (!composer.dataset) return;
+            delete composer.dataset.vibebridgeContextInjection;
+            sanitizeBridgeComposer(composer);
+          }, 1800);
+        }
       } else if (result?.ambiguous) {
         showNotice("VibeBridge found multiple possible projects. Mention the exact project name.");
       } else if (result?.error) {

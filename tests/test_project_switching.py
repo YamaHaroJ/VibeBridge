@@ -170,6 +170,10 @@ class ProjectSwitchTests(unittest.TestCase):
         self.assertEqual(context, "PROJECT: VibeBridge\\nREMOTE MEMORY")
         remote_context.assert_called_once_with("YamaHaroJ/VibeBridge")
 
+    @patch.object(server.subprocess, "run", side_effect=server.subprocess.TimeoutExpired(cmd="git", timeout=5))
+    def test_safe_git_metadata_timeout_returns_empty_value(self, _run):
+        self.assertEqual(server.safe_git_output(["git", "status", "--short"], Path("/tmp")), "")
+
     def test_multiple_project_contexts_use_real_line_breaks(self):
         context = server.format_project_context_sections([
             ("VibeBridge", "first project memory"),

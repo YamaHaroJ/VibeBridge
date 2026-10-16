@@ -74,6 +74,15 @@ jobs:
             echo "The Mac agent must report separately for machine-specific diagnostics."
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Record tested revision and extension version
+        id: build
+        if: always()
+        shell: bash
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          version=$(grep -m1 '"version"' extension/manifest.json | sed -E 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Post result to the issue
         if: always() && github.event_name == 'issues'
         uses: actions/github-script@v7
@@ -81,6 +90,8 @@ jobs:
           TASK_NAME: ${{ steps.task.outputs.name }}
           TEST_OUTCOME: ${{ steps.test.outcome }}
           VALIDATE_OUTCOME: ${{ steps.validate.outcome }}
+          TESTED_SHA: ${{ steps.build.outputs.sha }}
+          EXTENSION_VERSION: ${{ steps.build.outputs.version }}
         with:
           script: |
             const task = process.env.TASK_NAME || "unknown";
@@ -100,8 +111,10 @@ jobs:
               result = "FAIL";
               detail = "Task title was not recognized.";
             }
+            const revision = process.env.TESTED_SHA || "unavailable";
+            const version = process.env.EXTENSION_VERSION || "unavailable";
             await github.rest.issues.createComment({
               ...context.repo,
               issue_number: context.issue.number,
-              body: `**VibeBridge fast reporter — ${result}**\n\nTask: ${task}\n${detail}\n\n[Workflow logs](${runUrl})`
+              body: `**VibeBridge fast reporter — ${result}**\n\nTask: ${task}\n${detail}\n\nChecked-out commit: \\`${revision}\\`\nExtension manifest: \\`${version}\\`\n\n[Workflow logs](${runUrl})`
             });

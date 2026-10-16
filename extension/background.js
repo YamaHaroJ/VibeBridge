@@ -44,6 +44,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     "VIBEBRIDGE_FILESYSTEM_WRITE",
     "VIBEBRIDGE_FILESYSTEM_MKDIR",
     "VIBEBRIDGE_CHECKPOINT_MESSAGE",
+    "VIBEBRIDGE_BROWSER_HEARTBEAT",
     "VIBEBRIDGE_LOCAL_DIAGNOSTICS"
   ];
   if (!supported.includes(message?.type)) return;
@@ -54,6 +55,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return {matched: false, error: "VibeBridge token missing. Open the extension popup and save your token."};
     }
     const active = message.activeProject || saved.activeProject || saved.project || "";
+
+    if (message.type === "VIBEBRIDGE_BROWSER_HEARTBEAT") {
+      let host = "";
+      try { host = new URL(sender && sender.tab ? sender.tab.url : "").hostname; } catch (_) {}
+      const response = await fetchAgent("/extension-status", {
+        method: "POST",
+        headers: {"Authorization": "Bearer " + saved.token, "Content-Type": "application/json"},
+        body: JSON.stringify({version: chrome.runtime.getManifest().version, host})
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not report browser extension status");
+      return data;
+    }
 
     if (message.type === "VIBEBRIDGE_LOCAL_DIAGNOSTICS") {
       const response = await fetchAgent("/diagnostics/local", {

@@ -24,12 +24,12 @@
 
 ## Current session handoff — 2026-10-16
 
-- Latest verified repository HEAD before this update: `3f9fb2a8b3e77dd2a7142e56df764d6bdd25c386`; the three CI workflows passed on its parent `07559c6cc9ddeeb4d1a6c502f301462fe8fae51a`. The current summary edit itself must be committed and its resulting HEAD verified before treating it as latest.
-- The screenshot's Chrome tab title `VibeBridge 0.2.95 Ready` is a conversation title, not reliable proof of extension version. Popup diagnostic showed `VibeBridge v0.2.96 · blocks 0 · commands 0`; live loaded content-script version still requires a fresh heartbeat/diagnostic.
-- Composer sanitizer no-op and regression assertion were committed; the latest source changes have successful validation, unit-check workflow, and installer workflow reported for `07559c6`.
-- Local Mac diagnostics, the local runner task, actual Chrome behavior, updater logs, and the fresh-thread command bridge remain **unverified** because no local runner/terminal invocation tool is exposed in this chat. Do not mark them done based on GitHub CI.
-- Immediate next action: restore the missing local-agent invocation path across conversations, then run `test` and `diagnostics` on the trusted Mac runner and verify the live Chrome heartbeat.
-
+- Verified remote HEAD: `6f7b46f1b54d5c8cee6332943b6b748fa2e219e0`.
+- Manifest version: `0.2.98`.
+- GitHub Actions: `Validate VibeBridge` passed (85 Python tests reported); `VibeBridge checks` passed; `macOS installer package` passed.
+- Status overlay removed from `extension/chatgpt.js`; composer sanitizer remains a no-op to protect visible drafts.
+- Mac runtime, local checkout HEAD/dirty state, installed extension version, live tab heartbeat, and local command round-trip remain unverified. This conversation has no callable local-terminal bridge or workflow-dispatch action; do not claim those checks ran.
+- Next action: close the cross-conversation bridge gap and verify a real Mac diagnostic/command round-trip before claiming runtime continuity.
 
 ## Current implementation status — 2026-10-16
 

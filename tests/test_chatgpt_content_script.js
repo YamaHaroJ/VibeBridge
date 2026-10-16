@@ -151,7 +151,7 @@ async function runScenario(sendMessage) {
   };
   const pending = handler(event);
   await pending;
-  await new Promise(resolve => setTimeout(resolve, 0));
+  await new Promise(resolve => setTimeout(resolve, 80));
   return {composer, send, getCurrentSend:() => liveSend, replaceSendButton(){ liveSend = new Element("BUTTON"); liveSend.setAttribute("data-testid", "send-button"); return liveSend; }, notices, event, body, document};
 }
 

@@ -37,8 +37,33 @@ chrome.runtime.onStartup?.addListener?.(() => {
   scheduleChatGPTRecovery();
   recoverOpenChatGPTTabs();
 });
+async function checkForInstalledExtensionUpdate() {
+  try {
+    const saved = await chrome.storage.local.get(["token"]);
+    if (!saved.token) return;
+    const response = await fetchAgent("/diagnostics/local", {
+      headers: {"Authorization": "Bearer " + saved.token},
+      cache: "no-store"
+    });
+    if (!response.ok) return;
+    const data = await response.json();
+    const diskVersion = data?.checkout?.extensionVersion;
+    const loadedVersion = chrome.runtime.getManifest().version;
+    if (typeof diskVersion === "string" && diskVersion !== loadedVersion) {
+      // The updater publishes files atomically but cannot reload Chrome itself.
+      // Reload this extension only after local diagnostics confirm a newer version
+      // is on disk; Chrome then loads the already-validated manifest and scripts.
+      chrome.runtime.reload();
+    }
+  } catch (_) {
+    // Local agent may be restarting during an update; retry on the next alarm.
+  }
+}
 chrome.alarms?.onAlarm?.addListener?.(alarm => {
-  if (alarm?.name === CHATGPT_RECOVERY_ALARM) recoverOpenChatGPTTabs();
+  if (alarm?.name === CHATGPT_RECOVERY_ALARM) {
+    recoverOpenChatGPTTabs();
+    checkForInstalledExtensionUpdate();
+  }
 });
 chrome.tabs?.onUpdated?.addListener?.((tabId, changeInfo) => {
   if (changeInfo.status === "complete") ensureChatGPTTabHeartbeat(tabId);

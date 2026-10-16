@@ -202,7 +202,7 @@
       let payload = null;
       // Handle ChatGPT rendering custom vibebridge-run fences as plain text, including
       // an opening "vibebridge-run id=..." line before the JSON payload.
-      if (!hasCommandLanguage && !markedBlock && !hasShellLanguage) {
+      if (!hasCommandLanguage && !markedBlock && !markedFence && !hasShellLanguage) {
         const jsonStart = normalizedBlock.indexOf("{");
         const jsonEnd = normalizedBlock.lastIndexOf("}");
         if (jsonStart >= 0 && jsonEnd > jsonStart) {
@@ -221,7 +221,11 @@
         payload = {command: ["bash", "-lc", rawBlock.replace(/^\s*```(?:bash|sh|zsh|shell)\s*/i, "").replace(/\s*```$/, "").trim()]};
       } else if (!payload) {
         try {
-          let jsonText = markedBlock ? normalizedBlock.slice(commandMarker.length).trim() : rawBlock;
+          let jsonText = markedBlock
+            ? normalizedBlock.slice(commandMarker.length).trim()
+            : markedFence
+              ? normalizedBlock.replace(/^vibebridge-run[^\r\n]*(?:\r?\n|$)/i, "").trim()
+              : rawBlock;
           jsonText = jsonText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
           payload = JSON.parse(jsonText);
         } catch {

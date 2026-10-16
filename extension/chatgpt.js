@@ -153,6 +153,23 @@
     node.style.display = "block";
   }
 
+  function showReloadNotice(text) {
+    showNotice(text);
+    const notice = document.getElementById("vibebridge-notice");
+    const actions = notice?.querySelector("div");
+    if (!actions) return;
+    let reload = actions.querySelector('[data-vibebridge-reload="true"]');
+    if (!reload) {
+      reload = document.createElement("button");
+      reload.type = "button";
+      reload.dataset.vibebridgeReload = "true";
+      reload.textContent = "Reload ChatGPT tab";
+      reload.style.cssText = "padding:5px 8px;border:0;border-radius:5px;cursor:pointer";
+      reload.addEventListener("click", () => location.reload());
+      actions.insertBefore(reload, actions.firstChild);
+    }
+  }
+
   let scannedBlocks = 0;
   let detectedBlocks = 0;
   function addCommandControls(allowAutoRun = false) {
@@ -469,9 +486,11 @@
     } catch (error) {
       const message = String(error?.message || error || "Unknown error");
       const invalidated = /extension context invalidated|context invalidated|extension context.*invalid/i.test(message);
-      showNotice(invalidated
-        ? "VibeBridge's Chrome extension context was invalidated. This usually happens after an extension update or reload. This page's content script cannot be revived from inside the invalidated context. Refresh this ChatGPT tab to load VibeBridge again, then resend your message. Your original message has not been context-enriched."
-        : "VibeBridge could not load project context: " + message + "\nYour original message will still be sent without project context. Check the local agent and GitHub CLI connection in the extension popup.");
+      const notice = invalidated
+        ? "VibeBridge's extension was updated or reloaded while this ChatGPT tab was open. Reload this tab to reconnect. Your message was not sent with project context; check the prompt before resending."
+        : "VibeBridge could not load project context: " + message + "\nYour original message will still be sent without project context. Check the local agent and GitHub CLI connection in the extension popup.";
+      if (invalidated) showReloadNotice(notice);
+      else showNotice(notice);
     } finally {
       busy = false;
       button.disabled = false;

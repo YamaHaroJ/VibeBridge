@@ -422,3 +422,16 @@ Latest implementation update: commit `895bc8c` adds an explicit per-response che
 ### Correction to the handoff interpretation — 2026-10-16
 
 - The screenshot's Chrome tab text `VibeBridge 0.2.95 Ready` is the ChatGPT conversation title, not a reliable live extension-version indicator. The popup's bottom-right diagnostic explicitly showed `VibeBridge v0.2.96 · blocks 0 · commands 0`. Therefore the screenshot alone does NOT prove a 0.2.95/0.2.96 runtime mismatch. Use the popup's live browser-tab probe and `/diagnostics/local` allowlisted revision/version fields to verify the loaded content script and local checkout independently.
+
+
+### Follow-up verification — 2026-10-16
+
+- Latest GitHub HEAD at time of verification: `07559c6cc9ddeeb4d1a6c502f301462fe8fae51a`.
+- GitHub Actions for that exact HEAD all completed successfully:
+  - VibeBridge checks: run 38980079745 — success.
+  - Validate VibeBridge: run 38980079772 — success.
+  - macOS installer package: run 38980079705 — success.
+- Confirmed source at HEAD has no call to `sanitizeBridgeComposer(initialComposer)`, no mutation-observer call to `sanitizeBridgeComposer(composer)`, and no `writeComposer(el, cleaned)` sanitizer write. The content script still has explicit command-result insertion paths for hands-off command execution and the user-clicked “insert result” action; those are distinct from automatic project-context injection and should remain covered by separate tests.
+- `extension/manifest.json` is still version `0.2.96`. The screenshot's tab title is not proof of the loaded extension version; use the popup's own build stamp and live tab diagnostic.
+- **Not yet verified and not to be claimed complete:** tests on the actual Mac runner after the latest commits; local checkout HEAD/dirty status; installed extension directory revision; actual loaded ChatGPT content-script revision; end-to-end ordinary-send and hands-off command loop; updater repair/reload behavior; and cross-conversation automatic persistence. This chat's available GitHub connector exposes source/workflow read and repository-write operations, but no terminal or workflow-dispatch operation to execute commands on the user's Mac. The workflow's issue reporter explicitly delegates local runner tasks rather than executing them.
+- Exact next action when Mac execution is available: run the repository's `.github/workflows/mac-runner.yml` workflow with task `test`, then `diagnostics`; compare the runner's `git` revision and agent/updater logs with the GitHub HEAD above, reload the extension, and verify popup live-tab version before calling deployment fixed.

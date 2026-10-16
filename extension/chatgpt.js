@@ -299,10 +299,42 @@
   ensureBridgeStatus();
   addCommandControls(false);
 
-  const observer = new MutationObserver(() => {
-    ensureBridgeStatus();
-    addCommandControls(true);
-    saveAssistantCheckpoints();
+  // ChatGPT streams many DOM mutations per token. Debounce scans so we do not
+  // repeatedly traverse the entire conversation tree while a response is rendering.
+  let scanTimer = null;
+  let scanRunning = false;
+  let scanAgain = false;
+  async function runScheduledScan() {
+    if (scanRunning) { scanAgain = true; return; }
+    scanRunning = true;
+    try {
+      ensureBridgeStatus();
+      addCommandControls(true);
+      await saveAssistantCheckpoints();
+    } finally {
+      scanRunning = false;
+      if (scanAgain) {
+        scanAgain = false;
+        scheduleScan();
+      }
+    }
+  }
+  function scheduleScan() {
+    if (scanTimer !== null) clearTimeout(scanTimer);
+    scanTimer = setTimeout(() => {
+      scanTimer = null;
+      void runScheduledScan();
+    }, 180);
+  }
+  const observer = new MutationObserver((mutations) => {
+    // Ignore mutations caused only by our own status badge and injected controls.
+    const relevant = mutations.some(mutation => {
+      const node = mutation.target?.nodeType === Node.ELEMENT_NODE
+        ? mutation.target
+        : mutation.target?.parentElement;
+      return !node?.closest?.("#vibebridge-live-status, .vibebridge-injected-control");
+    });
+    if (relevant) scheduleScan();
   });
   observer.observe(document.documentElement, {childList: true, subtree: true, characterData: true});
   // Existing assistant messages are rendered first and only receive manual Run controls.

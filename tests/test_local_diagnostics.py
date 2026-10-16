@@ -15,6 +15,12 @@ class LocalDiagnosticsTests(unittest.TestCase):
     @patch.object(server.subprocess, "run")
     def test_reports_only_allowlisted_launch_service_metadata(self, run, _uid, _mac, _system):
         def launchctl_result(command, **_kwargs):
+            if command[:2] != ["/bin/launchctl", "print"]:
+                return type("Completed", (), {
+                    "returncode": 0,
+                    "stdout": "abc1234\\n" if command[:3] == ["git", "rev-parse", "--short"] else "",
+                    "stderr": ""
+                })()
             label = command[-1].split("/")[-1]
             if label == "com.vibebridge.agent":
                 return type("Completed", (), {
@@ -38,7 +44,7 @@ class LocalDiagnosticsTests(unittest.TestCase):
         self.assertNotIn("SECRET_SHOULD_NOT_LEAK", repr(result))
         self.assertNotIn("logs", result)
         self.assertNotIn("processList", result)
-        self.assertEqual(run.call_count, 2)
+        self.assertEqual(run.call_count, 4)
 
     @patch.object(server.platform, "system", return_value="Linux")
     @patch.object(server.subprocess, "run")
@@ -47,7 +53,7 @@ class LocalDiagnosticsTests(unittest.TestCase):
         self.assertEqual(result["platform"], "Linux")
         self.assertEqual(result["agent"]["state"], "unavailable-on-this-platform")
         self.assertEqual(result["updater"]["state"], "unavailable-on-this-platform")
-        run.assert_not_called()
+        self.assertFalse(any(call.args[0][:2] == ["/bin/launchctl", "print"] for call in run.call_args_list))
 
     @patch.object(server.platform, "system", return_value="Darwin")
     @patch.object(server.platform, "mac_ver", return_value=("15.0", ("", "", ""), ""))

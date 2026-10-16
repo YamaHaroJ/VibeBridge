@@ -11,6 +11,8 @@ const status = document.querySelector("#status");
 const statusText = document.querySelector("#status-text");
 const githubStatus = document.querySelector("#github-status");
 const githubStatusText = document.querySelector("#github-status-text");
+const activeProjectSelect = document.querySelector("#active-project");
+const projectCopy = document.querySelector("#project-copy");
 const connect = document.querySelector("#connect");
 const consent = document.querySelector("#consent");
 const consentCheck = document.querySelector("#consent-check");
@@ -64,6 +66,13 @@ async function requestBackgroundUpdate() {
   }
 }
 
+activeProjectSelect?.addEventListener("change", async () => {
+  const selected = activeProjectSelect.value;
+  if (!selected) return;
+  await chrome.storage.local.set({activeProject: selected, project: selected});
+  projectCopy.textContent = "Saved project: " + selected.replace(/^github:/, "");
+});
+
 autoRun?.addEventListener("change", async () => {
   await chrome.storage.local.set({autoRunCommands: autoRun.checked});
 });
@@ -104,7 +113,22 @@ async function initialize() {
     try {
       const data = await callAgent("/github-projects", saved.token);
       if (!isCurrent()) return;
-      const count = (data.repositories || []).length;
+      const repositories = data.repositories || [];
+      const count = repositories.length;
+      const savedProject = await chrome.storage.local.get(["activeProject", "project"]);
+      const selectedPath = savedProject.activeProject || savedProject.project || "";
+      activeProjectSelect.replaceChildren(new Option("Choose a GitHub project…", ""));
+      for (const repository of repositories) {
+        const slug = repository.nameWithOwner || repository.full_name || "";
+        if (!slug) continue;
+        const path = repository.localPath || ("github:" + slug);
+        activeProjectSelect.add(new Option(slug, path));
+      }
+      activeProjectSelect.value = selectedPath;
+      activeProjectSelect.disabled = repositories.length === 0;
+      projectCopy.textContent = selectedPath
+        ? "Saved project: " + selectedPath.replace(/^github:/, "")
+        : "Choose once; VibeBridge will reuse it for short follow-ups.";
       renderStatus(githubStatus, githubStatusText, "ready", "GitHub connected · " + count + " repositories");
     } catch (error) {
       if (!isCurrent()) return;

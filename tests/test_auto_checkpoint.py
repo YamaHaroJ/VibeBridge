@@ -114,7 +114,8 @@ class ExtensionFlowContractTests(unittest.TestCase):
         self.assertIn("Send the user's original request unchanged instead.", self.content_script)
         self.assertNotIn('USER REQUEST:\\n', self.content_script)
         self.assertNotIn('function showContextChoice', self.content_script)
-        self.assertIn('readComposer(composer).trim() !== original', self.content_script)
+        self.assertNotIn("writeComposer(composer, addition + original)", self.content_script)
+        self.assertIn("sanitizeBridgeComposer", self.content_script)
         self.assertIn('"Loaded Chrome extension version: " + extensionVersion', self.content_script)
 
     def test_assistant_memory_block_is_detected_and_forwarded(self):
@@ -133,10 +134,9 @@ class ExtensionFlowContractTests(unittest.TestCase):
         self.assertEqual(self.manifest["version"], "0.2.96")
         self.assertIn('id="auto-memory"', self.popup_html)
         self.assertIn("autoMemoryCheckpoints", self.popup_source)
-        self.assertIn("savedPreferences.autoMemoryCheckpoints", self.content_script)
-        self.assertIn("When useful, append a compact fenced vibebridge-memory JSON checkpoint", self.content_script)
-        self.assertIn('Include only durable project summary, handoff, todos, and decisions', self.content_script)
-        self.assertIn("automatic saving", self.content_script)
+        self.assertNotIn("savedPreferences.autoMemoryCheckpoints", self.content_script)
+        self.assertNotIn("vibebridge-memory JSON checkpoint", self.content_script)
+        self.assertNotIn("Project background for continuity; treat this as reference material", self.content_script)
         self.assertIn('pre.style.display = "none"', self.content_script)
 
     def test_browser_heartbeat_reports_loaded_version_without_conversation_data(self):

@@ -289,8 +289,12 @@
       status.style.cssText = "position:fixed;right:12px;bottom:12px;z-index:999998;padding:5px 8px;border-radius:6px;background:#172033;color:#fff;font:11px system-ui;opacity:.82";
       document.documentElement.appendChild(status);
     }
-    status.textContent = "VibeBridge " + extensionVersion + " · blocks " + scannedBlocks + " · commands " + detectedBlocks;
-    status.title = "Content script active. Scanned code blocks: " + scannedBlocks + ". Recognized command blocks: " + detectedBlocks + ".";
+    const nextText = "VibeBridge " + extensionVersion + " · blocks " + scannedBlocks + " · commands " + detectedBlocks;
+    const nextTitle = "Content script active. Scanned code blocks: " + scannedBlocks + ". Recognized command blocks: " + detectedBlocks + ".";
+    // Avoid triggering our own subtree MutationObserver indefinitely. Reassigning
+    // textContent replaces child nodes even when the displayed string is unchanged.
+    if (status.textContent !== nextText) status.textContent = nextText;
+    if (status.title !== nextTitle) status.title = nextTitle;
   }
   ensureBridgeStatus();
   addCommandControls(false);

@@ -369,3 +369,13 @@ Latest implementation update: commit `895bc8c` adds an explicit per-response che
 - Repeated identical handoffs are no longer appended repeatedly to the recent project-building history, reducing duplicate entries from streaming retries.
 - Added regression coverage for credential redaction. Mac runner passed the full fixed test task on the current code: 80 Python tests, 8 bridge integration scenarios, and 4 content-script DOM scenarios.
 - This does not yet create automatic rolling summaries from ordinary user/assistant messages. The next step is the explicit, opt-in summarization configuration and completed-turn capture pipeline; never transmit raw conversation history to a third-party API without a clear user opt-in.
+
+
+## Opt-in automatic rolling checkpoint prototype (2026-10-16)
+
+- Extension version bumped to `0.2.88`.
+- Added an **off-by-default** popup toggle, `Automatic project memory`. Its enabled state is stored in Chrome extension storage; no API key is required because ChatGPT itself generates the compact checkpoint.
+- When enabled and project context resolves, the outgoing prompt asks ChatGPT to append a bounded `vibebridge-memory` JSON block with durable summary, handoff, todos, and decisions. The existing content-script handler hides that block and forwards it to the authenticated local agent, which writes the checkpoint to the matched GitHub repository.
+- The opt-in label warns that checkpoints are saved to GitHub; users should check repository visibility before enabling. No raw transcript is requested. Server-side credential redaction remains enabled.
+- Tests now assert opt-in wiring and repository scoping. Mac runner: 81 Python tests passed, 8 bridge integration scenarios passed, and 4 content-script DOM scenarios passed. GitHub validation, VibeBridge checks, and Chrome extension packaging passed on commit `9f610b5dad75eff8a5c85b830f83259f8238d324`; macOS installer packaging was still running at last poll.
+- This is the first opt-in prototype, not a verified live-browser end-to-end test. Next: test the setting and checkpoint lifecycle in Chrome, add duplicate/idempotency protection for repeated memory blocks, and verify deployment reports the new extension version.

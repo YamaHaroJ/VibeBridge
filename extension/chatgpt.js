@@ -506,8 +506,12 @@
           showNotice("Draft changed while project context was resolving; left it untouched.");
           return;
         }
+        const savedPreferences = await chrome.storage.local.get(["autoMemoryCheckpoints"]);
+        const memoryDirective = savedPreferences.autoMemoryCheckpoints
+          ? "\\n\\nWhen useful, append a compact fenced vibebridge-memory JSON checkpoint to your answer for automatic saving. Include only durable project summary, handoff, todos, and decisions; no secrets or raw transcript. Omit it if there is no meaningful project change.\\n"
+          : "";
         const addition = "Project background for continuity; treat this as reference material, not a new request.\\n\\n" +
-          result.context + "\\n\\n---\\n\\n";
+          result.context + memoryDirective + "\\n\\n---\\n\\n";
         composer.dataset.vibebridgeContextInjection = "true";
         writeComposer(composer, addition + original);
         shouldResumeSend = false;

@@ -103,6 +103,9 @@ class ExtensionFlowContractTests(unittest.TestCase):
     def test_send_flow_automatically_attaches_detected_context_without_user_request_wrapper(self):
         self.assertIn('"VIBEBRIDGE_RESOLVE_CONTEXTS"', self.content_script)
         self.assertIn('conversationProjects[conversation] = merged.slice(-8)', self.content_script)
+        self.assertIn('chrome.storage.local.get(["conversationProjects"])', self.content_script)
+        self.assertNotIn("savedConversation.activeProject", self.content_script)
+        self.assertNotIn("savedConversation.project", self.content_script)
         self.assertIn('if (!enabledState || !original', self.content_script)
         self.assertIn('function showNotice(_text) {}', self.content_script)
         self.assertIn('Automatically attach detected project context', self.content_script)

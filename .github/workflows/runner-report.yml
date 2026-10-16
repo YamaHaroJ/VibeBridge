@@ -29,6 +29,7 @@ jobs:
           fi
           case "$ISSUE_TITLE" in
             "VibeBridge task: test") echo "name=test" >> "$GITHUB_OUTPUT" ;;
+            "VibeBridge task: update-bootstrap") echo "name=update-bootstrap" >> "$GITHUB_OUTPUT" ;;
             "VibeBridge task: validate") echo "name=validate" >> "$GITHUB_OUTPUT" ;;
             "VibeBridge task: diagnostics") echo "name=diagnostics" >> "$GITHUB_OUTPUT" ;;
             "VibeBridge task: terminal-smoke") echo "name=terminal-smoke" >> "$GITHUB_OUTPUT" ;;
@@ -115,6 +116,9 @@ jobs:
             } else if (task === "diagnostics") {
               result = "LIMITED";
               detail = "GitHub-hosted diagnostics completed. This runner cannot inspect the user's Mac or its local services/logs.";
+            } else if (task === "update-bootstrap") {
+              result = "DELEGATED";
+              detail = "Bootstrap updater implementation must be validated and deployed by the Mac runner; hosted CI cannot repair the installed Mac checkout or verify its extension runtime.";
             } else if (task === "chatgpt-tabs") {
               result = "DELEGATED";
               detail = "The local Mac runner must count ChatGPT tabs; this hosted workflow cannot inspect the user\u2019s browser.";

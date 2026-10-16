@@ -31,6 +31,25 @@ class AutomaticCheckpointTests(unittest.TestCase):
             run.assert_not_called()
 
     @patch("server.subprocess.run")
+    def test_unchanged_checkpoint_skips_github_write(self, run):
+        import base64
+        existing_body = (
+            "_Last updated: 2026-10-16T10:00:00+00:00_\n\n"
+            "### Durable project summary\nAlpha state"
+        )
+        existing = "## Conversation: conversation-1\n" + existing_body + "\n"
+        encoded = base64.b64encode(existing.encode()).decode()
+        run.side_effect = [
+            Result(stdout="owner/alpha\n"),
+            Result(stdout=json.dumps({"sha": "existing-sha", "content": encoded})),
+        ]
+        payload = {"projects": [{"repository": "owner/alpha", "summary": "Alpha state"}]}
+        result = server.sync_message_checkpoint(json.dumps(payload), "conversation-1")
+        self.assertTrue(result["saved"])
+        self.assertTrue(result["projects"][0]["unchanged"])
+        self.assertEqual(run.call_count, 2)
+
+    @patch("server.subprocess.run")
     def test_saves_each_project_separately(self, run):
         run.side_effect = [
             Result(stdout="owner/alpha" + chr(10)), Result(1, stderr="404 Not Found"), Result(),

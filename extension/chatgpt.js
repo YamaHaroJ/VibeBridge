@@ -117,7 +117,8 @@
       const message = document.createElement("div");
       message.id = "vibebridge-notice-message";
       const actions = document.createElement("div");
-      actions.style.cssText = "display:flex;gap:8px;margin-top:10px";
+      actions.id = "vibebridge-notice-actions";
+      actions.style.cssText = "display:flex;gap:8px;margin-top:10px;flex-wrap:wrap";
       const copy = document.createElement("button");
       copy.type = "button";
       copy.textContent = "Copy error";
@@ -156,7 +157,7 @@
   function showReloadNotice(text) {
     showNotice(text);
     const notice = document.getElementById("vibebridge-notice");
-    const actions = notice?.querySelector("div");
+    const actions = notice?.querySelector("#vibebridge-notice-actions");
     if (!actions) return;
     let reload = actions.querySelector('[data-vibebridge-reload="true"]');
     if (!reload) {

@@ -649,6 +649,7 @@ _CONTEXT_CACHE_TTL = 5.0
 _CONTEXT_CACHE_MAX = 64
 _context_cache = {}
 _context_cache_lock = threading.Lock()
+_context_build_locks = {}
 
 
 def project_context(project):
@@ -660,14 +661,30 @@ def project_context(project):
             return cached[1]
         if cached:
             _context_cache.pop(key, None)
+        build_lock = _context_build_locks.setdefault(key, threading.Lock())
 
-    context = _build_project_context(project)
-    with _context_cache_lock:
-        _context_cache[key] = (time.monotonic(), context)
-        if len(_context_cache) > _CONTEXT_CACHE_MAX:
-            oldest = min(_context_cache, key=lambda item: _context_cache[item][0])
-            _context_cache.pop(oldest, None)
-    return context
+    # Coalesce simultaneous requests for the same project into one context build.
+    # Waiting requests reuse the freshly built result instead of spawning duplicate
+    # Git and GitHub CLI subprocesses.
+    with build_lock:
+        now = time.monotonic()
+        with _context_cache_lock:
+            cached = _context_cache.get(key)
+            if cached and now - cached[0] < _CONTEXT_CACHE_TTL:
+                return cached[1]
+
+        context = _build_project_context(project)
+        with _context_cache_lock:
+            _context_cache[key] = (time.monotonic(), context)
+            if len(_context_cache) > _CONTEXT_CACHE_MAX:
+                oldest = min(_context_cache, key=lambda item: _context_cache[item][0])
+                _context_cache.pop(oldest, None)
+                _context_build_locks.pop(oldest, None)
+            if len(_context_build_locks) > _CONTEXT_CACHE_MAX:
+                for stale_key in list(_context_build_locks):
+                    if stale_key not in _context_cache and stale_key != key:
+                        _context_build_locks.pop(stale_key, None)
+        return context
 
 
 def match_project(message, active=""):

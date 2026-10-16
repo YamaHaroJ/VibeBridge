@@ -6,6 +6,7 @@ import platform
 import re
 import secrets
 import signal
+import shutil
 import subprocess
 import threading
 import time
@@ -1181,15 +1182,24 @@ def run_remote_task(task):
         app_root = Path.home() / "MacOptimizer"
         if not (app_root / ".git").is_dir():
             return False, "MacOptimizer checkout missing at ~/MacOptimizer."
-        status = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=str(app_root), capture_output=True, text=True, timeout=15)
+        status = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            cwd=str(app_root), capture_output=True, text=True, timeout=15
+        )
         if status.returncode != 0 or status.stdout.strip():
-            return False, "Refusing deployment: inspect MacOptimizer git status first; tracked edits must be preserved."
+            return False, "Refusing deployment: tracked MacOptimizer edits exist; preserve them before building."
         output = []
-        for command, timeout in [(["git", "fetch", "origin", "main"], 120), (["git", "pull", "--ff-only", "origin", "main"], 120), (["swift", "build", "-c", "release"], 300)]:
+        commands = [
+            (["git", "fetch", "origin", "main"], 120),
+            (["git", "pull", "--ff-only", "origin", "main"], 120),
+            (["swift", "build", "-c", "release"], 300),
+        ]
+        for command, timeout in commands:
             result = subprocess.run(command, cwd=str(app_root), capture_output=True, text=True, timeout=timeout)
-            output.append("$ " + " ".join(command) + "\\n" + (result.stdout or "")[-2500:] + "\\n" + (result.stderr or "")[-2500:] + "\\nexit=" + str(result.returncode))
+            output.append("$ " + " ".join(command) + "\n" + (result.stdout or "")[-2500:] +
+                          "\n" + (result.stderr or "")[-2500:] + "\nexit=" + str(result.returncode))
             if result.returncode:
-                return False, "\\n\\n".join(output)[-9000:]
+                return False, "\n\n".join(output)[-9000:]
         binary = app_root / ".build" / "release" / "MacOptimizer"
         if not binary.is_file():
             return False, "Build succeeded but executable is missing."
@@ -1197,22 +1207,31 @@ def run_remote_task(task):
         apps.mkdir(parents=True, exist_ok=True)
         app = apps / "MacOptimizer.app"
         staging = apps / ".MacOptimizer.app.new"
-        if staging.exists(): shutil.rmtree(staging)
+        backup = apps / ".MacOptimizer.app.previous"
+        shutil.rmtree(staging, ignore_errors=True)
+        shutil.rmtree(backup, ignore_errors=True)
         (staging / "Contents" / "MacOS").mkdir(parents=True)
         shutil.copy2(binary, staging / "Contents" / "MacOS" / "MacOptimizer")
-        plist = "<?xml version=\\\"1.0\\\" encoding=\\\"UTF-8\\\"?><plist version=\\\"1.0\\\"><dict><key>CFBundleExecutable</key><string>MacOptimizer</string><key>CFBundleIdentifier</key><string>com.yamaharoj.MacOptimizer</string><key>CFBundleName</key><string>MacOptimizer</string><key>CFBundlePackageType</key><string>APPL</string><key>LSUIElement</key><true/></dict></plist>"
+        plist = """<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict>
+<key>CFBundleExecutable</key><string>MacOptimizer</string>
+<key>CFBundleIdentifier</key><string>com.yamaharoj.MacOptimizer</string>
+<key>CFBundleName</key><string>MacOptimizer</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>LSUIElement</key><true/>
+</dict></plist>"""
         (staging / "Contents" / "Info.plist").write_text(plist, encoding="utf-8")
-        backup = apps / ".MacOptimizer.app.previous"
-        if backup.exists(): shutil.rmtree(backup)
-        if app.exists(): app.rename(backup)
+        if app.exists():
+            app.rename(backup)
         staging.rename(app)
         subprocess.run(["/usr/bin/killall", "MacOptimizer"], capture_output=True, text=True, timeout=10)
         launched = subprocess.run(["/usr/bin/open", str(app)], capture_output=True, text=True, timeout=20)
         if launched.returncode:
             shutil.rmtree(app, ignore_errors=True)
-            if backup.exists(): backup.rename(app)
+            if backup.exists():
+                backup.rename(app)
             return False, "Launch failed; previous app restored: " + launched.stderr[-1500:]
-        return True, "MacOptimizer release built, installed, and opened at " + str(app) + "\\n" + "\\n".join(output)[-7000:]
+        return True, "MacOptimizer release built, installed, and opened at " + str(app) + "\n\n" + "\n\n".join(output)[-7000:]
     if task == "validate":
         commands = [
             ["python3", "-m", "py_compile", "agent/server.py", "agent/updater.py"],

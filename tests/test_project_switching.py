@@ -9,6 +9,20 @@ import server
 
 
 class ProjectSwitchTests(unittest.TestCase):
+    def test_bounded_command_keeps_only_output_tails(self):
+        result = server.run_bounded_command(
+            [sys.executable, "-c", "print('A' * 20000); import sys; print('B' * 10000, file=sys.stderr)"],
+            Path(__file__).resolve().parents[1],
+            timeout=10,
+            stdout_limit=128,
+            stderr_limit=96,
+        )
+        self.assertEqual(result["exitCode"], 0)
+        self.assertEqual(len(result["stdout"].encode()), 128)
+        self.assertEqual(len(result["stderr"].encode()), 96)
+        self.assertTrue(result["stdout"].endswith("\\n"))
+        self.assertTrue(result["stderr"].endswith("\\n"))
+
     def test_request_body_requires_valid_nonnegative_content_length(self):
         for value in (None, "", "-1", "+1", "1.5", "abc"):
             with self.subTest(value=value):

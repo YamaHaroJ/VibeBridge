@@ -35,13 +35,25 @@ function renderStatus(element, label, state, message) {
   element.dataset.state = state;
   label.textContent = message;
 }
-async function callAgent(path, token) {
-  const response = await fetch("http://127.0.0.1:43127" + path, {
-    headers: {Authorization: "Bearer " + token}
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || "Request failed");
-  return data;
+async function callAgent(path, token, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch("http://127.0.0.1:43127" + path, {
+      headers: {Authorization: "Bearer " + token},
+      signal: controller.signal
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Request failed");
+    return data;
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error("VibeBridge local agent timed out. Check that the Mac agent is running, then retry.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 async function requestBackgroundUpdate() {
   // A popup opening should never require the user to initiate an update manually.

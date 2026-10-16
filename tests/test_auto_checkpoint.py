@@ -145,6 +145,8 @@ class ExtensionFlowContractTests(unittest.TestCase):
         self.assertIn('"ChatGPT extension heartbeat: "', self.popup_source)
         self.assertIn('chrome.runtime.getManifest().version', self.background)
         self.assertIn('"/extension-status"', self.background)
+        self.assertIn('"VIBEBRIDGE_BROWSER_STATUS"', self.background)
+        self.assertIn('data.browserExtension || {connected: false, version: null, host: null, lastSeen: null}', self.background)
         self.assertIn('browser_extension_snapshot()', self.server_source)
         self.assertIn('BROWSER_STATUS.update', self.server_source)
         self.assertIn('Unrecognized ChatGPT host', self.server_source)

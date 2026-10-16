@@ -77,6 +77,9 @@ class ExtensionFlowContractTests(unittest.TestCase):
         cls.content_script = (root / "extension" / "chatgpt.js").read_text()
         cls.background = (root / "extension" / "background.js").read_text()
         cls.server_source = (root / "agent" / "server.py").read_text()
+        cls.popup_source = (root / "extension" / "popup.js").read_text()
+        cls.popup_html = (root / "extension" / "popup.html").read_text()
+        cls.manifest = json.loads((root / "extension" / "manifest.json").read_text())
 
     def test_send_flow_resolves_context_and_attaches_automatically_without_banners(self):
         self.assertIn('"VIBEBRIDGE_RESOLVE_CONTEXTS"', self.content_script)
@@ -100,6 +103,17 @@ class ExtensionFlowContractTests(unittest.TestCase):
         self.assertIn('"/checkpoint"', self.background)
         self.assertIn('"Authorization": "Bearer " + saved.token', self.background)
         self.assertIn('summary: payload.summary', self.background)
+
+
+    def test_automatic_memory_is_explicitly_opt_in_and_scoped_to_matched_repository(self):
+        self.assertEqual(self.manifest["version"], "0.2.88")
+        self.assertIn('id="auto-memory"', self.popup_html)
+        self.assertIn("autoMemoryCheckpoints", self.popup_source)
+        self.assertIn("savedPreferences.autoMemoryCheckpoints", self.content_script)
+        self.assertIn("VIBEBRIDGE MEMORY CHECKPOINT REQUIREMENT", self.content_script)
+        self.assertIn('Use only the matched repository from the supplied context', self.content_script)
+        self.assertIn("The extension will hide this block and save it to GitHub", self.content_script)
+        self.assertIn('pre.style.display = "none"', self.content_script)
 
     def test_server_persists_handoff_todos_and_decisions(self):
         self.assertIn('### Latest conversation handoff', self.server_source)

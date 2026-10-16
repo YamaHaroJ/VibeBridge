@@ -453,35 +453,16 @@
         const savedConversation = await chrome.storage.local.get(["conversationProjects", "activeProject", "project"]);
         const prior = savedConversation.conversationProjects?.[conversation] || [];
         const knownProjects = (Array.isArray(prior) ? prior : [prior]).filter(Boolean);
-        // The popup selection is the explicit user choice and must override stale conversation history.
-        // If setup never saved a selection, use this extension's own repository as a safe default.
-        const activeProject = savedConversation.activeProject || savedConversation.project || knownProjects[0] || "github:YamaHaroJ/VibeBridge";
-        if (!savedConversation.activeProject && !savedConversation.project && !knownProjects.length) {
-          await chrome.storage.local.set({activeProject, project: activeProject});
-        }
-        // If the user selected a different project in the popup, do not send this
-        // conversation's old project set: the server would otherwise attach both.
-        const contextProjects = activeProject && !knownProjects.includes(activeProject)
-          ? []
-          : knownProjects;
+        // The server resolves every explicitly mentioned project. Preserve only
+        // this conversation's known project set for short follow-ups; no global
+        // active-project default and no single-project fallback may override it.
+        const activeProject = savedConversation.activeProject || savedConversation.project || "";
         result = await chrome.runtime.sendMessage({
           type: "VIBEBRIDGE_RESOLVE_CONTEXTS",
           text: original,
-          projects: contextProjects.map(path => ({path})),
+          projects: knownProjects.map(path => ({path})),
           activeProject
         });
-        // If multi-project resolution returns no match, make one explicit
-        // single-project attempt using the saved active project. This protects
-        // short follow-ups from being lost when conversation history is empty
-        // or the multi-project discovery path returns an incomplete result.
-        if (!result?.matched && activeProject) {
-          const fallback = await chrome.runtime.sendMessage({
-            type: "VIBEBRIDGE_RESOLVE_CONTEXT",
-            text: original,
-            activeProject
-          });
-          if (fallback?.matched || fallback?.error) result = fallback;
-        }
       }
       const rememberMatch = original.match(/remember (?:for this project|this for the project|that for this project)[:\-]?\s*(.+)/i);
       if (rememberMatch && rememberMatch[1]) {

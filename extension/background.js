@@ -6,6 +6,12 @@ async function ensureChatGPTTabHeartbeat(tabId) {
     const tab = await chrome.tabs.get(tabId);
     const url = new URL(tab.url || "");
     if (!["chatgpt.com", "chat.openai.com"].includes(url.hostname)) return;
+    // Avoid re-executing the full content script on every tab switch. Inject only
+    // when the existing page has no responsive VibeBridge ping listener.
+    try {
+      const reply = await chrome.tabs.sendMessage(tabId, {type: "VIBEBRIDGE_CONTENT_SCRIPT_PING"});
+      if (reply?.alive) return;
+    } catch (_) {}
     await chrome.scripting.executeScript({target: {tabId}, files: ["chatgpt.js"]});
   } catch (_) {
     // Chrome may reject restricted, closing, or not-yet-ready tabs; later events retry.

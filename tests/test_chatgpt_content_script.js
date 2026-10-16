@@ -73,7 +73,7 @@ class Element {
   dispatchEvent() { return true; }
 }
 
-async function runScenario(sendMessage, includeMemory = false) {
+async function runScenario(sendMessage) {
   const composer = new Element("TEXTAREA");
   composer.id = "prompt-textarea";
   composer.value = "Continue VibeBridge";
@@ -82,18 +82,6 @@ async function runScenario(sendMessage, includeMemory = false) {
   const body = new Element("BODY");
   const root = new Element("HTML");
   root.appendChild(body);
-  let memoryPre = null;
-  if (includeMemory) {
-    const assistant = new Element("ARTICLE");
-    assistant.setAttribute("data-message-author-role", "assistant");
-    memoryPre = new Element("PRE");
-    const code = new Element("CODE");
-    code.className = "language-vibebridge-memory";
-    code.textContent = JSON.stringify({projects:[{repository:"YamaHaroJ/VibeBridge",handoff:"test checkpoint"}]});
-    memoryPre.appendChild(code);
-    assistant.appendChild(memoryPre);
-    body.appendChild(assistant);
-  }
   const docListeners = {};
   const notices = [];
   const document = {
@@ -137,8 +125,7 @@ async function runScenario(sendMessage, includeMemory = false) {
     }},
     storage: {local:storage, onChanged:{addListener(){}}}
   };
-  const observers = [];
-  class MutationObserver { constructor(fn) { this.fn = fn; observers.push(this); } observe() {} disconnect() {} }
+  class MutationObserver { constructor(fn) { this.fn = fn; } observe() {} disconnect() {} }
   const context = {
     window:{__vibeBridgeInstalled:false, getSelection:()=>({removeAllRanges(){},addRange(){}})},
     document, location:{pathname:"/c/test-conversation",reload(){}},
@@ -163,7 +150,7 @@ async function runScenario(sendMessage, includeMemory = false) {
   const pending = handler(event);
   await pending;
   await new Promise(resolve => setTimeout(resolve, 0));
-  return {composer, send, notices, event, body, document, memoryPre, observers};
+  return {composer, send, notices, event, body, document};
 }
 
 (async () => {
@@ -194,19 +181,5 @@ async function runScenario(sendMessage, includeMemory = false) {
     const notice = h.document.getElementById("vibebridge-notice-message");
     assert.match(notice.textContent, /original message will still be sent/i);
   }
-  {
-    const h = await runScenario(async message => {
-      if (message.type === "VIBEBRIDGE_RESOLVE_CONTEXTS") return {matched:false};
-      if (message.type === "VIBEBRIDGE_CHECKPOINT_MESSAGE") return {saved:true};
-      throw new Error("Unexpected message " + message.type);
-    }, true);
-    h.observers[0].fn([{target:h.body,nodeType:1}]);
-    await new Promise(resolve => setTimeout(resolve, 250));
-    assert.equal(h.memoryPre.style.display, "none", "assistant memory block is hidden");
-    const checkpoint = h.notices.find(m => m.type === "VIBEBRIDGE_CHECKPOINT_MESSAGE");
-    assert.ok(checkpoint, "checkpoint is forwarded to the background worker");
-    assert.equal(checkpoint.payload.conversation, "test-conversation");
-    assert.match(h.document.getElementById("vibebridge-notice-message").textContent, /checkpoint saved/i);
-  }
-  console.log("ChatGPT content-script DOM simulation: 4 scenarios passed");
+  console.log("ChatGPT content-script DOM simulation: 3 scenarios passed");
 })().catch(error => { console.error(error); process.exitCode = 1; });

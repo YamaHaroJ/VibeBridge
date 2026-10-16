@@ -33,7 +33,11 @@ class RemoteTaskTests(unittest.TestCase):
     @patch.object(server, "local_diagnostics", return_value={
         "ok": True, "service": "VibeBridge",
         "agent": {"loaded": True, "state": "running", "pid": 1234},
-        "updater": {"loaded": False, "state": "not-loaded", "pid": None}
+        "updater": {
+            "loaded": False, "state": "not-loaded", "pid": None,
+            "schedule": {"plistPresent": False, "runAtLoad": None, "startIntervalSeconds": None},
+            "logStatus": {"present": False, "lastLine": None},
+        }
     })
     @patch.object(server.Path, "home", return_value=Path("/tmp"))
     def test_diagnostics_returns_allowlisted_local_service_snapshot_without_shell_commands(self, _home, diagnostics):

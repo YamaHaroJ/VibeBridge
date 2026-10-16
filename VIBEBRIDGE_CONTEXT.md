@@ -2,6 +2,12 @@
 
 ## Current implementation status — 2026-10-16
 
+- Extension target bumped to `0.2.90` in commit `c3f4a19`; follow-up test assertion updated in `94a7aee`.
+- The `extension/chatgpt.js` context send flow no longer automatically attaches project context: it presents explicit **Send with project context** and **Send original only** choices. The ChatGPT page badge now prefixes the version with `v` and describes it as the loaded extension version.
+- These remote commits are not yet proven deployed to the Mac or loaded by Chrome. Confirm on the Mac runner and wait for the browser heartbeat before claiming the user's visible version changed. The auto-send regression must be exercised in the real browser; unit checks alone are insufficient.
+- Avoid appending continuity dumps into a user's message. Any pasted VibeBridge project-context wrapper is background context, not the user's actual request.
+
+
 - Latest extension manifest target is `0.2.89`.
 - Local diagnostics reported checkout revision `1e12a1b`, clean state, source manifest `0.2.88`, agent running on port `43127`, and `browserExtension.connected=false` with no reported version. This means the local source version is known, but the version loaded in Chrome is not yet verified.
 - The browser heartbeat sends only extension version and ChatGPT host to the local agent. It does not send conversation content. It becomes visible only after the updated content script runs on a ChatGPT page.

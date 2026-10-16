@@ -66,7 +66,9 @@ class ExtensionFlowContractTests(unittest.TestCase):
         self.assertIn('"VIBEBRIDGE_RESOLVE_CONTEXTS"', self.content_script)
         self.assertIn('conversationProjects[conversation] = merged.slice(-8)', self.content_script)
         self.assertIn('if (!enabledState || !original', self.content_script)
-        self.assertIn('Automatic injection is paused to protect your message', self.content_script)
+        self.assertIn('showContextChoice(', self.content_script)
+        self.assertIn('Send without context', self.content_script)
+        self.assertIn('Attach context & send', self.content_script)
         self.assertNotIn('writeComposer(composer, addition + original)', self.content_script)
 
     def test_assistant_memory_block_is_detected_and_forwarded(self):

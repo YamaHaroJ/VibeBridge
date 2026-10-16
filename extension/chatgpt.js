@@ -1,5 +1,80 @@
-    const requestMarker = /(?:^|\n)USER REQUEST:\s*/i;\n)USER REQUEST:\\s*/i;
-    const match = requestMarker.exec(current);
+(() => {
+  if (window.__vibeBridgeInstalled) return;
+  window.__vibeBridgeInstalled = true;
+  let bypassNextSend = false;
+  let busy = false;
+  let enabledState = true;
+  chrome.storage.local.get(["enabled"], state => { enabledState = state.enabled !== false; });
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.enabled) enabledState = changes.enabled.newValue !== false;
+  });
+  const marker = "VIBEBRIDGE PROJECT CONTEXT";
+  const extensionVersion = chrome.runtime.getManifest?.().version || "unknown";
+  const commandMarker = "VIBEBRIDGE LOCAL COMMAND";
+  const processedBlocks = new WeakSet();
+  // Never replay commands embedded in conversation history when a tab opens.
+  // Hands-off execution is reserved for command blocks that appear after startup.
+  let allowAutomaticExecution = false;
+
+  // Save only explicit checkpoint blocks; never upload raw messages.
+  const processedMemoryBlocks = new WeakSet();
+
+  function conversationKey() {
+    const match = location.pathname.match(/\/c\/([^/]+)/);
+    return match ? match[1].slice(0, 80) : "chat";
+  }
+
+  async function saveAssistantCheckpoints() {
+    // Check only the newest assistant response; scanning historical messages on
+    // every streaming mutation scales poorly on long development conversations.
+    const messages = document.querySelectorAll('[data-message-author-role="assistant"]');
+    const latest = messages.length ? messages[messages.length - 1] : null;
+    if (!latest) return;
+    const nodes = latest.querySelectorAll('pre');
+    for (const pre of nodes) {
+      if (processedMemoryBlocks.has(pre)) continue;
+      const code = pre.querySelector("code");
+      const classes = (code?.className || "") + " " + (pre.className || "");
+      if (!/language-vibebridge-memory|vibebridge-memory/i.test(classes)) continue;
+      processedMemoryBlocks.add(pre);
+      const summary = (code?.textContent || pre.textContent || "").trim();
+      pre.style.display = "none";
+      if (!summary) continue;
+      try {
+        const result = await chrome.runtime.sendMessage({
+          type: "VIBEBRIDGE_CHECKPOINT_MESSAGE",
+          payload: {summary, conversation: conversationKey()}
+        });
+        showNotice(result?.saved ? "Project checkpoint saved to GitHub." :
+          "GitHub checkpoint failed: " + (result?.error || "unknown error"));
+      } catch (error) {
+        showNotice("GitHub checkpoint failed: " + error.message);
+      }
+    }
+  }
+
+  function composerFor(button) {
+    const form = button?.closest("form") || document.querySelector("form");
+    return form?.querySelector("textarea") ||
+      form?.querySelector('[contenteditable="true"][role="textbox"]') ||
+      document.querySelector("#prompt-textarea") ||
+      document.querySelector('textarea[placeholder]') ||
+      document.querySelector('[contenteditable="true"][role="textbox"]');
+  }
+
+  function readComposer(el) {
+    return el?.tagName === "TEXTAREA" || el?.tagName === "INPUT" ? el.value : (el?.innerText || el?.textContent || "");
+  }
+
+  // Remove a VibeBridge-owned context wrapper if an older extension build or
+  // stale ChatGPT tab leaves it in the editable composer. Preserve only the real
+  // user request; never send a repository context dump as user-authored text.
+  function sanitizeBridgeComposer(el) {
+    if (!el || el.dataset?.vibebridgeSanitizing === "true") return false;
+    const current = readComposer(el);
+    if (!/VIBEBRIDGE PROJECT CONTEXT|VIBEBRIDGE PROJECT CONTINUITY|PERSISTENT PROJECT MEMORY|END VIBEBRIDGE PROJECT CONTEXT|VIBEBRIDGE MEMORY CHECKPOINT REQUIREMENT/i.test(current)) return false;
+    const marker = /USER REQUEST:\s*/i;
+    const match = marker.exec(current);
     const cleaned = match ? current.slice(match.index + match[0].length).trim() : "";
     el.dataset.vibebridgeSanitizing = "true";
     try { writeComposer(el, cleaned); } finally {
@@ -332,8 +407,7 @@
     }, 180);
   }
   const observer = new MutationObserver((mutations) => {
-    // First scrub any bridge-owned wrapper that leaks into the editable composer.
-    // This is deliberately global to the ChatGPT page, not tied to one project.
+    // System-wide guard: scrub leaked context regardless of which project is named.
     const composer = document.querySelector("#prompt-textarea") ||
       document.querySelector('textarea[placeholder]') ||
       document.querySelector('[contenteditable="true"][role="textbox"]');

@@ -94,6 +94,18 @@ class ProjectSwitchTests(unittest.TestCase):
         )
 
     @patch.object(server, "discover_projects", return_value=[])
+    @patch.object(server, "github_projects", side_effect=RuntimeError("temporary GitHub listing failure"))
+    def test_resolve_project_set_preserves_known_remote_project_when_listing_fails(self, _github, _local):
+        projects = server.resolve_project_set(
+            "keep building",
+            [{"path": "github:YamaHaroJ/VibeBridge"}],
+            "github:YamaHaroJ/VibeBridge",
+        )
+        self.assertEqual(len(projects), 1)
+        self.assertEqual(projects[0]["repository"], "YamaHaroJ/VibeBridge")
+        self.assertEqual(projects[0]["path"], "github:YamaHaroJ/VibeBridge")
+
+    @patch.object(server, "discover_projects", return_value=[])
     @patch.object(server, "github_projects")
     def test_resolve_project_set_preserves_known_project_and_adds_new_one(self, github_projects, _local):
         github_projects.return_value = [

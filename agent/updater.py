@@ -196,12 +196,16 @@ def main():
     # A dirty checkout should not block delivery of runtime updates if the
     # user's edits are elsewhere. Never overwrite edits within managed paths.
     managed_status = run(["git", "status", "--porcelain", "--", *MANAGED_PATHS])
-    if managed_status:
-        # Never overwrite edited runtime files during an automatic five-second
-        # update poll. Require the user to commit/stash/revert them first.
-        log("Update deferred: managed runtime paths contain local edits; preserving all files. Resolve edits before retrying.")
-        raise RuntimeError("Update deferred because agent/, extension/, or tests/ has local changes. Commit, stash, or revert those edits, then retry.")
-    log("Unrelated local changes detected; syncing managed runtime paths.")
+    force_managed = "--force-managed" in sys.argv[1:]
+    if managed_status and not force_managed:
+        # Background polling must preserve local edits. The explicit Reload button
+        # may request the committed GitHub version and use the staged rollback path.
+        log("Update deferred: managed runtime paths contain local edits; preserving all files. Use the explicit Reload button to deploy GitHub master.")
+        raise RuntimeError("Update deferred because managed runtime paths have local edits.")
+    if managed_status and force_managed:
+        log("Explicit Reload authorized replacing managed runtime edits with validated GitHub master.")
+    else:
+        log("Unrelated local changes detected; syncing managed runtime paths.")
     stage = ROOT / ".vibebridge-update-stage"
     if stage.exists():
         shutil.rmtree(stage)

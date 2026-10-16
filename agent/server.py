@@ -540,7 +540,7 @@ def safe_git_output(args, cwd, timeout=5):
         return ""
 
 
-def project_context(project):
+def _build_project_context(project):
     if str(project).startswith("github:"):
         # A selected remote repository is already an explicit owner/repo slug.
         # Do not require `gh repo list` to succeed before fetching its context:
@@ -616,6 +616,35 @@ def project_context(project):
     if local_memory:
         parts.append("VIBEBRIDGE SAVED NOTES:\n" + local_memory)
     return "\n\n".join(parts)[:18000]
+
+
+# Cache assembled context briefly: ChatGPT can trigger multiple overlapping
+# context lookups for the same project while a message is being composed.
+# A short TTL avoids repeated Git/gh subprocesses without hiding real edits for
+# more than a moment. Cache is bounded and guarded for concurrent HTTP threads.
+_CONTEXT_CACHE_TTL = 2.0
+_CONTEXT_CACHE_MAX = 64
+_context_cache = {}
+_context_cache_lock = threading.Lock()
+
+
+def project_context(project):
+    key = str(project)
+    now = time.monotonic()
+    with _context_cache_lock:
+        cached = _context_cache.get(key)
+        if cached and now - cached[0] < _CONTEXT_CACHE_TTL:
+            return cached[1]
+        if cached:
+            _context_cache.pop(key, None)
+
+    context = _build_project_context(project)
+    with _context_cache_lock:
+        _context_cache[key] = (time.monotonic(), context)
+        if len(_context_cache) > _CONTEXT_CACHE_MAX:
+            oldest = min(_context_cache, key=lambda item: _context_cache[item][0])
+            _context_cache.pop(oldest, None)
+    return context
 
 
 def match_project(message, active=""):

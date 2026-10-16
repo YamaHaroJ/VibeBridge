@@ -78,8 +78,9 @@ async function runScenario(sendMessage) {
   const composer = new Element("TEXTAREA");
   composer.id = "prompt-textarea";
   composer.value = "Continue VibeBridge";
-  const send = new Element("BUTTON");
-  send.setAttribute("data-testid", "send-button");
+  let liveSend = new Element("BUTTON");
+  liveSend.setAttribute("data-testid", "send-button");
+  const send = liveSend;
   const body = new Element("BODY");
   const root = new Element("HTML");
   root.appendChild(body);
@@ -104,7 +105,7 @@ async function runScenario(sendMessage) {
         if (found) return found;
       }
       if (selector === "#prompt-textarea" || selector === 'textarea[placeholder]') return composer;
-      if (selector === 'button[data-testid="send-button"]' || selector === 'button[aria-label*="Send"]') return send;
+      if (selector === 'button[data-testid="send-button"]' || selector === 'button[aria-label*="Send"]') return liveSend;
       if (selector === "form") return null;
       return null;
     },
@@ -151,7 +152,7 @@ async function runScenario(sendMessage) {
   const pending = handler(event);
   await pending;
   await new Promise(resolve => setTimeout(resolve, 0));
-  return {composer, send, notices, event, body, document};
+  return {composer, send, getCurrentSend:() => liveSend, replaceSendButton(){ liveSend = new Element("BUTTON"); liveSend.setAttribute("data-testid", "send-button"); return liveSend; }, notices, event, body, document};
 }
 
 (async () => {
@@ -185,11 +186,13 @@ async function runScenario(sendMessage) {
     const actions = h.document.getElementById("vibebridge-notice-actions");
     const attach = actions.children.find(node => node.dataset.vibebridgeContextAction === "attach");
     assert.ok(attach, "user can explicitly attach context");
+    const replacementSend = h.replaceSendButton(); // Simulate ChatGPT replacing the Send button during async work.
     attach.click();
     assert.equal(actions.children.some(node => node.dataset.vibebridgeContextAction), false, "context choices are removed after selection");
     assert.match(h.composer.value, /MOCK PROJECT CONTEXT/, "context is inserted only after explicit opt-in");
     assert.match(h.composer.value, /USER REQUEST:[\s\S]*Continue VibeBridge/);
-    assert.equal(h.send.clickCount, 1, "context-enriched message is sent exactly once");
+    assert.equal(replacementSend.clickCount, 1, "context-enriched message uses the live Send button exactly once");
+    assert.equal(h.send.clickCount, undefined, "stale Send button is never clicked");
   }
   {
     const h = await runScenario(async () => { throw new Error("Extension context invalidated."); });

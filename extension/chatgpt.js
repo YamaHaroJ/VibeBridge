@@ -210,6 +210,27 @@
     };
   }
 
+  // ChatGPT may replace its Send button while the extension resolves context.
+  // Always target the currently mounted button instead of a stale element; wait
+  // briefly for React to enable it after updating the draft.
+  function clickCurrentSendButton(attempt = 0) {
+    const current = document.querySelector('button[data-testid="send-button"]') ||
+      document.querySelector('button[aria-label*="Send"]') ||
+      document.querySelector("form button[type='submit']");
+    if (!current) {
+      showNotice("VibeBridge could not find ChatGPT's current Send button. Your draft is unchanged; click Send normally.");
+      return false;
+    }
+    if (current.disabled) {
+      if (attempt < 10) { setTimeout(() => clickCurrentSendButton(attempt + 1), 50); return true; }
+      showNotice("ChatGPT's Send button stayed disabled. Your draft is unchanged; click Send normally.");
+      return false;
+    }
+    bypassNextSend = true;
+    current.click();
+    setTimeout(() => { bypassNextSend = false; }, 800);
+    return true;
+  }
   function showReloadNotice(text) {
     showNotice(text);
     const notice = document.getElementById("vibebridge-notice");
@@ -565,9 +586,7 @@
             composer.dataset.vibebridgeContextInjection = "true";
             writeComposer(composer, addition + original);
             showNotice("Sending with project context. If the editor retains the wrapper, VibeBridge will remove it.");
-            bypassNextSend = true;
-            button.click();
-            setTimeout(() => { bypassNextSend = false; }, 800);
+            if (!clickCurrentSendButton()) return;
             setTimeout(() => {
               if (!composer.dataset) return;
               delete composer.dataset.vibebridgeContextInjection;
@@ -580,9 +599,7 @@
               return;
             }
             showNotice("Sending your original message without project context.");
-            bypassNextSend = true;
-            button.click();
-            setTimeout(() => { bypassNextSend = false; }, 800);
+            clickCurrentSendButton();
           }
         );
       } else if (result?.ambiguous) {

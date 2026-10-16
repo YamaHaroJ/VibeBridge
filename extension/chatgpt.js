@@ -196,7 +196,7 @@
       // Some ChatGPT render paths drop custom fence classes but retain the
       // literal fence label as the first rendered line. Preserve hands-off
       // behavior only for that explicit VibeBridge label, never generic JSON.
-      const markedFence = /^vibebridge-run(?:\\s|$)/i.test(normalizedBlock);
+      const markedFence = /^vibebridge-run(?:\s|$)/i.test(normalizedBlock);
       const hasCommandLanguage = /language-vibebridge-run|vibebridge-run/i.test(className);
       const hasShellLanguage = /language-(bash|sh|zsh|shell)\b/i.test(className);
       let payload = null;

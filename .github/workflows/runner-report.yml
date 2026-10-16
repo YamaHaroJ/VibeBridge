@@ -31,6 +31,7 @@ jobs:
             "VibeBridge task: test") echo "name=test" >> "$GITHUB_OUTPUT" ;;
             "VibeBridge task: validate") echo "name=validate" >> "$GITHUB_OUTPUT" ;;
             "VibeBridge task: diagnostics") echo "name=diagnostics" >> "$GITHUB_OUTPUT" ;;
+            "VibeBridge task: terminal-smoke") echo "name=terminal-smoke" >> "$GITHUB_OUTPUT" ;;
             *) echo "Unsupported task title: $ISSUE_TITLE"; exit 1 ;;
           esac
 
@@ -107,6 +108,9 @@ jobs:
             } else if (task === "diagnostics") {
               result = "LIMITED";
               detail = "GitHub-hosted diagnostics completed. This runner cannot inspect the user's Mac or its local services/logs.";
+            } else if (task === "terminal-smoke") {
+              result = "DELEGATED";
+              detail = "This task must run on the Mac; GitHub-hosted runners cannot reach localhost:43127.";
             } else {
               result = "FAIL";
               detail = "Task title was not recognized.";
@@ -116,5 +120,5 @@ jobs:
             await github.rest.issues.createComment({
               ...context.repo,
               issue_number: context.issue.number,
-              body: `**VibeBridge fast reporter — ${result}**\n\nTask: ${task}\n${detail}\n\nChecked-out commit: \\`${revision}\\`\nExtension manifest: \\`${version}\\`\n\n[Workflow logs](${runUrl})`
+              body: '**VibeBridge fast reporter — ' + result + '\n\nTask: ' + task + '\n' + detail + '\n\nChecked-out commit: ' + revision + '\nExtension manifest: ' + version + '\n\n[Workflow logs](' + runUrl + ')'
             });

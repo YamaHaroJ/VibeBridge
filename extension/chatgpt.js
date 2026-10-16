@@ -127,8 +127,11 @@
     node.style.display = "block";
   }
 
+  let scannedBlocks = 0;
+  let detectedBlocks = 0;
   function addCommandControls(allowAutoRun = false) {
     const blocks = document.querySelectorAll('pre, [data-language], code');
+    scannedBlocks = blocks.length;
     for (const pre of blocks) {
       const preBlock = pre.tagName === "PRE" ? pre : pre.closest("pre");
       const target = preBlock || pre;
@@ -161,6 +164,7 @@
       }
       processedBlocks.add(pre);
       processedBlocks.add(target);
+      detectedBlocks++;
 
       if (hasShellLanguage && !hasCommandLanguage && !markedBlock) {
         payload = {command: ["bash", "-lc", rawBlock.replace(/^\s*```(?:bash|sh|zsh|shell)\s*/i, "").replace(/\s*```$/, "").trim()]};
@@ -273,9 +277,10 @@
       status.style.cssText = "position:fixed;right:12px;bottom:12px;z-index:999998;padding:5px 8px;border-radius:6px;background:#172033;color:#fff;font:11px system-ui;opacity:.82";
       document.documentElement.appendChild(status);
     }
-    status.textContent = "VibeBridge " + extensionVersion + " · scanning commands";
+    status.textContent = "VibeBridge " + extensionVersion + " · blocks " + scannedBlocks + " · commands " + detectedBlocks;
   }
   ensureBridgeStatus();
+  addCommandControls(false);
 
   const observer = new MutationObserver(() => {
     ensureBridgeStatus();

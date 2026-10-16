@@ -183,7 +183,7 @@ async function runScenario(sendMessage, initialDraft = "Continue VibeBridge") {
       if (message.type === "VIBEBRIDGE_RESOLVE_CONTEXTS") return {matched:false, reason:"no-match"};
       throw new Error("Unexpected message " + message.type);
     }, staleDraft);
-    assert.equal(h.composer.value, "there's the user's actual request", "stale wrapper cleanup preserves the user request after the final divider");
+    assert.equal(h.composer.value, staleDraft, "stale context remains untouched; VibeBridge never rewrites the user's draft");
   }
   {
     const h = await runScenario(async message => {

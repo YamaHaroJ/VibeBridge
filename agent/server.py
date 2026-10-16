@@ -740,7 +740,18 @@ class Handler(BaseHTTPRequestHandler):
     def authorized(self):
         return secrets.compare_digest(self.headers.get("Authorization", ""), "Bearer " + TOKEN)
 
+    def require_extension_origin(self):
+        """Reject browser-origin requests unless they come from the installed extension."""
+        origin = self.headers.get("Origin", "")
+        if origin:
+            if not origin.startswith("chrome-extension://"):
+                self.send_json(403, {"error": "Untrusted browser origin"})
+                return False
+        return True
+
     def do_GET(self):
+        if not self.require_extension_origin():
+            return
         if not self.authorized():
             return self.send_json(401, {"error": "Unauthorized"})
         path = urlparse(self.path).path
@@ -818,6 +829,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
+        if path != "/pair" and not self.require_extension_origin():
+            return
         if path == "/pair":
             status, payload = request_pairing(self.headers.get("Origin", ""))
             return self.send_json(status, payload)

@@ -395,24 +395,47 @@ def filesystem_listing(raw):
 
 
 def run_bounded_command(command, cwd, timeout=120, stdout_limit=20000, stderr_limit=8000):
-    """Run a command with disk-backed capture so noisy processes cannot exhaust RAM."""
-    with tempfile.TemporaryFile(mode="w+b") as stdout_file, tempfile.TemporaryFile(mode="w+b") as stderr_file:
-        result = subprocess.run(
-            command, cwd=str(cwd), stdout=stdout_file, stderr=stderr_file,
-            timeout=timeout, check=False
-        )
+    """Run a command while retaining only bounded tails of stdout and stderr."""
+    process = subprocess.Popen(
+        command, cwd=str(cwd), stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+    tails = {"stdout": bytearray(), "stderr": bytearray()}
+    limits = {"stdout": max(0, int(stdout_limit)), "stderr": max(0, int(stderr_limit))}
 
-        def tail(handle, limit):
-            handle.seek(0, os.SEEK_END)
-            size = handle.tell()
-            handle.seek(max(0, size - limit))
-            return handle.read().decode("utf-8", errors="replace")
+    def drain(name, stream):
+        tail = tails[name]
+        limit = limits[name]
+        while True:
+            chunk = stream.read(8192)
+            if not chunk:
+                break
+            if limit == 0:
+                continue
+            tail.extend(chunk)
+            if len(tail) > limit:
+                del tail[:len(tail) - limit]
 
-        return {
-            "exitCode": result.returncode,
-            "stdout": tail(stdout_file, stdout_limit),
-            "stderr": tail(stderr_file, stderr_limit),
-        }
+    readers = [
+        threading.Thread(target=drain, args=("stdout", process.stdout), daemon=True),
+        threading.Thread(target=drain, args=("stderr", process.stderr), daemon=True),
+    ]
+    for reader in readers:
+        reader.start()
+    try:
+        exit_code = process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+        for reader in readers:
+            reader.join()
+        raise
+    for reader in readers:
+        reader.join()
+    return {
+        "exitCode": exit_code,
+        "stdout": bytes(tails["stdout"]).decode("utf-8", errors="replace"),
+        "stderr": bytes(tails["stderr"]).decode("utf-8", errors="replace"),
+    }
 
 
 def validate_command_arguments(command):

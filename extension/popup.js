@@ -61,8 +61,13 @@ async function requestBackgroundUpdate() {
       await chrome.storage.local.remove("lastAutomaticUpdateRequest");
     }
   } catch {
-    // The popup's connection status remains the user-facing signal; updater logs
-    // record the failure when the local agent is reachable.
+    // A failed attempt must not suppress retries for the next ten minutes.
+    // Remove the throttle marker so the next popup open can retry immediately.
+    try {
+      await chrome.storage.local.remove("lastAutomaticUpdateRequest");
+    } catch {
+      // Storage can be unavailable during extension shutdown; the next open retries.
+    }
   }
 }
 

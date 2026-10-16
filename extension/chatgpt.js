@@ -169,7 +169,15 @@
       node.append(message, actions);
       document.body.appendChild(node);
     }
+    if (node._vibebridgeDismissTimer) clearTimeout(node._vibebridgeDismissTimer);
     node.dataset.fullText = String(text);
+    const transient = /^(Sending your original message without project context\.|Sending with project context\.|VibeBridge command finished\.)$/.test(String(text));
+    if (transient) {
+      node._vibebridgeDismissTimer = setTimeout(() => {
+        node.style.display = "none";
+        node._vibebridgeDismissTimer = null;
+      }, 7000);
+    }
     const message = node.querySelector("#vibebridge-notice-message");
     if (message) message.textContent = String(text);
     node.style.display = "block";

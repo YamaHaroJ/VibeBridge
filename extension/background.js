@@ -1,5 +1,28 @@
 const API = "http://127.0.0.1:43127";
 
+// Recover heartbeat automatically across every ChatGPT tab without reloading pages.
+async function ensureChatGPTTabHeartbeat(tabId) {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    const url = new URL(tab.url || "");
+    if (!["chatgpt.com", "chat.openai.com"].includes(url.hostname)) return;
+    await chrome.scripting.executeScript({target: {tabId}, files: ["chatgpt.js"]});
+  } catch (_) {
+    // Chrome may reject restricted, closing, or not-yet-ready tabs; later events retry.
+  }
+}
+async function recoverOpenChatGPTTabs() {
+  try {
+    const tabs = await chrome.tabs.query({url: ["https://chatgpt.com/*", "https://chat.openai.com/*"]});
+    await Promise.all(tabs.map(tab => ensureChatGPTTabHeartbeat(tab.id)));
+  } catch (_) {}
+}
+chrome.runtime.onInstalled.addListener(() => { recoverOpenChatGPTTabs(); });
+chrome.runtime.onStartup.addListener(() => { recoverOpenChatGPTTabs(); });
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status === "complete") ensureChatGPTTabHeartbeat(tabId);
+});
+
 async function fetchAgent(path, options = {}, timeoutMs = 20000) {
   const controller = new AbortController();
   let timeout;

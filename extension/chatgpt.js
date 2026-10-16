@@ -10,6 +10,8 @@
   });
   const marker = "VIBEBRIDGE PROJECT CONTEXT";
   const extensionVersion = chrome.runtime.getManifest?.().version || "unknown";
+  // Report extension version and ChatGPT host only; never send conversation text.
+  chrome.runtime.sendMessage({type: "VIBEBRIDGE_BROWSER_HEARTBEAT"}).catch(() => {});
   const commandMarker = "VIBEBRIDGE LOCAL COMMAND";
   const processedBlocks = new WeakSet();
   // Never replay commands embedded in conversation history when a tab opens.

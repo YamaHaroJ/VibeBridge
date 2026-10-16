@@ -33,6 +33,7 @@ jobs:
             "VibeBridge task: diagnostics") echo "name=diagnostics" >> "$GITHUB_OUTPUT" ;;
             "VibeBridge task: terminal-smoke") echo "name=terminal-smoke" >> "$GITHUB_OUTPUT" ;;
             "VibeBridge task: macoptimizer-build") echo "name=macoptimizer-build" >> "$GITHUB_OUTPUT" ;;
+            "VibeBridge task: macoptimizer-dedupe") echo "name=macoptimizer-dedupe" >> "$GITHUB_OUTPUT" ;;
             *) echo "Unsupported task title: $ISSUE_TITLE"; exit 1 ;;
           esac
 
@@ -112,9 +113,9 @@ jobs:
             } else if (task === "terminal-smoke") {
               result = "DELEGATED";
               detail = "This task must run on the Mac; GitHub-hosted runners cannot reach localhost:43127.";
-            } else if (task === "macoptimizer-build") {
+            } else if (task === "macoptimizer-build" || task === "macoptimizer-dedupe") {
               result = "DELEGATED";
-              detail = "Build/install runs on the user Mac runner; this hosted workflow only acknowledges the task.";
+              detail = "This task must run on the Mac runner; hosted CI only acknowledges it.";
             } else {
               result = "FAIL";
               detail = "Task title was not recognized.";

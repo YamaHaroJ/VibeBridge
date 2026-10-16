@@ -156,6 +156,15 @@ class ProjectSwitchTests(unittest.TestCase):
         self.assertEqual(context, "PROJECT: VibeBridge\\nREMOTE MEMORY")
         remote_context.assert_called_once_with("YamaHaroJ/VibeBridge")
 
+    def test_multiple_project_contexts_use_real_line_breaks(self):
+        context = server.format_project_context_sections([
+            ("VibeBridge", "first project memory"),
+            ("Autofill", "second project memory"),
+        ])
+        self.assertIn("===== PROJECT CONTEXT: VibeBridge =====\nfirst project memory", context)
+        self.assertIn("===== PROJECT CONTEXT: VibeBridge =====\\n", context) is False
+        self.assertIn("\n\n===== PROJECT CONTEXT: Autofill =====\nsecond project memory", context)
+
     def test_remote_project_context_rejects_invalid_slug(self):
         with self.assertRaisesRegex(ValueError, "Invalid GitHub repository path"):
             server.project_context("github:../VibeBridge")

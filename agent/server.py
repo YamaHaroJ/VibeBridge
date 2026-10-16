@@ -481,7 +481,789 @@ def read_text(path, limit=9000):
         return ""
 
 
+def status_command(args, cwd=None, timeout=5):
+    """Run a best-effort status probe without letting a missing tool or timeout break the API."""
+    try:
+        result = subprocess.run(args, cwd=str(cwd) if cwd else None,
+                                capture_output=True, text=True, timeout=timeout)
+        return {"returncode": result.returncode, "stdout": result.stdout, "stderr": result.stderr}
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {"returncode": 1, "stdout": "", "stderr": str(exc)}
+
+
 def safe_git_output(args, cwd, timeout=5):
+    """Return optional Git metadata without letting a slow/broken Git block context."""
+    try:
+        result = subprocess.run(args, cwd=str(cwd), capture_output=True, text=True, timeout=timeout)
+        return result.stdout.strip() if result.returncode == 0 else ""
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+
+
+def project_context(project):
+    if str(project).startswith("github:"):
+        # A selected remote repository is already an explicit owner/repo slug.
+        # Do not require `gh repo list` to succeed before fetching its context:
+        # listing can fail transiently or omit repositories outside the default
+        # account scope even while `gh api repos/{owner}/{repo}` still works.
+        slug = str(project)[len("github:"):].strip()
+        parts = slug.split("/")
+        if (len(parts) != 2 or any(part in ("", ".", "..") for part in parts)
+                or not all(re.fullmatch(r"[A-Za-z0-9_.-]+", part) for part in parts)):
+            raise ValueError("Invalid GitHub repository path.")
+        return remote_repo_context(slug)
+    p = project_path(project)
+    parts = [f"PROJECT: {p.name}", f"LOCAL PATH: {p}"]
+    remote = safe_git_output(["git", "remote", "get-url", "origin"], p)
+    if remote:
+        parts.append("GITHUB REMOTE: " + remote)
+    branch = safe_git_output(["git", "branch", "--show-current"], p)
+    if branch:
+        parts.append("BRANCH: " + branch)
+    status = safe_git_output(["git", "status", "--short"], p)
+    parts.append("WORKING TREE: " + (status or "clean"))
+    commit = safe_git_output(["git", "log", "-1", "--oneline"], p)
+    if commit:
+        parts.append("LATEST COMMIT: " + commit)
+    readme = read_text(p / "README.md", 6500)
+    if readme:
+        parts.append("README SUMMARY SOURCE (README text):\n" + readme)
+    memory = read_text(p / "VIBEBRIDGE_CONTEXT.md", 6500)
+    if memory:
+        parts.append("PERSISTENT PROJECT MEMORY:\n" + memory)
+    checkpoint = read_text(p / "memory" / "AUTO_CHECKPOINT.md", 9000)
+    # Checkpoints are written to GitHub after each assistant response. For a local
+    # checkout, fetch the shared checkpoint so a different ChatGPT conversation
+    # receives the latest handoff even when the local file has not been pulled.
+    try:
+        remote_slug = subprocess.run(
+            ["git", "remote", "get-url", "origin"], cwd=str(p),
+            capture_output=True, text=True, timeout=5
+        )
+        if remote_slug.returncode == 0:
+            url = remote_slug.stdout.strip().removesuffix(".git")
+            if url.startswith("git@github.com:"):
+                slug = url[len("git@github.com:"):]
+            elif "github.com/" in url:
+                slug = url.split("github.com/", 1)[1]
+            else:
+                slug = ""
+            if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", slug):
+                # Bound remote checkpoint retrieval and treat it as optional. A slow
+                # GitHub API must not delay otherwise usable local project context.
+                try:
+                    shared = subprocess.run(
+                        ["gh", "api", f"repos/{slug}/contents/memory/AUTO_CHECKPOINT.md", "--jq", ".content"],
+                        capture_output=True, text=True, timeout=4
+                    )
+                    if shared.returncode == 0 and shared.stdout.strip():
+                        import base64
+                        shared_text = base64.b64decode("".join(shared.stdout.split()), validate=True).decode("utf-8", errors="replace").strip()
+                        if shared_text:
+                            checkpoint = shared_text
+                except (OSError, subprocess.TimeoutExpired, ValueError):
+                    pass
+    except Exception:
+        pass
+    if checkpoint:
+        parts.append("LATEST CROSS-CONVERSATION HANDOFFS AND LIVING TODOS:\n" + checkpoint)
+    memory_file = MEMORY_DIR / (hashlib.sha256(str(p).encode()).hexdigest() + ".md")
+    local_memory = read_text(memory_file, 6500)
+    if local_memory:
+        parts.append("VIBEBRIDGE SAVED NOTES:\n" + local_memory)
+    return "\n\n".join(parts)[:18000]
+
+
+def match_project(message, active=""):
+    text = str(message or "").lower()
+    projects = discover_projects()
+    switch_intent = bool(re.search(r"\b(?:switch|change|move)\s+(?:the\s+)?(?:project|repo|repository)?\s*(?:to|over\s+to)\b|\bopen\s+(?:the\s+)?(?:repo|repository)\b", text))
+
+    def as_project(repo):
+        if repo.get("localPath"):
+            return {"name": repo["name"], "path": repo["localPath"]}
+        return {"name": repo["name"], "path": "github:" + repo["nameWithOwner"],
+                "repository": repo["nameWithOwner"], "remote": True}
+
+    repos = None
+    slug_match = re.search(r"(?<![a-z0-9])([a-z0-9_.-]+/[a-z0-9_.-]+)(?![a-z0-9_.-])", text)
+    if slug_match:
+        try:
+            repos = github_projects()
+        except RuntimeError as exc:
+            raise RuntimeError("Could not search GitHub for the explicitly named repository. " + str(exc))
+        slug = slug_match.group(1).lower()
+        exact = [repo for repo in repos if str(repo.get("nameWithOwner", "")).lower() == slug]
+        if len(exact) == 1:
+            return as_project(exact[0]), "message"
+        if switch_intent:
+            raise RuntimeError("The explicitly named GitHub repository was not found in the authenticated GitHub CLI account: " + slug_match.group(1))
+
+    # Exact owner/repository slugs take priority over a same-named local folder.
+    local_explicit = [
+        item for item in projects
+        if re.search(
+            r"(?<![a-z0-9])" + re.escape(item["name"].lower()).replace(r"\-", r"[-_ ]+") + r"(?![a-z0-9])",
+            text
+        )
+    ]
+    if len(local_explicit) == 1:
+        return local_explicit[0], "message"
+    if len(local_explicit) > 1:
+        return None, "ambiguous"
+
+    if repos is None:
+        try:
+            repos = github_projects()
+        except RuntimeError as exc:
+            # Never silently attach the previous project's context to an explicit switch request.
+            target_alias = bool(re.search(r"\bautofill\b|\bmac\s*optimizer\b|\bvibe\s*bridge\b", text))
+            if switch_intent and target_alias:
+                raise RuntimeError("Could not search GitHub to resolve the requested project. " + str(exc))
+            repos = []
+
+    aliases = {
+        "autofill-insurance-extension": ("autofill", "insurance extension", "autofill extension"),
+        "vibebridge": ("vibebridge", "vibe bridge"),
+        "macoptimizer": ("macoptimizer", "mac optimizer"),
+    }
+    remote_explicit = []
+    for repo in repos:
+        full = str(repo.get("nameWithOwner", "")).lower()
+        name = str(repo.get("name", "")).lower()
+        normalized_name = name.replace("_", "-")
+        pattern = re.escape(normalized_name).replace(r"\-", r"[-_ ]+")
+        full_match = bool(full and full in text)
+        name_match = bool(pattern and re.search(r"(?<![a-z0-9])" + pattern + r"(?![a-z0-9])", text))
+        alias_match = any(
+            re.search(r"(?<![a-z0-9])" + re.escape(alias) + r"(?![a-z0-9])", text)
+            for alias in aliases.get(normalized_name, ())
+        )
+        if full_match or name_match or alias_match:
+            remote_explicit.append(repo)
+
+    exact_slug = [repo for repo in remote_explicit if str(repo.get("nameWithOwner", "")).lower() in text]
+    chosen = exact_slug if exact_slug else remote_explicit
+    unique = {str(repo.get("nameWithOwner", "")).lower(): repo for repo in chosen}
+    if len(unique) == 1:
+        return as_project(next(iter(unique.values()))), "message"
+    if len(unique) > 1:
+        return None, "ambiguous"
+    if switch_intent:
+        # An explicit target that cannot be resolved must never fall back to old context.
+        raise RuntimeError("The requested project could not be resolved. Use the repository name or owner/repository, then check GitHub CLI connection in VibeBridge settings.")
+
+    # No explicit target: keep the current project where possible.
+    if active:
+        if str(active).startswith("github:"):
+            repo = github_repo_for_name(active)
+            if repo:
+                return as_project(repo), "active"
+            return {"name": str(active).split("/")[-1], "path": str(active), "remote": True}, "active"
+        try:
+            p = project_path(active)
+            return {"name": p.name, "path": str(p)}, "active"
+        except (ValueError, OSError):
+            pass
+    return None, "none"
+
+
+
+
+def resolve_project_set(message, known_projects=None, active=""):
+    """Resolve all explicitly discussed projects plus the projects already established in this conversation."""
+    text = str(message or "").lower()
+    known = known_projects if isinstance(known_projects, list) else []
+    resolved = []
+    try:
+        repos = github_projects()
+    except RuntimeError:
+        repos = []
+    repos_by_slug = {str(repo.get("nameWithOwner", "")).lower(): repo for repo in repos}
+
+    def add(project):
+        if not isinstance(project, dict):
+            return
+        path = str(project.get("path") or "").strip()
+        if not path or any(item["path"].lower() == path.lower() for item in resolved):
+            return
+        if path.startswith("github:"):
+            slug = path[len("github:"):].strip()
+            if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", slug):
+                return
+            normalized_slug = slug.lower()
+            repo = repos_by_slug.get(normalized_slug)
+            # Preserve a previously selected remote project even if repository
+            # discovery is temporarily unavailable. Loading its context still
+            # performs authenticated GitHub API calls and reports real failures.
+            canonical_slug = repo["nameWithOwner"] if repo else slug
+            name = repo["name"] if repo else slug.rsplit("/", 1)[-1]
+            item = {"name": name, "path": "github:" + canonical_slug,
+                    "repository": canonical_slug, "remote": True}
+        else:
+            try:
+                root = project_path(path)
+            except (ValueError, OSError):
+                return
+            item = {"name": root.name, "path": str(root)}
+        resolved.append(item)
+
+    # Preserve the conversation's known project set. Only accept paths resolved
+    # through the same local-root/GitHub allowlists used by normal project loading.
+    for value in known[:8]:
+        add(value if isinstance(value, dict) else {"path": value})
+
+    # Short follow-ups (e.g. "keep building") rarely name a repository. When
+    # there is no explicit switch request, include the saved active project even
+    # if conversationProjects is empty or stale. Explicit switches still resolve
+    # their requested target without accidentally carrying the old project in.
+    switch_intent = bool(re.search(
+        r"\b(?:switch|change|move)\s+(?:the\s+)?(?:project|repo|repository)?\s*(?:to|over\s+to)\b|\bopen\s+(?:the\s+)?(?:repo|repository)\b",
+        text
+    ))
+    if active and not switch_intent:
+        add({"path": active})
+
+    local_projects = discover_projects()
+    for item in local_projects:
+        name = str(item.get("name", "")).lower()
+        if name and re.search(r"(?<![a-z0-9])" + re.escape(name).replace(r"\-", r"[-_ ]+") + r"(?![a-z0-9])", text):
+            add(item)
+
+    # Resolve every connected repository explicitly mentioned, not just the first
+    # match. This supports a single message discussing multiple related projects.
+    aliases = {
+        "autofill-insurance-extension": ("autofill", "insurance extension", "autofill extension"),
+        "vibebridge": ("vibebridge", "vibe bridge"),
+        "macoptimizer": ("macoptimizer", "mac optimizer"),
+    }
+    for repo in repos:
+        full = str(repo.get("nameWithOwner", "")).lower()
+        name = str(repo.get("name", "")).lower()
+        normalized = name.replace("_", "-")
+        name_pattern = re.escape(normalized).replace(r"\-", r"[-_ ]+")
+        full_match = bool(full and re.search(r"(?<![a-z0-9])" + re.escape(full) + r"(?![a-z0-9_.-])", text))
+        name_match = bool(name_pattern and re.search(r"(?<![a-z0-9])" + name_pattern + r"(?![a-z0-9])", text))
+        alias_match = any(re.search(r"(?<![a-z0-9])" + re.escape(alias) + r"(?![a-z0-9])", text)
+                          for alias in aliases.get(normalized, ()))
+        if full_match or name_match or alias_match:
+            if repo.get("localPath"):
+                add({"name": repo["name"], "path": repo["localPath"]})
+            else:
+                add({"name": repo["name"], "path": "github:" + repo["nameWithOwner"],
+                     "repository": repo["nameWithOwner"], "remote": True})
+
+    if not resolved and active:
+        try:
+            project, _reason = match_project(message, active)
+            if project:
+                add(project)
+        except (RuntimeError, ValueError):
+            pass
+
+    return resolved[:8]
+
+def local_diagnostics():
+    """Return a small allowlisted snapshot of VibeBridge services, never raw process arguments or logs."""
+    def service_snapshot(label):
+        if platform.system() != "Darwin":
+            return {"label": label, "loaded": False, "state": "unavailable-on-this-platform", "pid": None}
+        try:
+            result = subprocess.run(
+                ["/bin/launchctl", "print", f"gui/{os.getuid()}/{label}"],
+                capture_output=True, text=True, timeout=3
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return {"label": label, "loaded": False, "state": "query-failed", "pid": None}
+        if result.returncode != 0:
+            return {"label": label, "loaded": False, "state": "not-loaded", "pid": None}
+        state_match = re.search(r"(?m)^\s*state = ([^\r\n]+)", result.stdout)
+        pid_match = re.search(r"(?m)^\s*pid = (\d+)", result.stdout)
+        return {
+            "label": label,
+            "loaded": True,
+            "state": state_match.group(1).strip() if state_match else "loaded",
+            "pid": int(pid_match.group(1)) if pid_match else None,
+        }
+
+    agent = service_snapshot("com.vibebridge.agent")
+    updater = service_snapshot("com.vibebridge.updater")
+    return {
+        "ok": True,
+        "service": "VibeBridge",
+        "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "platform": platform.system(),
+        "osVersion": platform.mac_ver()[0] if platform.system() == "Darwin" else platform.release(),
+        "agent": {**agent, "requestPid": os.getpid(), "port": PORT},
+        "updater": updater,
+        "scope": "VibeBridge launch services only; no unrelated process names, arguments, environment, or logs are returned.",
+    }
+
+
+def request_pairing(origin):
+    """Legacy HTTP token bootstrap is disabled; use Chrome Native Messaging."""
+    return 410, {
+        "error": "HTTP pairing is disabled. Use the registered VibeBridge Chrome Native Messaging host."
+    }
+
+
+class Handler(BaseHTTPRequestHandler):
+    def send_json(self, status, obj):
+        data = json.dumps(obj).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        origin = self.headers.get("Origin", "")
+        if trusted_extension_origin(origin):
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
+        self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def do_OPTIONS(self):
+        origin = self.headers.get("Origin", "")
+        if not trusted_extension_origin(origin):
+            return self.send_json(403, {"error": "Registered VibeBridge extension origin required"})
+        return self.send_json(200, {"ok": True})
+
+    def authorized(self):
+        return secrets.compare_digest(self.headers.get("Authorization", ""), "Bearer " + TOKEN)
+
+    def require_extension_origin(self):
+        """Reject browser-origin requests unless they come from the installed extension."""
+        origin = self.headers.get("Origin", "")
+        if origin:
+            if not trusted_extension_origin(origin):
+                self.send_json(403, {"error": "Untrusted browser origin"})
+                return False
+        return True
+
+    def do_GET(self):
+        if not self.require_extension_origin():
+            return
+        if not self.authorized():
+            return self.send_json(401, {"error": "Unauthorized"})
+        path = urlparse(self.path).path
+        if path == "/health":
+            return self.send_json(200, {"ok": True, "service": "VibeBridge", "port": PORT})
+        if path == "/diagnostics/local":
+            return self.send_json(200, local_diagnostics())
+        if path == "/projects":
+            return self.send_json(200, {"projects": discover_projects()})
+        if path == "/github-projects":
+            try:
+                return self.send_json(200, {"repositories": github_projects()})
+            except RuntimeError as e:
+                return self.send_json(400, {"error": str(e)})
+        if path == "/filesystem/list":
+            query = parse_qs(urlparse(self.path).query)
+            try:
+                return self.send_json(200, filesystem_listing(query.get("path", [str(HOME_ROOT)])[0]))
+            except (ValueError, OSError) as e:
+                return self.send_json(400, {"error": str(e)})
+        if path == "/filesystem/read":
+            query = parse_qs(urlparse(self.path).query)
+            try:
+                target = filesystem_path(query.get("path", [""])[0])
+                if not target.is_file():
+                    raise ValueError("Path is not a file.")
+                if target.stat().st_size > MAX_FILE_BYTES:
+                    raise ValueError("File exceeds the 2 MB read limit.")
+                return self.send_json(200, {"path": str(target), "content": target.read_text(encoding="utf-8", errors="replace")})
+            except (ValueError, OSError) as e:
+                return self.send_json(400, {"error": str(e)})
+        if path == "/update-status":
+            log_names = ("update.log", "updater.log", "updater-error.log", "agent.log", "agent-error.log")
+            logs = {}
+            for name in log_names:
+                try:
+                    logs[name] = (SUPPORT / name).read_text(errors="replace").splitlines()[-35:]
+                except OSError:
+                    logs[name] = []
+            deployed_revision = ""
+            try:
+                deployed_revision = (SUPPORT / "last-synced-revision").read_text(encoding="utf-8").strip()
+            except OSError:
+                pass
+            current = status_command(["git", "rev-parse", "--short", "HEAD"], cwd=ROOTS[2], timeout=5)
+            remote = status_command(["git", "ls-remote", "https://github.com/YamaHaroJ/VibeBridge.git", "refs/heads/master"], timeout=12)
+            loaded = status_command(["/bin/launchctl", "list", "com.vibebridge.updater"], timeout=5)
+            return self.send_json(200, {
+                "logs": logs,
+                # Archive deployment deliberately leaves Git HEAD unchanged when the
+                # checkout has local edits. Report the deployed marker first so the
+                # extension can verify the files actually installed, not stale HEAD.
+                "currentRevision": (deployed_revision[:12] if deployed_revision else
+                                    current.stdout.strip()[:12] if current.returncode == 0 else "unknown"),
+                "remoteRevision": remote.stdout.split()[0][:12] if remote.returncode == 0 and remote.stdout.split() else "unavailable",
+                "updaterLoaded": loaded.returncode == 0 and "Could not find service" not in loaded.stderr,
+            })
+        if path == "/context":
+            query = parse_qs(urlparse(self.path).query)
+            message = query.get("message", [""])[0]
+            active = query.get("active", [""])[0]
+            try:
+                project, reason = match_project(message, active)
+                if reason == "ambiguous":
+                    return self.send_json(200, {"matched": False, "ambiguous": True, "candidates": [p["name"] for p in discover_projects() if p["name"].lower() in message.lower()]})
+                if not project:
+                    return self.send_json(200, {"matched": False, "reason": "no-project-match"})
+                return self.send_json(200, {"matched": True, "matchReason": reason, "project": project, "context": project_context(project["path"])})
+            except Exception as e:
+                return self.send_json(400, {"error": str(e)})
+        return self.send_json(404, {"error": "Not found"})
+
+    def do_POST(self):
+        path = urlparse(self.path).path
+        if path != "/pair" and not self.require_extension_origin():
+            return
+        if path == "/pair":
+            status, payload = request_pairing(self.headers.get("Origin", ""))
+            return self.send_json(status, payload)
+        if not self.authorized():
+            return self.send_json(401, {"error": "Unauthorized"})
+        try:
+            raw_length = self.headers.get("Content-Length")
+            if raw_length is None or not re.fullmatch(r"[0-9]+", raw_length.strip()):
+                return self.send_json(400, {"error": "Invalid Content-Length"})
+            length = int(raw_length)
+            if length > 1024 * 1024:
+                return self.send_json(413, {"error": "Request too large"})
+            body = json.loads(self.rfile.read(length))
+            if not isinstance(body, dict):
+                return self.send_json(400, {"error": "JSON body must be an object"})
+        except (ValueError, TypeError, json.JSONDecodeError):
+            return self.send_json(400, {"error": "Invalid JSON"})
+        except OSError:
+            return self.send_json(400, {"error": "Could not read request body"})
+        path = urlparse(self.path).path
+        if path == "/checkpoint":
+            try:
+                result = sync_message_checkpoint(body.get("summary", ""), body.get("conversation", "chat"))
+                return self.send_json(200, result)
+            except (ValueError, RuntimeError) as e:
+                return self.send_json(400, {"error": str(e)})
+        if path == "/filesystem/write":
+            try:
+                target = filesystem_path(body.get("path", ""))
+                content = body.get("content")
+                if not isinstance(content, str):
+                    raise ValueError("content must be a string.")
+                if len(content.encode("utf-8")) > MAX_FILE_BYTES:
+                    return self.send_json(413, {"error": "File exceeds the 2 MB write limit."})
+                if not target.parent.is_dir():
+                    raise ValueError("Parent folder does not exist.")
+                if target.exists() and not target.is_file():
+                    raise ValueError("Target path is not a file.")
+                target.write_text(content, encoding="utf-8")
+                return self.send_json(200, {"written": True, "path": str(target), "bytes": len(content.encode("utf-8"))})
+            except (ValueError, OSError) as e:
+                return self.send_json(400, {"error": str(e)})
+        if path == "/filesystem/mkdir":
+            try:
+                target = filesystem_path(body.get("path", ""))
+                target.mkdir(parents=False, exist_ok=False)
+                return self.send_json(201, {"created": True, "path": str(target)})
+            except (ValueError, OSError) as e:
+                return self.send_json(400, {"error": str(e)})
+        if path == "/create-repository":
+            try:
+                repo = create_github_repo(body.get("name", ""), body.get("description", ""), body.get("private", True))
+                project = {"name": repo["nameWithOwner"].split("/", 1)[1], "path": "github:" + repo["nameWithOwner"], "repository": repo["nameWithOwner"], "remote": True}
+                context = remote_repo_context(repo["nameWithOwner"])
+                return self.send_json(201, {"created": True, "repository": repo, "project": project, "context": context,
+                                            "message": "Repository created and initialized with README.md and VIBEBRIDGE_CONTEXT.md. Context is ready for this message."})
+            except ValueError as e:
+                return self.send_json(400, {"error": str(e)})
+            except RuntimeError as e:
+                return self.send_json(400, {"error": str(e)})
+        if path == "/update":
+            try:
+                script = Path(__file__).with_name("updater.py")
+                if not script.is_file():
+                    return self.send_json(501, {"error": "Updater helper is not installed in this checkout yet."})
+                log_file = SUPPORT / "update.log"
+                log_file.parent.mkdir(parents=True, exist_ok=True)
+                with log_file.open("a", encoding="utf-8") as handle:
+                    handle.write("\n[" + __import__("datetime").datetime.now().isoformat(timespec="seconds") + "] Update requested from extension.\n")
+                subprocess.Popen(
+                    [__import__("sys").executable, str(script)],
+                    cwd=str(ROOTS[2]),
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                    close_fds=True,
+                )
+                return self.send_json(202, {"started": True, "message": "Update started. Check Update status in a few seconds."})
+            except Exception as e:
+                return self.send_json(500, {"error": "Could not start updater: " + str(e)})
+        if path == "/contexts":
+            try:
+                projects = resolve_project_set(
+                    body.get("message", ""),
+                    body.get("projects", []),
+                    body.get("active", "")
+                )
+                if not projects:
+                    return self.send_json(200, {"matched": False, "projects": [], "reason": "no-project-match"})
+                sections = []
+                loaded = []
+                errors = []
+                for project in projects:
+                    try:
+                        context = project_context(project["path"])
+                        sections.append((project["name"], context))
+                        loaded.append(project)
+                    except Exception as exc:
+                        errors.append(project["name"] + ": " + str(exc)[:250])
+                if not loaded:
+                    return self.send_json(400, {"error": "; ".join(errors) or "Could not load project context."})
+                return self.send_json(200, {
+                    "matched": True,
+                    "projects": loaded,
+                    "context": format_project_context_sections(sections),
+                    "errors": errors
+                })
+            except Exception as e:
+                return self.send_json(400, {"error": str(e)})
+        if path == "/context":
+            try:
+                project, reason = match_project(body.get("message", ""), body.get("active", ""))
+                if reason == "ambiguous":
+                    return self.send_json(200, {"matched": False, "ambiguous": True})
+                if not project:
+                    return self.send_json(200, {"matched": False})
+                return self.send_json(200, {"matched": True, "matchReason": reason, "project": project, "context": project_context(project["path"])})
+            except Exception as e:
+                return self.send_json(400, {"error": str(e)})
+        if path == "/clone":
+            slug = str(body.get("repository", "")).strip()
+            if not __import__("re").fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", slug):
+                return self.send_json(400, {"error": "Choose a valid owner/repository from GitHub."})
+            owner, repo_name = slug.split("/", 1)
+            target_root = Path.home() / "Projects"
+            target = (target_root / repo_name).resolve()
+            if target_root.resolve() not in target.parents:
+                return self.send_json(400, {"error": "Invalid clone destination."})
+            if target.exists():
+                return self.send_json(409, {"error": f"{target} already exists. Choose the existing local project instead."})
+            try:
+                target_root.mkdir(parents=True, exist_ok=True)
+                result = subprocess.run(
+                    ["gh", "repo", "clone", slug, str(target)],
+                    capture_output=True, text=True, timeout=180
+                )
+            except FileNotFoundError:
+                return self.send_json(400, {"error": "GitHub CLI (gh) is not installed."})
+            except subprocess.TimeoutExpired:
+                return self.send_json(408, {"error": "Clone timed out. Check whether the repository finished cloning before retrying."})
+            if result.returncode != 0:
+                message = (result.stderr or result.stdout or "Clone failed").strip()
+                return self.send_json(400, {"error": message[-1500:]})
+            return self.send_json(200, {"cloned": True, "repository": slug, "project": {"name": repo_name, "path": str(target)}})
+        if path == "/remember":
+            try:
+                root = project_path(body.get("project", ""))
+            except (ValueError, OSError):
+                return self.send_json(403, {"error": "Project not found or not allowed"})
+            note = str(body.get("note", "")).strip()
+            if not note:
+                return self.send_json(400, {"error": "note is required"})
+            if len(note) > 3000:
+                return self.send_json(413, {"error": "Note is too long (max 3000 characters)"})
+            memory_file = MEMORY_DIR / (hashlib.sha256(str(root).encode()).hexdigest() + ".md")
+            with memory_file.open("a", encoding="utf-8") as handle:
+                handle.write("\n- " + note.replace("\n", " ") + "\n")
+            return self.send_json(200, {"saved": True, "project": root.name})
+        if path not in ("/diagnostics", "/run"):
+            return self.send_json(404, {"error": "Not found"})
+        try:
+            root = project_path(body.get("project", ""))
+        except (ValueError, OSError):
+            return self.send_json(403, {"error": "Project not found or not allowed. Use the Projects list to select a discovered folder."})
+        if path == "/diagnostics":
+            commands = [["git", "status", "--short", "--branch"], ["git", "log", "-1", "--oneline"]]
+            results = []
+            for cmd in commands:
+                try:
+                    r = subprocess.run(cmd, cwd=str(root), capture_output=True, text=True, timeout=15)
+                    results.append({"command": cmd, "exitCode": r.returncode, "stdout": r.stdout[-12000:], "stderr": r.stderr[-4000:]})
+                except Exception as e:
+                    results.append({"command": cmd, "error": str(e)})
+            return self.send_json(200, {"project": str(root), "results": results})
+        try:
+            cmd = validate_command_arguments(body.get("command", []))
+        except ValueError as exc:
+            return self.send_json(400, {"error": str(exc)})
+        try:
+            result = run_bounded_command(cmd, root, timeout=120)
+            return self.send_json(200, {"project": str(root), **result})
+        except subprocess.TimeoutExpired:
+            return self.send_json(408, {"error": "Command timed out"})
+        except OSError as e:
+            return self.send_json(400, {"error": str(e)})
+
+    def log_message(self, fmt, *args):
+        print("VibeBridge:", fmt % args)
+
+
+
+# Remote task queue: GitHub Issues are treated as a strict task enum, never as shell input.
+# Only issues opened by the repository owner and titled exactly "VibeBridge task: <task>"
+# are eligible. Results are posted to the issue and the issue is closed after processing.
+REMOTE_TASK_REPO = "YamaHaroJ/VibeBridge"
+REMOTE_TASK_OWNER = "YamaHaroJ"
+REMOTE_TASKS = {"validate", "test", "diagnostics", "terminal-smoke"}
+REMOTE_TASK_POLL_SECONDS = 2
+REMOTE_TASK_LIST_ARGS = ["gh", "issue", "list", "--repo", REMOTE_TASK_REPO, "--state", "open", "--json", "number,title,body,author", "--limit", "100"]
+_remote_task_seen = set()
+
+
+def run_remote_task(task):
+    """Run one predefined, bounded task; never execute issue text as a command."""
+    root = Path.home() / "VibeBridge"
+    if task not in REMOTE_TASKS:
+        raise ValueError("Unsupported remote task.")
+    if task == "validate":
+        commands = [
+            ["python3", "-m", "py_compile", "agent/server.py", "agent/updater.py"],
+            ["python3", "-m", "json.tool", "extension/manifest.json"],
+            ["bash", "-n", "agent/install.sh"],
+            ["node", "--check", "extension/background.js"],
+            ["node", "--check", "extension/chatgpt.js"],
+            ["node", "--check", "extension/popup.js"],
+        ]
+    elif task == "test":
+        commands = [["python3", "-m", "unittest", "discover", "-s", "tests", "-v"]]
+    elif task == "diagnostics":
+        # Diagnostics is a fixed, allowlisted snapshot. Never dump general process
+        # arguments or local logs into a GitHub issue.
+        return True, "Local VibeBridge service snapshot:\n" + json.dumps(local_diagnostics(), indent=2)
+    elif task == "terminal-smoke":
+        # Exercise the actual authenticated HTTP /run route with a harmless fixed
+        # command. Never return or log the local bearer token.
+        import urllib.error
+        import urllib.request
+        if not root.is_dir():
+            raise RuntimeError("Expected checkout is missing: " + str(root))
+        token = TOKEN_FILE.read_text(encoding="utf-8").strip()
+        request_body = json.dumps({
+            "project": str(root),
+            "command": ["python3", "-c", "print('VibeBridge terminal relay OK')"]
+        }).encode("utf-8")
+        request = urllib.request.Request(
+            f"http://{HOST}:{PORT}/run",
+            data=request_body,
+            headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=20) as response:
+                result = json.loads(response.read().decode("utf-8"))
+        except (OSError, urllib.error.URLError, TimeoutError) as exc:
+            return False, "Authenticated local /run smoke test failed: " + str(exc)
+        if result.get("exitCode") != 0 or "VibeBridge terminal relay OK" not in result.get("stdout", ""):
+            return False, "Local /run route responded, but the harmless command did not pass: " + json.dumps(result)[:2000]
+        return True, "Authenticated local /run route PASS\nProject: " + str(result.get("project")) + "\nOutput: " + result["stdout"].strip()
+    if not root.is_dir():
+        raise RuntimeError("Expected checkout is missing: " + str(root))
+    output = []
+    success = True
+    for command in commands:
+        try:
+            result = subprocess.run(command, cwd=str(root), capture_output=True, text=True, timeout=45)
+            output.append("$ " + " ".join(command) + "\n" +
+                          (result.stdout or "")[-7000:] +
+                          (("\nSTDERR:\n" + result.stderr[-3000:]) if result.stderr else "") +
+                          "\nexit=" + str(result.returncode))
+            if result.returncode != 0:
+                success = False
+                break
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            output.append("$ " + " ".join(command) + "\nERROR: " + str(exc))
+            success = False
+            break
+    return success, "\n\n".join(output)[-12000:]
+
+
+def remote_task_worker():
+    """Poll authenticated GitHub issue metadata and run only owner-authored enum tasks."""
+    while True:
+        try:
+            listed = subprocess.run(
+                REMOTE_TASK_LIST_ARGS,
+                capture_output=True, text=True, timeout=8
+            )
+            if listed.returncode != 0:
+                detail = (listed.stderr or listed.stdout or "").strip()
+                print("VibeBridge task queue poll failed (exit " + str(listed.returncode) + "): " + detail[:1000], flush=True)
+            else:
+                issues = json.loads(listed.stdout or "[]")
+                for issue in issues:
+                    number = issue.get("number")
+                    title = str(issue.get("title", ""))
+                    author = issue.get("author") or {}
+                    login = str(author.get("login", ""))
+                    task = title.removeprefix("VibeBridge task: ").strip()
+                    if (not isinstance(number, int) or login.lower() != REMOTE_TASK_OWNER.lower()
+                            or title != "VibeBridge task: " + task or task not in REMOTE_TASKS
+                            or number in _remote_task_seen):
+                        continue
+                    _remote_task_seen.add(number)
+                    ok, detail = run_remote_task(task)
+                    state = "PASS" if ok else "FAIL"
+                    body = "Mac runner task **" + task + "**: **" + state + "**\n\n" + detail
+                    # GitHub CLI uses the authenticated local account; issue content is never evaluated.
+                    subprocess.run(
+                        ["gh", "issue", "comment", str(number), "--repo", REMOTE_TASK_REPO, "--body", body],
+                        capture_output=True, text=True, timeout=10
+                    )
+                    subprocess.run(
+                        ["gh", "issue", "close", str(number), "--repo", REMOTE_TASK_REPO],
+                        capture_output=True, text=True, timeout=10
+                    )
+        except Exception as exc:
+            print("VibeBridge remote-task worker:", str(exc)[:500])
+        time.sleep(REMOTE_TASK_POLL_SECONDS)
+
+
+def configure_fast_updates():
+    """Configure GitHub polling so Chrome's normal Reload sees recent source updates."""
+    plist = Path.home() / "Library/LaunchAgents/com.vibebridge.updater.plist"
+    try:
+        import plistlib
+        if not plist.is_file():
+            return
+        with plist.open("rb") as handle:
+            config = plistlib.load(handle)
+        if config.get("StartInterval") == 5:
+            return
+        config["StartInterval"] = 5
+        with plist.open("wb") as handle:
+            plistlib.dump(config, handle)
+        uid = str(__import__("os").getuid())
+        subprocess.run(["/bin/launchctl", "bootout", f"gui/{uid}", str(plist)],
+                       capture_output=True, text=True, timeout=10)
+        subprocess.run(["/bin/launchctl", "bootstrap", f"gui/{uid}", str(plist)],
+                       capture_output=True, text=True, timeout=10)
+        print("VibeBridge GitHub updater configured for 5-second polling.")
+    except Exception as exc:
+        print("Could not configure 5-second GitHub polling:", str(exc)[:300])
+
+
+def main():
+    configure_fast_updates()
+    print("VibeBridge listening on http://127.0.0.1:%d" % PORT)
+    threading.Thread(target=remote_task_worker, name="vibebridge-remote-tasks", daemon=True).start()
+    ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
+
+
+if __name__ == "__main__":
+    main()
+
     """Return optional Git metadata without letting a slow/broken Git block context."""
     try:
         result = subprocess.run(args, cwd=str(cwd), capture_output=True, text=True, timeout=timeout)

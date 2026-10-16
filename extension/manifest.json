@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "VibeBridge",
-  "version": "0.2.90",
+  "version": "0.2.91",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwxjrJHCAz/J9qnEnf3jBOPL9G/Yfb5ebebNH7R1xIqUBsmECHW96RwRbdmRtrKCdIgOYW2fCYypWKwbCXja5ts2OPZK7OSDz4ZyBaKlI112Wt2MA3YC1yNFuu+4pT73uVIfRqL9FAwbW9zwiVbmZXx/prHUrUPPVno0jhDj/jRMOCQOMQZ7Jy6mrXy4Tchv+kqdxrClBg+NTkwAO7Doy8jl5DekgSZ45kQA4655BYC3kmU63aTpHVjlqhsrfjqmtD2mp8qPDSD6O0YnPg/fFBQwEBjSA1PgHkqy0HUkcaZBqXF+XvqzSDzZIxv77ARXmGEkGyNsknH1BpaqlR0ftCwIDAQAB",
   "description": "Persistent local project context for ChatGPT development workflows.",
   "permissions": [

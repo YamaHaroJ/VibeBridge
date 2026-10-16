@@ -17,9 +17,9 @@ async function recoverOpenChatGPTTabs() {
     await Promise.all(tabs.map(tab => ensureChatGPTTabHeartbeat(tab.id)));
   } catch (_) {}
 }
-chrome.runtime.onInstalled.addListener(() => { recoverOpenChatGPTTabs(); });
-chrome.runtime.onStartup.addListener(() => { recoverOpenChatGPTTabs(); });
-chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+chrome.runtime.onInstalled?.addListener?.(() => { recoverOpenChatGPTTabs(); });
+chrome.runtime.onStartup?.addListener?.(() => { recoverOpenChatGPTTabs(); });
+chrome.tabs?.onUpdated?.addListener?.((tabId, changeInfo) => {
   if (changeInfo.status === "complete") ensureChatGPTTabHeartbeat(tabId);
 });
 

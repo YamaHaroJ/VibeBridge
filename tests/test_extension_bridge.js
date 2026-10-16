@@ -81,6 +81,38 @@ async function harness({storage = {token: "test-token"}, fetchImpl} = {}) {
     assert.match(recovered.context, /Recovered handoff/);
   }
 
+  // Exercise the actual background-worker command relay contract.
+  {
+    const h = await harness({
+      storage: {token:"test-token", activeProject:"/Users/test/VibeBridge"},
+      fetchImpl: async (url, options = {}) => ({
+        ok:true,
+        async json() { return {exitCode:0, stdout:"VibeBridge command result OK", stderr:"", project:"/Users/test/VibeBridge"}; }
+      })
+    });
+    const result = await h.send({type:"VIBEBRIDGE_RUN_COMMAND", command:["python3","-c","print('ok')"]});
+    assert.equal(result.ok, true);
+    assert.equal(result.exitCode, 0);
+    assert.match(result.stdout, /command result OK/);
+    assert.equal(h.calls[0].url, "http://127.0.0.1:43127/run");
+    assert.equal(h.calls[0].options.headers.Authorization, "Bearer test-token");
+    const body = JSON.parse(h.calls[0].options.body);
+    assert.equal(body.project, "/Users/test/VibeBridge");
+    assert.deepEqual(Array.from(body.command), ["python3","-c","print('ok')"]);
+  }
+  {
+    const h = await harness({
+      storage: {token:"test-token", activeProject:"/Users/test/VibeBridge"},
+      fetchImpl: async () => ({
+        ok:true,
+        async json() { return {exitCode:2, stdout:"", stderr:"intentional test failure"}; }
+      })
+    });
+    const result = await h.send({type:"VIBEBRIDGE_RUN_COMMAND", command:["python3","-c","raise SystemExit(2)"]});
+    assert.equal(result.ok, false);
+    assert.equal(result.exitCode, 2);
+    assert.match(result.stderr, /intentional test failure/);
+  }
   {
     const h = await harness({storage:{}});
     const result = await h.send({type:"VIBEBRIDGE_CHECKPOINT_MESSAGE",payload:{summary:"{}"}});
@@ -99,5 +131,5 @@ async function harness({storage = {token: "test-token"}, fetchImpl} = {}) {
     assert.equal(result.ok, false);
     assert.match(result.error, /GitHub save failed/);
   }
-  console.log("background bridge integration: 6 scenarios passed");
+  console.log("background bridge integration: 8 scenarios passed");
 })().catch(error => { console.error(error); process.exitCode = 1; });

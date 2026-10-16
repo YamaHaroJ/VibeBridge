@@ -361,3 +361,11 @@ Latest implementation update: commit `895bc8c` adds an explicit per-response che
 - Verified Mac regression task on the updated checkout: 79 Python tests passed, 8 bridge integration scenarios passed, and 4 ChatGPT content-script DOM scenarios passed. Latest source commit for this change: `2b7202dd258faedcf871c554363aca6e98d78e8a`. GitHub checks are passing; validation/installer workflows were still running at the last poll.
 - The actual rolling AI summary feature remains unimplemented. Current code only persists explicit `vibebridge-memory` blocks; do not claim every user/assistant message is merged automatically.
 - Next implementation priority remains a real per-conversation rolling summary pipeline: secure local API-key configuration, capture only newly completed messages, deduplicate streaming updates, summarize/merge bounded context, and write the checkpoint through authenticated GitHub CLI with concurrency/conflict handling. Keep ordinary success/failure invisible in the ChatGPT page (no banners), and never send raw historical transcripts or secrets by default.
+
+
+## Rolling checkpoint hardening (2026-10-16)
+
+- Hardened the existing explicit checkpoint writer before attempting automatic transcript summarization: common bearer/API/GitHub tokens, password assignments, client secrets, and PEM private-key blocks are redacted before writing checkpoint sections or conversation handoff history to GitHub.
+- Repeated identical handoffs are no longer appended repeatedly to the recent project-building history, reducing duplicate entries from streaming retries.
+- Added regression coverage for credential redaction. Mac runner passed the full fixed test task on the current code: 80 Python tests, 8 bridge integration scenarios, and 4 content-script DOM scenarios.
+- This does not yet create automatic rolling summaries from ordinary user/assistant messages. The next step is the explicit, opt-in summarization configuration and completed-turn capture pipeline; never transmit raw conversation history to a third-party API without a clear user opt-in.

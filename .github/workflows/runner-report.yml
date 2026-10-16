@@ -32,6 +32,7 @@ jobs:
             "VibeBridge task: validate") echo "name=validate" >> "$GITHUB_OUTPUT" ;;
             "VibeBridge task: diagnostics") echo "name=diagnostics" >> "$GITHUB_OUTPUT" ;;
             "VibeBridge task: terminal-smoke") echo "name=terminal-smoke" >> "$GITHUB_OUTPUT" ;;
+            "VibeBridge task: chatgpt-tabs") echo "name=chatgpt-tabs" >> "$GITHUB_OUTPUT" ;;
             "VibeBridge task: macoptimizer-build") echo "name=macoptimizer-build" >> "$GITHUB_OUTPUT" ;;
             "VibeBridge task: macoptimizer-dedupe") echo "name=macoptimizer-dedupe" >> "$GITHUB_OUTPUT" ;;
             *) echo "Unsupported task title: $ISSUE_TITLE"; exit 1 ;;
@@ -67,6 +68,10 @@ jobs:
           node --check extension/background.js
           node --check extension/chatgpt.js
           node --check extension/popup.js
+
+      - name: Explain Mac tab-count boundary
+        if: steps.task.outputs.name == 'chatgpt-tabs'
+        run: echo 'The ChatGPT tab count must be collected by the local Mac runner; no tab URLs or titles are uploaded.' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Explain diagnostics boundary
         if: steps.task.outputs.name == 'diagnostics'
@@ -110,6 +115,9 @@ jobs:
             } else if (task === "diagnostics") {
               result = "LIMITED";
               detail = "GitHub-hosted diagnostics completed. This runner cannot inspect the user's Mac or its local services/logs.";
+            } else if (task === "chatgpt-tabs") {
+              result = "DELEGATED";
+              detail = "The local Mac runner must count ChatGPT tabs; this hosted workflow cannot inspect the user\u2019s browser.";
             } else if (task === "terminal-smoke") {
               result = "DELEGATED";
               detail = "This task must run on the Mac; GitHub-hosted runners cannot reach localhost:43127.";

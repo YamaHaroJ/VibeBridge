@@ -112,7 +112,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const response = await fetchAgent("/extension-status", {
         method: "POST",
         headers: {"Authorization": "Bearer " + saved.token, "Content-Type": "application/json"},
-        body: JSON.stringify({version: chrome.runtime.getManifest().version, host})
+        body: JSON.stringify({version: chrome.runtime.getManifest().version, host, tabId: sender?.tab?.id})
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not report browser extension status");

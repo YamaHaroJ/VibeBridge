@@ -24,6 +24,12 @@ class AutomaticCheckpointTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "No project summaries"):
             server.sync_message_checkpoint(json.dumps({"projects": []}), "chat")
 
+    def test_malformed_structured_json_is_rejected_without_github_access(self):
+        with patch("server.subprocess.run") as run:
+            with self.assertRaisesRegex(ValueError, "JSON is malformed"):
+                server.sync_message_checkpoint('{"projects": [broken', "chat")
+            run.assert_not_called()
+
     @patch("server.subprocess.run")
     def test_saves_each_project_separately(self, run):
         run.side_effect = [

@@ -171,11 +171,11 @@ class ProjectSwitchTests(unittest.TestCase):
         remote_context.assert_called_once_with("YamaHaroJ/VibeBridge")
 
     @patch.object(server.subprocess, "run", side_effect=server.subprocess.TimeoutExpired(cmd="git", timeout=5))
+    @patch.object(server, "ROOTS", [Path("/Users/test/Projects"), Path("/Users/test/Developer"), Path("/Users/test/VibeBridge")])
     @patch.object(server, "local_repo_map", return_value={"yamaharoJ/vibebridge": "/Users/test/VibeBridge"})
     @patch.object(server, "discover_projects", return_value=[{"name": "VibeBridge", "path": "/Users/test/VibeBridge"}])
     def test_terminal_project_path_resolves_selected_github_slug_to_local_checkout(self, _projects, _local_map):
-        with patch.object(server.Path, "home", return_value=Path("/Users/test")):
-            path = server.project_path("github:YamaHaroJ/VibeBridge")
+        path = server.project_path("github:YamaHaroJ/VibeBridge")
         self.assertEqual(str(path), "/Users/test/VibeBridge")
 
     @patch.object(server, "local_repo_map", return_value={})

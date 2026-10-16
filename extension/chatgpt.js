@@ -136,39 +136,43 @@
       // ChatGPT may strip custom fence-language classes and preserve whitespace around
       // the marker. Match the marker at the start of the rendered code, then tolerate
       // an optional JSON code fence so the relay never asks the user to paste it in Terminal.
-      const normalizedBlock = rawBlock.replace(/^\s+/, "");
+      const normalizedBlock = rawBlock.replace(/^\\s+/, "");
       const markedBlock = normalizedBlock.startsWith(commandMarker);
       const hasCommandLanguage = /language-vibebridge-run|vibebridge-run/i.test(className);
-      // ChatGPT may strip custom fence-language classes. Recognize a valid command
-      // payload by shape as a fallback; it still requires an explicit Run click and
-      // confirmation, so this never executes commands automatically.
-      if (!hasCommandLanguage && !markedBlock) {
+      const hasShellLanguage = /language-(bash|sh|zsh|shell)\\b/i.test(className);
+      let payload = null;
+      // Accept structured VibeBridge commands even if ChatGPT strips custom language tags.
+      if (!hasCommandLanguage && !markedBlock && !hasShellLanguage) {
         try {
           const candidate = JSON.parse(normalizedBlock);
           if (!candidate || !Array.isArray(candidate.command) || !candidate.command.length ||
               !candidate.command.every(part => typeof part === "string")) continue;
+          payload = candidate;
         } catch {
           continue;
         }
       }
       processedBlocks.add(pre);
 
-      let payload;
-      try {
-        let jsonText = markedBlock ? normalizedBlock.slice(commandMarker.length).trim() : rawBlock;
-        jsonText = jsonText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
-        payload = JSON.parse(jsonText);
-      } catch {
-        const warning = document.createElement("div");
-        warning.textContent = "VibeBridge command block is not valid JSON.";
-        warning.style.cssText = "color:#b91c1c;font:12px system-ui;margin:6px 0";
-        pre.after(warning);
-        continue;
+      if (hasShellLanguage && !hasCommandLanguage && !markedBlock) {
+        payload = {command: ["bash", "-lc", rawBlock.replace(/^\\s*\`\`\`(?:bash|sh|zsh|shell)\\s*/i, "").replace(/\\s*\`\`\`$/, "").trim()]};
+      } else if (!payload) {
+        try {
+          let jsonText = markedBlock ? normalizedBlock.slice(commandMarker.length).trim() : rawBlock;
+          jsonText = jsonText.replace(/^\`\`\`(?:json)?\\s*/i, "").replace(/\\s*\`\`\`$/, "").trim();
+          payload = JSON.parse(jsonText);
+        } catch {
+          const warning = document.createElement("div");
+          warning.textContent = "VibeBridge command block is not valid JSON.";
+          warning.style.cssText = "color:#b91c1c;font:12px system-ui;margin:6px 0";
+          pre.after(warning);
+          continue;
+        }
       }
       if (!payload || !Array.isArray(payload.command) || !payload.command.length ||
           !payload.command.every(part => typeof part === "string")) {
         const warning = document.createElement("div");
-        warning.textContent = "VibeBridge command must be JSON with a non-empty string array named command.";
+        warning.textContent = "VibeBridge command must be a shell block or JSON with a non-empty string array named command.";
         warning.style.cssText = "color:#b91c1c;font:12px system-ui;margin:6px 0";
         pre.after(warning);
         continue;

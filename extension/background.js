@@ -46,6 +46,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     "VIBEBRIDGE_CHECKPOINT_MESSAGE",
     "VIBEBRIDGE_BROWSER_HEARTBEAT",
     "VIBEBRIDGE_BROWSER_STATUS",
+    "VIBEBRIDGE_PROBE_CHATGPT_TABS",
     "VIBEBRIDGE_LOCAL_DIAGNOSTICS"
   ];
   if (!supported.includes(message?.type)) return;

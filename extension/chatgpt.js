@@ -66,6 +66,26 @@
     return el?.tagName === "TEXTAREA" || el?.tagName === "INPUT" ? el.value : (el?.innerText || el?.textContent || "");
   }
 
+  // Remove VibeBridge-owned context wrappers if an older extension build,
+  // a stale tab, or a ChatGPT UI mutation leaves them in the editable composer.
+  // Keep only the actual user request; never send repository dumps as user text.
+  function sanitizeBridgeComposer(el) {
+    if (!el || el.dataset?.vibebridgeSanitizing === "true") return false;
+    const current = readComposer(el);
+    if (!/VIBEBRIDGE PROJECT CONTEXT|VIBEBRIDGE PROJECT CONTINUITY|PERSISTENT PROJECT MEMORY|END VIBEBRIDGE PROJECT CONTEXT|VIBEBRIDGE MEMORY CHECKPOINT REQUIREMENT/i.test(current)) return false;
+    const requestMarker = /(?:^|\\n)USER REQUEST:\\s*/i;
+    const match = requestMarker.exec(current);
+    const cleaned = match ? current.slice(match.index + match[0].length).trim() : "";
+    el.dataset.vibebridgeSanitizing = "true";
+    try { writeComposer(el, cleaned); } finally {
+      queueMicrotask(() => { if (el.dataset) delete el.dataset.vibebridgeSanitizing; });
+    }
+    showNotice(cleaned
+      ? "Removed stale VibeBridge context from the message box. Your actual request was preserved."
+      : "Removed a stale VibeBridge context dump from the message box. The internal context was not sent.");
+    return true;
+  }
+
   function writeComposer(el, text) {
     if (!el) return;
     el.focus();
@@ -387,6 +407,12 @@
     }, 180);
   }
   const observer = new MutationObserver((mutations) => {
+    // First scrub any bridge-owned wrapper that leaks into the editable composer.
+    // This is deliberately global to the ChatGPT page, not tied to one project.
+    const composer = document.querySelector("#prompt-textarea") ||
+      document.querySelector('textarea[placeholder]') ||
+      document.querySelector('[contenteditable="true"][role="textbox"]');
+    if (composer) sanitizeBridgeComposer(composer);
     // Ignore mutations caused only by our own status badge and injected controls.
     const relevant = mutations.some(mutation => {
       const node = mutation.target?.nodeType === Node.ELEMENT_NODE

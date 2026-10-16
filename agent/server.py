@@ -1259,6 +1259,9 @@ class Handler(BaseHTTPRequestHandler):
 REMOTE_TASK_REPO = "YamaHaroJ/VibeBridge"
 REMOTE_TASK_OWNER = "YamaHaroJ"
 REMOTE_TASKS = {"validate", "test", "diagnostics", "terminal-smoke", "macoptimizer-build", "macoptimizer-dedupe"}
+REMOTE_TASK_HEAVY = {"validate", "test", "macoptimizer-build"}
+REMOTE_TASK_HEAVY_LIMIT = max(1, min(3, (os.cpu_count() or 4) // 4))
+_remote_task_heavy_slots = threading.BoundedSemaphore(REMOTE_TASK_HEAVY_LIMIT)
 REMOTE_TASK_POLL_SECONDS = 1
 REMOTE_TASK_LIST_ARGS = ["gh", "issue", "list", "--repo", REMOTE_TASK_REPO, "--state", "open", "--json", "number,title,body,author", "--limit", "100"]
 _remote_task_seen = set()
@@ -1407,25 +1410,30 @@ _remote_task_pool = None
 _remote_task_seen_lock = threading.Lock()
 
 
-def _process_remote_issue(number, task):
+def _process_remote_issue(number, task, heavy_slot=False):
     """Run and report one validated task independently of the polling loop."""
+    started = time.monotonic()
     try:
-        ok, detail = run_remote_task(task)
-        state = "PASS" if ok else "FAIL"
-        body = "Mac runner task **" + task + "**: **" + state + "**\\n\\n" + detail
-    except Exception as exc:
-        body = "Mac runner task **" + task + "**: **FAIL**\\n\\nRunner exception: " + str(exc)[:1000]
-    try:
-        subprocess.run(
-            ["gh", "issue", "comment", str(number), "--repo", REMOTE_TASK_REPO, "--body", body],
-            capture_output=True, text=True, timeout=10
-        )
-        subprocess.run(
-            ["gh", "issue", "close", str(number), "--repo", REMOTE_TASK_REPO],
-            capture_output=True, text=True, timeout=10
-        )
-    except Exception as exc:
-        print("VibeBridge task report failed for issue " + str(number) + ": " + str(exc)[:300], flush=True)
+        try:
+            ok, detail = run_remote_task(task)
+            state = "PASS" if ok else "FAIL"
+            body = "Mac runner task **" + task + "**: **" + state + "**\\n\\nDuration: " + f"{time.monotonic() - started:.2f}s" + "\\n\\n" + detail
+        except Exception as exc:
+            body = "Mac runner task **" + task + "**: **FAIL**\\n\\nRunner exception: " + str(exc)[:1000]
+        try:
+            subprocess.run(
+                ["gh", "issue", "comment", str(number), "--repo", REMOTE_TASK_REPO, "--body", body],
+                capture_output=True, text=True, timeout=10
+            )
+            subprocess.run(
+                ["gh", "issue", "close", str(number), "--repo", REMOTE_TASK_REPO],
+                capture_output=True, text=True, timeout=10
+            )
+        except Exception as exc:
+            print("VibeBridge task report failed for issue " + str(number) + ": " + str(exc)[:300], flush=True)
+    finally:
+        if heavy_slot:
+            _remote_task_heavy_slots.release()
 
 
 def remote_task_worker():
@@ -1453,11 +1461,25 @@ def remote_task_worker():
                     if (not isinstance(number, int) or login.lower() != REMOTE_TASK_OWNER.lower()
                             or title != "VibeBridge task: " + task or task not in REMOTE_TASKS):
                         continue
+                    heavy_slot = task in REMOTE_TASK_HEAVY
+                    # Keep four workers available for mixed workloads, but cap
+                    # simultaneous CPU-heavy jobs based on the Mac's core count.
+                    if heavy_slot and not _remote_task_heavy_slots.acquire(blocking=False):
+                        continue
                     with _remote_task_seen_lock:
                         if number in _remote_task_seen:
+                            if heavy_slot:
+                                _remote_task_heavy_slots.release()
                             continue
                         _remote_task_seen.add(number)
-                    _remote_task_pool.submit(_process_remote_issue, number, task)
+                    try:
+                        _remote_task_pool.submit(_process_remote_issue, number, task, heavy_slot)
+                    except Exception:
+                        with _remote_task_seen_lock:
+                            _remote_task_seen.discard(number)
+                        if heavy_slot:
+                            _remote_task_heavy_slots.release()
+                        raise
         except Exception as exc:
             print("VibeBridge remote-task worker:", str(exc)[:500], flush=True)
         time.sleep(REMOTE_TASK_POLL_SECONDS)

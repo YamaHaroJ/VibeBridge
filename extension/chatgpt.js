@@ -127,10 +127,12 @@
   }
 
   function addCommandControls(allowAutoRun = false) {
-    const blocks = document.querySelectorAll('[data-message-author-role="assistant"] pre');
+    const blocks = document.querySelectorAll('[data-message-author-role="assistant"] pre, [data-message-author-role="assistant"] [data-language], [data-message-author-role="assistant"] code');
     for (const pre of blocks) {
       if (processedBlocks.has(pre)) continue;
-      const code = pre.querySelector("code");
+      const preBlock = pre.tagName === "PRE" ? pre : pre.closest("pre");
+      const target = preBlock || pre;
+      const code = target.querySelector("code") || (pre.tagName === "CODE" ? pre : null);
       const className = (code?.className || "") + " " + (pre.className || "");
       const rawBlock = (code?.textContent || pre.textContent || "").trim();
       // ChatGPT may strip custom fence-language classes and preserve whitespace around
@@ -156,6 +158,7 @@
         if (!payload) continue;
       }
       processedBlocks.add(pre);
+      processedBlocks.add(target);
 
       if (hasShellLanguage && !hasCommandLanguage && !markedBlock) {
         payload = {command: ["bash", "-lc", rawBlock.replace(/^\s*```(?:bash|sh|zsh|shell)\s*/i, "").replace(/\s*```$/, "").trim()]};
@@ -168,7 +171,7 @@
           const warning = document.createElement("div");
           warning.textContent = "VibeBridge command block is not valid JSON.";
           warning.style.cssText = "color:#b91c1c;font:12px system-ui;margin:6px 0";
-          pre.after(warning);
+          target.after(warning);
           continue;
         }
       }
@@ -255,7 +258,7 @@
       });
 
       panel.append(description, run, output, insert);
-      pre.after(panel);
+      target.after(panel);
     }
   }
 

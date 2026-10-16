@@ -237,7 +237,16 @@
             if (send && !send.disabled) { bypassNextSend = true; send.click(); setTimeout(() => { bypassNextSend = false; }, 800); } else { showNotice("Command result is ready in the prompt; send it to continue."); }
           }
         } catch (error) {
-          output.textContent = error.message;
+          const message = error?.message || String(error);
+          if (/extension context invalidated|context invalidated|receiving end does not exist/i.test(message)) {
+            output.textContent = "VibeBridge's extension context was invalidated by an extension reload. Reload this ChatGPT tab, then resend your message. This command was not confirmed as executed.";
+            run.textContent = "Reload ChatGPT tab";
+            run.disabled = false;
+            run.onclick = () => location.reload();
+            showNotice("Extension updated. Reload this ChatGPT tab before continuing.");
+            return;
+          }
+          output.textContent = message;
           run.textContent = "Retry command";
           run.disabled = false;
         }

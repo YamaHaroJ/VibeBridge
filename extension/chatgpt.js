@@ -198,8 +198,16 @@
       plain.style.cssText = "padding:5px 8px;border:0;border-radius:5px;cursor:pointer";
       actions.appendChild(plain);
     }
-    attach.onclick = onAttach;
-    plain.onclick = onPlain;
+    attach.onclick = () => {
+      attach.remove();
+      plain.remove();
+      onAttach();
+    };
+    plain.onclick = () => {
+      attach.remove();
+      plain.remove();
+      onPlain();
+    };
   }
 
   function showReloadNotice(text) {

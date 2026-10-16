@@ -162,7 +162,7 @@ class ProjectSwitchTests(unittest.TestCase):
             ("Autofill", "second project memory"),
         ])
         self.assertIn("===== PROJECT CONTEXT: VibeBridge =====\nfirst project memory", context)
-        self.assertIn("===== PROJECT CONTEXT: VibeBridge =====\\n", context) is False
+        self.assertNotIn("===== PROJECT CONTEXT: VibeBridge =====\\\\n", context)
         self.assertIn("\n\n===== PROJECT CONTEXT: Autofill =====\nsecond project memory", context)
 
     def test_remote_project_context_rejects_invalid_slug(self):

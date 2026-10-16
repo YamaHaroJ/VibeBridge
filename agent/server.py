@@ -1166,7 +1166,7 @@ class Handler(BaseHTTPRequestHandler):
 # are eligible. Results are posted to the issue and the issue is closed after processing.
 REMOTE_TASK_REPO = "YamaHaroJ/VibeBridge"
 REMOTE_TASK_OWNER = "YamaHaroJ"
-REMOTE_TASKS = {"validate", "test", "diagnostics", "terminal-smoke", "macoptimizer-build"}
+REMOTE_TASKS = {"validate", "test", "diagnostics", "terminal-smoke"}
 REMOTE_TASK_POLL_SECONDS = 2
 REMOTE_TASK_LIST_ARGS = ["gh", "issue", "list", "--repo", REMOTE_TASK_REPO, "--state", "open", "--json", "number,title,body,author", "--limit", "100"]
 _remote_task_seen = set()
@@ -1218,82 +1218,6 @@ def run_remote_task(task):
         if result.get("exitCode") != 0 or "VibeBridge terminal relay OK" not in result.get("stdout", ""):
             return False, "Local /run route responded, but the harmless command did not pass: " + json.dumps(result)[:2000]
         return True, "Authenticated local /run route PASS\nProject: " + str(result.get("project")) + "\nOutput: " + result["stdout"].strip()
-    elif task == "macoptimizer-build":
-        # Fixed deployment procedure: never evaluate issue text as a command.
-        project = Path.home() / "MacOptimizer"
-        if not project.is_dir() or not (project / ".git").is_dir():
-            return False, "MacOptimizer checkout missing at " + str(project)
-        status = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=str(project),
-                                capture_output=True, text=True, timeout=15)
-        if status.returncode != 0:
-            return False, "Cannot inspect MacOptimizer git status: " + (status.stderr or status.stdout)[-1500:]
-        if status.stdout.strip():
-            return False, "Preserving local MacOptimizer changes; working tree is not clean:\n" + status.stdout[:3000]
-        fetch = subprocess.run(["git", "fetch", "origin", "main"], cwd=str(project),
-                               capture_output=True, text=True, timeout=45)
-        if fetch.returncode != 0:
-            return False, "Git fetch failed:\n" + (fetch.stderr or fetch.stdout)[-2500:]
-        pull = subprocess.run(["git", "pull", "--ff-only", "origin", "main"], cwd=str(project),
-                              capture_output=True, text=True, timeout=45)
-        if pull.returncode != 0:
-            return False, "Fast-forward update failed; no install attempted:\n" + (pull.stderr or pull.stdout)[-2500:]
-        build = subprocess.run(["swift", "build", "-c", "release"], cwd=str(project),
-                               capture_output=True, text=True, timeout=240)
-        if build.returncode != 0:
-            return False, "Swift release build FAILED; installed app left untouched:\n" + (build.stdout or "")[-5000:] + "\nSTDERR:\n" + (build.stderr or "")[-5000:]
-        executable = project / ".build" / "release" / "MacOptimizer"
-        if not executable.is_file():
-            return False, "Swift reported success but release executable is missing."
-        install_root = Path.home() / "Applications"
-        install_root.mkdir(parents=True, exist_ok=True)
-        app = install_root / "MacOptimizer.app"
-        staging = install_root / "MacOptimizer.app.staging"
-        backup = install_root / "MacOptimizer.app.previous"
-        import shutil, plistlib
-        for candidate in (staging,):
-            if candidate.exists():
-                shutil.rmtree(candidate)
-        contents = staging / "Contents"
-        macos = contents / "MacOS"
-        macos.mkdir(parents=True)
-        shutil.copy2(executable, macos / "MacOptimizer")
-        info = {
-            "CFBundleExecutable": "MacOptimizer",
-            "CFBundleIdentifier": "com.yamaharo.MacOptimizer",
-            "CFBundleName": "MacOptimizer",
-            "CFBundlePackageType": "APPL",
-            "CFBundleShortVersionString": "1.1.0",
-            "CFBundleVersion": "1.1.0",
-            "LSMinimumSystemVersion": "13.0",
-            "LSUIElement": True,
-            "NSHighResolutionCapable": True,
-        }
-        with (contents / "Info.plist").open("wb") as handle:
-            plistlib.dump(info, handle)
-        if backup.exists():
-            shutil.rmtree(backup)
-        if app.exists():
-            app.rename(backup)
-        try:
-            staging.rename(app)
-        except Exception:
-            if backup.exists() and not app.exists():
-                backup.rename(app)
-            raise
-        subprocess.run(["/usr/bin/killall", "MacOptimizer"], capture_output=True, text=True, timeout=10)
-        launch = subprocess.run(["/usr/bin/open", str(app)], capture_output=True, text=True, timeout=20)
-        if launch.returncode != 0:
-            if app.exists():
-                shutil.rmtree(app)
-            if backup.exists():
-                backup.rename(app)
-            return False, "Built app, but launch failed; prior app restored.\n" + (launch.stderr or launch.stdout)[-2000:]
-        revision = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=str(project),
-                                  capture_output=True, text=True, timeout=10)
-        verify = subprocess.run(["/usr/bin/pgrep", "-fl", "MacOptimizer"], capture_output=True, text=True, timeout=10)
-        if verify.returncode != 0:
-            return False, "Built and installed app at " + str(app) + " but process verification failed. Launch output: " + (verify.stderr or verify.stdout)[-1000:]
-        return True, "MacOptimizer release build/install PASS\nRevision: " + (revision.stdout.strip() or "unknown") + "\nApp: " + str(app) + "\nSwift build: " + (build.stdout or "")[-1200:] + "\nProcess: " + (verify.stdout or "").strip()[:1500]
     if not root.is_dir():
         raise RuntimeError("Expected checkout is missing: " + str(root))
     output = []

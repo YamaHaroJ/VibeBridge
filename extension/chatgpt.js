@@ -441,6 +441,8 @@
       const requestedCreate = original.match(/\b(?:create|make)\s+(?:a\s+)?(?:new\s+)?(?:github\s+)?(?:repo|repository)\s+(?:named|called)\s+["\x27`]?([A-Za-z0-9][A-Za-z0-9_.-]{0,99})/i);
       let createdRepository = null;
       let result;
+      let knownProjects = [];
+      let activeProject = "";
       if (requestedCreate) {
         const repoName = requestedCreate[1];
         const isPrivate = !/\bpublic\s+(?:github\s+)?(?:repo|repository)\b/i.test(original);
@@ -468,11 +470,11 @@
         const conversation = conversationKey();
         const savedConversation = await chrome.storage.local.get(["conversationProjects"]);
         const prior = savedConversation.conversationProjects?.[conversation] || [];
-        const knownProjects = (Array.isArray(prior) ? prior : [prior]).filter(Boolean);
+        knownProjects = (Array.isArray(prior) ? prior : [prior]).filter(Boolean);
         // The server resolves every explicitly mentioned project. Preserve only
         // this conversation's known project set for short follow-ups; no global
         // active-project default and no single-project fallback may override it.
-        const activeProject = knownProjects.length ? knownProjects[knownProjects.length - 1] : "";
+        activeProject = knownProjects.length ? knownProjects[knownProjects.length - 1] : "";
         result = await chrome.runtime.sendMessage({
           type: "VIBEBRIDGE_RESOLVE_CONTEXTS",
           text: original,

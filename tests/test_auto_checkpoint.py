@@ -134,6 +134,14 @@ class ExtensionFlowContractTests(unittest.TestCase):
         self.assertIn("The extension will hide this block and save it to GitHub", self.content_script)
         self.assertIn('pre.style.display = "none"', self.content_script)
 
+    def test_browser_heartbeat_reports_loaded_version_without_conversation_data(self):
+        self.assertIn('"VIBEBRIDGE_BROWSER_HEARTBEAT"', self.content_script)
+        self.assertIn('chrome.runtime.getManifest().version', self.background)
+        self.assertIn('"/extension-status"', self.background)
+        self.assertIn('browser_extension_snapshot()', self.server_source)
+        self.assertIn('BROWSER_STATUS.update', self.server_source)
+        self.assertIn('Unrecognized ChatGPT host', self.server_source)
+
     def test_server_persists_handoff_todos_and_decisions(self):
         self.assertIn('### Latest conversation handoff', self.server_source)
         self.assertIn('### Living todo list', self.server_source)

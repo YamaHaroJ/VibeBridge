@@ -386,10 +386,14 @@ def read_text(path, limit=9000):
 
 def project_context(project):
     if str(project).startswith("github:"):
-        repo = github_repo_for_name(str(project))
-        if not repo:
-            raise ValueError("GitHub repository could not be resolved.")
-        return remote_repo_context(repo["nameWithOwner"])
+        # A selected remote repository is already an explicit owner/repo slug.
+        # Do not require `gh repo list` to succeed before fetching its context:
+        # listing can fail transiently or omit repositories outside the default
+        # account scope even while `gh api repos/{owner}/{repo}` still works.
+        slug = str(project)[len("github:"):].strip()
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", slug):
+            raise ValueError("Invalid GitHub repository path.")
+        return remote_repo_context(slug)
     p = project_path(project)
     parts = [f"PROJECT: {p.name}", f"LOCAL PATH: {p}"]
     remote = subprocess.run(["git", "remote", "get-url", "origin"], cwd=str(p), capture_output=True, text=True, timeout=5)

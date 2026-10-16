@@ -554,15 +554,23 @@ def project_context(project):
         return remote_repo_context(slug)
     p = project_path(project)
     parts = [f"PROJECT: {p.name}", f"LOCAL PATH: {p}"]
-    remote = safe_git_output(["git", "remote", "get-url", "origin"], p)
+    # These Git probes are independent. Run them concurrently so context
+    # latency is closer to the slowest probe, not the sum of all four.
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=4, thread_name_prefix="vibebridge-git-probe") as pool:
+        remote_future = pool.submit(safe_git_output, ["git", "remote", "get-url", "origin"], p)
+        branch_future = pool.submit(safe_git_output, ["git", "branch", "--show-current"], p)
+        status_future = pool.submit(safe_git_output, ["git", "status", "--short"], p)
+        commit_future = pool.submit(safe_git_output, ["git", "log", "-1", "--oneline"], p)
+        remote = remote_future.result()
+        branch = branch_future.result()
+        status = status_future.result()
+        commit = commit_future.result()
     if remote:
         parts.append("GITHUB REMOTE: " + remote)
-    branch = safe_git_output(["git", "branch", "--show-current"], p)
     if branch:
         parts.append("BRANCH: " + branch)
-    status = safe_git_output(["git", "status", "--short"], p)
     parts.append("WORKING TREE: " + (status or "clean"))
-    commit = safe_git_output(["git", "log", "-1", "--oneline"], p)
     if commit:
         parts.append("LATEST COMMIT: " + commit)
     readme = read_text(p / "README.md", 6500)
@@ -576,12 +584,8 @@ def project_context(project):
     # checkout, fetch the shared checkpoint so a different ChatGPT conversation
     # receives the latest handoff even when the local file has not been pulled.
     try:
-        remote_slug = subprocess.run(
-            ["git", "remote", "get-url", "origin"], cwd=str(p),
-            capture_output=True, text=True, timeout=5
-        )
-        if remote_slug.returncode == 0:
-            url = remote_slug.stdout.strip().removesuffix(".git")
+        if remote:
+            url = remote.strip().removesuffix(".git")
             if url.startswith("git@github.com:"):
                 slug = url[len("git@github.com:"):]
             elif "github.com/" in url:

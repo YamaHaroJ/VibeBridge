@@ -883,7 +883,7 @@ class Handler(BaseHTTPRequestHandler):
                 for project in projects:
                     try:
                         context = project_context(project["path"])
-                        sections.append("===== PROJECT CONTEXT: " + project["name"] + " =====\\n" + context)
+                        sections.append("===== PROJECT CONTEXT: " + project["name"] + " =====\n" + context)
                         loaded.append(project)
                     except Exception as exc:
                         errors.append(project["name"] + ": " + str(exc)[:250])

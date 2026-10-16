@@ -562,12 +562,18 @@ def resolve_project_set(message, known_projects=None, active=""):
         if not path or any(item["path"].lower() == path.lower() for item in resolved):
             return
         if path.startswith("github:"):
-            slug = path[len("github:"):].lower()
-            repo = repos_by_slug.get(slug)
-            if not repo:
+            slug = path[len("github:"):].strip()
+            if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", slug):
                 return
-            item = {"name": repo["name"], "path": "github:" + repo["nameWithOwner"],
-                    "repository": repo["nameWithOwner"], "remote": True}
+            normalized_slug = slug.lower()
+            repo = repos_by_slug.get(normalized_slug)
+            # Preserve a previously selected remote project even if repository
+            # discovery is temporarily unavailable. Loading its context still
+            # performs authenticated GitHub API calls and reports real failures.
+            canonical_slug = repo["nameWithOwner"] if repo else slug
+            name = repo["name"] if repo else slug.rsplit("/", 1)[-1]
+            item = {"name": name, "path": "github:" + canonical_slug,
+                    "repository": canonical_slug, "remote": True}
         else:
             try:
                 root = project_path(path)

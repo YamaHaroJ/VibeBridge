@@ -42,6 +42,8 @@ class RemoteTaskTests(unittest.TestCase):
         self.assertTrue(ok)
         self.assertIn('"service": "VibeBridge"', output)
         self.assertIn('"pid": 1234', output)
+        self.assertIn('"schedule"', output)
+        self.assertIn('"startIntervalSeconds": null', output)
         self.assertNotIn("tail -n", output)
         self.assertNotIn("process arguments", output)
         diagnostics.assert_called_once_with()

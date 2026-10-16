@@ -57,6 +57,30 @@ async function harness({storage = {token: "test-token"}, fetchImpl} = {}) {
     assert.equal(body.summary, payload);
     assert.equal(body.conversation, "conv-1");
   }
+  // Save a handoff, then resolve a separate conversation against the mocked
+  // persisted checkpoint to prove the bridge can carry it across conversations.
+  {
+    let savedCheckpoint = "";
+    const h = await harness({fetchImpl: async (url, options = {}) => {
+      if (url.endsWith("/checkpoint")) {
+        savedCheckpoint = JSON.parse(options.body).summary;
+        return {ok:true, async json() { return {saved:true}; }};
+      }
+      if (url.endsWith("/contexts")) {
+        const memory = JSON.parse(savedCheckpoint || '{"projects":[]}');
+        const handoff = memory.projects?.[0]?.handoff || "NO SAVED HANDOFF";
+        return {ok:true, async json() { return {matched:true, context:"Recovered handoff: " + handoff, projects:[{name:"VibeBridge",path:"github:YamaHaroJ/VibeBridge"}]}; }};
+      }
+      throw new Error("Unexpected mocked endpoint: " + url);
+    }});
+    const memory = JSON.stringify({projects:[{repository:"YamaHaroJ/VibeBridge",summary:"Durable summary",handoff:"resume at integration tests",todos:[{task:"DOM simulation",status:"open"}],decisions:["separate project memory"]}]});
+    const saved = await h.send({type:"VIBEBRIDGE_CHECKPOINT_MESSAGE",payload:{summary:memory,conversation:"conversation-one"}});
+    assert.equal(saved.saved, true);
+    const recovered = await h.send({type:"VIBEBRIDGE_RESOLVE_CONTEXTS",text:"continue in a new conversation",projects:[]});
+    assert.match(recovered.context, /resume at integration tests/);
+    assert.match(recovered.context, /Recovered handoff/);
+  }
+
   {
     const h = await harness({storage:{}});
     const result = await h.send({type:"VIBEBRIDGE_CHECKPOINT_MESSAGE",payload:{summary:"{}"}});
@@ -75,5 +99,5 @@ async function harness({storage = {token: "test-token"}, fetchImpl} = {}) {
     assert.equal(result.ok, false);
     assert.match(result.error, /GitHub save failed/);
   }
-  console.log("background bridge integration: 5 scenarios passed");
+  console.log("background bridge integration: 6 scenarios passed");
 })().catch(error => { console.error(error); process.exitCode = 1; });

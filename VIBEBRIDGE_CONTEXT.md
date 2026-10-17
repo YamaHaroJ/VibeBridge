@@ -54,6 +54,7 @@
 
 - Mac diagnostics task #334 PASS. Agent is running on port 43127; local checkout `c3557cc` clean; manifest `0.2.99`; updater LaunchAgent loaded with RunAtLoad and 5-second interval.
 - Important regression/blocker: diagnostics found **no connected ChatGPT browser tabs** at 00:00:11 UTC (connected=false, activeTabCount=0). The earlier two-tab heartbeat at 23:50 UTC is no longer current. Re-check after opening/reloading ChatGPT with VibeBridge enabled.
-- Mac runner test suite queued as issue #335; result pending at handoff update time.
+- Mac runner test task #335 PASS on local revision `c3557ccc177d57f7513763b752e42818e02d3107`, manifest `0.2.99`: 90 Python tests, 8 bridge integration scenarios, and 5 content-script scenarios all passed (exit 0). This verifies regression suites, not live Chrome continuity.
 - Fresh-thread task #333 did not execute: only the generic GitHub reporter's “Task unknown” failure returned; this is not Mac acceptance evidence.
-- Next action: restore live extension heartbeat by opening/reloading a ChatGPT tab, rerun diagnostics, then verify authenticated command/result in a fresh thread. Do not claim continuity or live composer safety complete.
+- Current tool limitation: this ChatGPT session has GitHub repository read/write tools but no callable local Mac command bridge or workflow-dispatch action. The Mac runner can report task results via issue comments, but I cannot click the local Chrome UI from here.
+- Next action: open/reload a ChatGPT tab with VibeBridge enabled, then run diagnostics and the authenticated command/result acceptance in a fresh thread. Until that live heartbeat is restored, composer safety, fresh-thread continuity, updater bump/recovery, automatic project detection/concurrency, and BYOD specials remain unverified. Do not close issue #302.

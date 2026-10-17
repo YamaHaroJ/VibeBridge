@@ -230,6 +230,11 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (changes.token) initialize();
   if (changes.enabled && ready && licenseActive) renderEnabled(changes.enabled.newValue !== false);
 });
+// Paint the switch from storage immediately, before the slower connection and
+// license checks resolve, so reopening the popup never shows a misleading
+// "off" flash while those run. It stays non-interactive (disabled) until
+// initialize() confirms it's actually safe to toggle.
+chrome.storage.local.get(["enabled"], state => renderEnabled(state.enabled !== false));
 initialize();
 
 upgrade?.addEventListener("click", async () => {

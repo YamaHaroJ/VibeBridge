@@ -97,3 +97,13 @@
 - Attempted to clone and run the suite in this session, but the runtime could not resolve `github.com`; no local execution is claimed.
 - These green GitHub-hosted checks do not satisfy issue #338's requested self-hosted Mac run, nor prove a live heartbeat, Chrome-tab version, updater rollback, or fresh-thread command/result round trip. The available connector has no workflow-dispatch or local-agent command action, so the Mac runner could not be started from this session.
 - Remaining fix list: (1) restore/verify live heartbeat and same-thread/fresh-thread command-result bridge; (2) run the explicit Mac regression task and capture exact exit codes/heartbeat; (3) test updater version bump and recovery on Mac; (4) verify project detection and bounded concurrency live; (5) identify what “BYOD specials” refers to in the outstanding notes or remove it from the VibeBridge list if unrelated. Issue #302 remains open. Do not mark the list complete until the live acceptance criteria pass.
+
+
+## Continuation check — 2026-10-17
+
+- Rechecked regression task #338: the only comment reports green GitHub Actions runs on pre-documentation HEAD `05b824cf931b43ff1b4296b13d50937ba7c3d505`, manifest `0.2.99`; it explicitly says the Mac runner task and live heartbeat were not verified. Do not count that as Mac acceptance.
+- Rechecked task #337: zero comments/results.
+- Inspected current `extension/chatgpt.js` and `tests/test_chatgpt_content_script.js`. The existing command draft-safety coverage is still source-order assertions, not a behavioral test of the injected command card. The DOM harness's `MutationObserver.observe()` is a no-op, so command-card creation is not currently exercised.
+- Current source blob for `extension/chatgpt.js`: `c1699ed3559de6541289b277bb9b17556d539a66`; test blob: `fce035fc070432b2af2580a26fd9d5229f0a03f8`. These are blob SHAs, not commit SHAs.
+- Blockers remain unchanged: no callable local Mac command/runner-dispatch action is exposed in this ChatGPT session; last Mac diagnostics reported zero connected ChatGPT tabs. No claim of live bridge, updater recovery, or fresh-thread acceptance.
+- Next action: obtain the actual Mac runner result for #338, then implement a command-card behavioral test with a functioning mutation-observer/assistant-message DOM fixture. Keep #302 open.

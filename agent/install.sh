@@ -119,7 +119,7 @@ cat > "$PLIST" <<EOF_PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>Label</key><string>com.vibebridge.agent</string>
-<key>ProgramArguments</key><array><string>$PYTHON</string><string>$ROOT/agent/server.py</string></array>
+<key>ProgramArguments</key><array><string>$PYTHON</string><string>-u</string><string>$ROOT/agent/server.py</string></array>
 <key>WorkingDirectory</key><string>$ROOT</string>
 <key>RunAtLoad</key><true/>
 <key>KeepAlive</key><true/>
@@ -133,9 +133,9 @@ cat > "$UPDATER_PLIST" <<EOF_UPDATER
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>Label</key><string>com.vibebridge.updater</string>
-<key>ProgramArguments</key><array><string>$PYTHON</string><string>$SUPPORT/updater-bootstrap.py</string></array>
+<key>ProgramArguments</key><array><string>$PYTHON</string><string>-u</string><string>$SUPPORT/updater-bootstrap.py</string></array>
 <key>WorkingDirectory</key><string>$ROOT</string>
-<key>StartInterval</key><integer>5</integer><key>RunAtLoad</key><true/>
+<key>StartInterval</key><integer>300</integer><key>RunAtLoad</key><true/>
 <key>EnvironmentVariables</key><dict><key>PATH</key><string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
 <key>StandardOutPath</key><string>$SUPPORT/updater.log</string>
 <key>StandardErrorPath</key><string>$SUPPORT/updater-error.log</string>
@@ -151,7 +151,7 @@ echo "VibeBridge agent installed and launched."
 echo "Chrome extension ID derived from manifest key: $EXTENSION_ID"
 echo "Chrome Native Messaging host: $NATIVE_HOST_MANIFEST"
 echo "Native host launcher: $NATIVE_HOST_LAUNCHER"
-echo "GitHub updater installed (checks every 5 seconds)."
+echo "GitHub updater installed (checks every 5 minutes)."
 echo "Private local token created with owner-only permissions; the extension pairs securely during first-run setup."
 echo "Logs are stored under: $SUPPORT"
 echo "Update logs: update.log; agent logs: agent.log and agent-error.log; updater launch logs: updater.log and updater-error.log"

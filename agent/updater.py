@@ -22,6 +22,7 @@ LOCK_FILE = SUPPORT / "updater.lock"
 LABEL = "com.vibebridge.agent"
 REMOTE = "https://github.com/YamaHaroJ/VibeBridge.git"
 MANAGED_PATHS = ("agent", "extension", "tests")
+UPDATER_POLL_SECONDS = 300
 
 
 def log(message):
@@ -131,8 +132,11 @@ def main():
     if not (ROOT / ".git").exists():
         raise RuntimeError("VibeBridge checkout is not a Git repository.")
 
-    # Keep the installed LaunchAgent polling frequently so Chrome's Reload action
-    # picks up recently pushed GitHub files without a separate update button.
+    # Keep the installed LaunchAgent polling periodically so pushed GitHub
+    # files arrive without a separate update button. This was 5 seconds;
+    # at that frequency the file-replace-and-validate cycle below has a real
+    # chance of racing actively-edited files (observed in practice). 5
+    # minutes still arrives promptly with far less opportunity for that race.
     plist = Path.home() / "Library/LaunchAgents/com.vibebridge.updater.plist"
     try:
         import plistlib
@@ -140,8 +144,8 @@ def main():
             with plist.open("rb") as handle:
                 config = plistlib.load(handle)
             changed = False
-            if config.get("StartInterval") != 5:
-                config["StartInterval"] = 5
+            if config.get("StartInterval") != UPDATER_POLL_SECONDS:
+                config["StartInterval"] = UPDATER_POLL_SECONDS
                 changed = True
             if config.get("RunAtLoad") is not True:
                 config["RunAtLoad"] = True
@@ -149,7 +153,7 @@ def main():
             if changed:
                 with plist.open("wb") as handle:
                     plistlib.dump(config, handle)
-                log("Enabled immediate updater launch and 5-second polling; reloading its LaunchAgent.")
+                log(f"Enabled immediate updater launch and {UPDATER_POLL_SECONDS}-second polling; reloading its LaunchAgent.")
                 uid = str(__import__("os").getuid())
                 subprocess.run(["/bin/launchctl", "bootout", f"gui/{uid}", str(plist)],
                                capture_output=True, text=True, timeout=10)
@@ -247,6 +251,15 @@ def main():
         import py_compile
         for script in ("server.py", "updater.py"):
             py_compile.compile(str(stage / "agent" / script), doraise=True)
+
+        # Re-confirm managed paths are still clean immediately before touching
+        # them. Staging (git archive extraction, syntax/compile checks above)
+        # takes real time; if a file was edited in that window, the status
+        # captured before staging is already stale. Overwriting now would
+        # silently discard that edit.
+        recheck = run(["git", "status", "--porcelain", "--", *MANAGED_PATHS])
+        if recheck and not force_managed:
+            raise RuntimeError("Managed paths changed since this update started; aborting without touching files.")
 
         # Backup runtime paths, replace from staged archive, and roll back on failure.
         backup = ROOT / ".vibebridge-update-backup"

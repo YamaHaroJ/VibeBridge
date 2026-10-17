@@ -1459,8 +1459,19 @@ class Handler(BaseHTTPRequestHandler):
         print("VibeBridge:", fmt % args)
 
 
-def configure_fast_updates():
-    """Configure GitHub polling so Chrome's normal Reload sees recent source updates."""
+UPDATER_POLL_SECONDS = 300
+
+
+def configure_update_polling():
+    """Configure GitHub polling so the updater picks up pushed changes reasonably promptly.
+
+    This used to force 5-second polling. At that frequency the updater's
+    background file-replace-and-validate cycle has a real chance of racing
+    actively-edited files (observed in practice: already-committed fixes
+    silently reverted on disk while the git log still showed them applied).
+    5 minutes is frequent enough that an update still arrives promptly, with
+    far less opportunity for that race.
+    """
     plist = Path.home() / "Library/LaunchAgents/com.vibebridge.updater.plist"
     try:
         import plistlib
@@ -1468,9 +1479,9 @@ def configure_fast_updates():
             return
         with plist.open("rb") as handle:
             config = plistlib.load(handle)
-        if config.get("StartInterval") == 5:
+        if config.get("StartInterval") == UPDATER_POLL_SECONDS:
             return
-        config["StartInterval"] = 5
+        config["StartInterval"] = UPDATER_POLL_SECONDS
         with plist.open("wb") as handle:
             plistlib.dump(config, handle)
         uid = str(__import__("os").getuid())
@@ -1478,13 +1489,13 @@ def configure_fast_updates():
                        capture_output=True, text=True, timeout=10)
         subprocess.run(["/bin/launchctl", "bootstrap", f"gui/{uid}", str(plist)],
                        capture_output=True, text=True, timeout=10)
-        print("VibeBridge GitHub updater configured for 5-second polling.")
+        print(f"VibeBridge GitHub updater configured for {UPDATER_POLL_SECONDS}-second polling.")
     except Exception as exc:
-        print("Could not configure 5-second GitHub polling:", str(exc)[:300])
+        print(f"Could not configure {UPDATER_POLL_SECONDS}-second GitHub polling:", str(exc)[:300])
 
 
 def main():
-    configure_fast_updates()
+    configure_update_polling()
     print("VibeBridge listening on http://127.0.0.1:%d" % PORT)
     ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
 

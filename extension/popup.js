@@ -262,25 +262,6 @@ upgrade?.addEventListener("click", async () => {
     upgrade.textContent = "Start 14-day free trial — $9/mo after";
   }
 });
-const ownerTokenInput = document.querySelector("#owner-token-input");
-const applyOwnerToken = document.querySelector("#apply-owner-token");
-const ownerTokenStatus = document.querySelector("#owner-token-status");
-applyOwnerToken?.addEventListener("click", async () => {
-  const value = ownerTokenInput.value.trim();
-  if (!value) { ownerTokenStatus.textContent = "Paste a token first."; return; }
-  applyOwnerToken.disabled = true;
-  ownerTokenStatus.textContent = "Applying…";
-  try {
-    await chrome.storage.local.set({deviceToken: value, licenseCache: null});
-    ownerTokenInput.value = "";
-    await refreshLicenseStatus();
-    ownerTokenStatus.textContent = "Applied. See license status above.";
-  } catch (error) {
-    ownerTokenStatus.textContent = "Could not apply: " + error.message;
-  } finally {
-    applyOwnerToken.disabled = false;
-  }
-});
 // "Reload" means sync this Mac's extension files from GitHub first, then reload Chrome.
 reloadExtension?.addEventListener("click", async () => {
   reloadExtension.disabled = true;

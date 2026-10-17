@@ -108,13 +108,17 @@ class ExtensionFlowContractTests(unittest.TestCase):
         self.assertNotIn("savedConversation.project", self.content_script)
         self.assertIn('if (!enabledState || !original', self.content_script)
         self.assertIn('function showNotice(_text) {}', self.content_script)
-        self.assertIn("Context is stored for subsequent resolution", self.content_script)
+        # Resolved context must be delivered to ChatGPT, but as a separate chat
+        # turn rather than merged into the user's visible draft: that merge was
+        # the source of the original leaked-text regression (composer remounts
+        # outran cleanup).
+        self.assertIn("async function buildPrimerMessage(", self.content_script)
+        self.assertIn("async function sendAsSeparateMessage(text, restoreText)", self.content_script)
+        self.assertIn("primedConversations", self.content_script)
         self.assertNotIn("writeComposer(composer, addition + original)", self.content_script)
         self.assertNotIn("composer.dataset.vibebridgeContextInjection", self.content_script)
-        self.assertIn("Send the user's original request unchanged instead.", self.content_script)
         self.assertNotIn('USER REQUEST:\\n', self.content_script)
         self.assertNotIn('function showContextChoice', self.content_script)
-        self.assertNotIn("writeComposer(composer, addition + original)", self.content_script)
         self.assertIn("sanitizeBridgeComposer", self.content_script)
         self.assertNotIn('id = "vibebridge-live-status"', self.content_script)
         self.assertNotIn('"position:fixed;right:12px;bottom:12px', self.content_script)

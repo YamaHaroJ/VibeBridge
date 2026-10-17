@@ -1,0 +1,21 @@
+{
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/checkout",
+      "destination": "/api/index?route=checkout"
+    },
+    {
+      "source": "/api/stripe-webhook",
+      "destination": "/api/index?route=stripe-webhook"
+    },
+    {
+      "source": "/api/license-status",
+      "destination": "/api/index?route=license-status"
+    }
+  ]
+}

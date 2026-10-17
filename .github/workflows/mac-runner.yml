@@ -54,8 +54,6 @@ jobs:
           python3 -m py_compile agent/server.py agent/updater.py
           python3 -m json.tool extension/manifest.json >/dev/null
           bash -n agent/install.sh
-          bash -n "packaging/Install VibeBridge.command"
-          bash -n "packaging/Authenticate GitHub.command"
           node --check extension/background.js
           node --check extension/chatgpt.js
           node --check extension/popup.js

@@ -33,6 +33,8 @@
     if (area === "local" && changes.enabled) enabledState = changes.enabled.newValue !== false;
   });
   const marker = "VIBEBRIDGE PROJECT CONTEXT";
+  const CHECKPOINT_MESSAGE_INTERVAL = 6;
+  const CHECKPOINT_TIME_INTERVAL_MS = 10 * 60 * 1000;
   window.addEventListener("pageshow", reportHeartbeatFromThisFile);
   const commandMarker = "VIBEBRIDGE LOCAL COMMAND";
   const processedBlocks = new WeakSet();
@@ -166,6 +168,97 @@
     setTimeout(() => { bypassNextSend = false; }, 800);
     return true;
   }
+
+  function findSendButton() {
+    return document.querySelector('button[data-testid="send-button"]') ||
+      document.querySelector('button[aria-label*="Send"]') ||
+      document.querySelector("form button[type='submit']");
+  }
+
+  // ChatGPT disables the composer while a response is streaming. Poll instead
+  // of guessing a fixed delay, since response length varies a lot.
+  function waitForComposerReady(timeoutMs = 120000) {
+    return new Promise(resolve => {
+      const start = Date.now();
+      (function poll() {
+        const button = findSendButton();
+        if (button && !button.disabled) return resolve(true);
+        if (Date.now() - start > timeoutMs) return resolve(false);
+        setTimeout(poll, 250);
+      })();
+    });
+  }
+
+  // Deliver VibeBridge context as its own chat turn instead of merging it into
+  // the user's draft. Merging into one message was the source of the original
+  // leaked-text bug (composer remounts outran our cleanup); a separate message
+  // has no cleanup step to race.
+  // Every new ChatGPT thread starts with no idea VibeBridge exists. This primer
+  // teaches it the local-command protocol and the real repository roster once
+  // per conversation, so a fresh thread can say "which of these 6?" or "none of
+  // these fit, want me to create one?" instead of guessing.
+  async function buildPrimerMessage(includeProtocol, projectContext) {
+    const parts = [marker];
+    if (includeProtocol) {
+      let rosterLines = [];
+      try {
+        const roster = await chrome.runtime.sendMessage({type: "VIBEBRIDGE_GITHUB_PROJECTS"});
+        if (roster?.ok && Array.isArray(roster.repositories)) {
+          rosterLines = roster.repositories.slice(0, 40).map(repo =>
+            "- " + repo.nameWithOwner +
+            (repo.localPath ? " (cloned locally)" : "") +
+            (repo.description ? " — " + repo.description : ""));
+        }
+      } catch (_) {}
+      parts.push(
+        "VibeBridge is connected in this browser: a local Mac agent and GitHub CLI are available.",
+        "",
+        "Known GitHub repositories on this account:",
+        rosterLines.length ? rosterLines.join("\n") : "(none found — GitHub CLI may need to sign in on the Mac)",
+        "",
+        "Protocol for this conversation:",
+        "- If the user names one of the repositories above, treat it as the active project for the rest of this thread.",
+        "- If none of them fit and the user wants to start something new, say so plainly and offer to create a new GitHub repository; ask for confirmation first.",
+        "- To run a command on the user's Mac inside the active project, emit a fenced code block exactly like this so VibeBridge can detect and offer to run it:",
+        "  ```vibebridge-run",
+        "  {\"command\": [\"arg0\", \"arg1\"]}",
+        "  ```",
+        "- Only report a command as executed if its result was actually returned in this conversation. Never assume a prior conversation's state.",
+        "- VibeBridge will periodically ask you to checkpoint this conversation so its state survives into the next thread. When asked (or whenever real progress/decisions happen), emit a fenced block exactly like this:",
+        "  ```vibebridge-memory",
+        "  {\"projects\": [{\"repository\": \"owner/repo\", \"summary\": \"short durable summary\", \"handoff\": \"exactly where things stand right now\", \"todos\": [\"next step 1\", \"next step 2\"], \"decisions\": [\"decision made and why\"]}]}",
+        "  ```",
+        "- The checkpoint is saved silently to GitHub and reappears as \"LATEST CROSS-CONVERSATION HANDOFFS AND LIVING TODOS\" the next time this project's context is loaded. Write the handoff/todos as if briefing someone with no memory of this thread."
+      );
+    }
+    if (projectContext) parts.push("", "Current project context:", projectContext);
+    parts.push("END " + marker);
+    return parts.join("\n");
+  }
+
+  // After this sends, restore restoreText into the composer so the user's
+  // actual message (still pending in the outer send flow) goes out next,
+  // instead of leaving the composer empty or holding the primer text.
+  async function sendAsSeparateMessage(text, restoreText) {
+    const button = findSendButton();
+    const composer = composerFor(button);
+    if (!composer) return false;
+    writeComposer(composer, text);
+    // The outer send handler disables this same button for the duration of its
+    // own work (busy guard). Clear that here so our own synthetic click isn't
+    // blocked by a flag we set ourselves; ChatGPT disables it again natively
+    // once generation starts, which is the signal waitForComposerReady needs.
+    if (button) button.disabled = false;
+    const clicked = clickCurrentSendButton();
+    if (clicked) {
+      await new Promise(r => setTimeout(r, 400));
+      await waitForComposerReady();
+    }
+    const current = composerFor(findSendButton());
+    if (current && restoreText !== undefined) writeComposer(current, restoreText);
+    return clicked;
+  }
+
   function showReloadNotice(text) {
     showNotice(text);
     const notice = document.getElementById("vibebridge-notice");
@@ -281,6 +374,12 @@
 
       const executeCommand = async (automatic = false) => {
         if (run.disabled) return;
+        const license = await chrome.runtime.sendMessage({type: "VIBEBRIDGE_LICENSE_STATUS"}).catch(() => ({active: false}));
+        if (!license?.active) {
+          output.style.display = "block";
+          output.textContent = "VibeBridge Pro is not active. Open the extension popup to start a trial or subscribe.";
+          return;
+        }
         if (!automatic && !confirm("Run this command on your Mac inside the active project folder?\n\n" + payload.command.join(" "))) return;
         run.disabled = true;
         run.textContent = "Running…";
@@ -429,6 +528,14 @@
         showNotice("VibeBridge is off. Your message will be sent without project context.");
         return;
       }
+      // Context priming, checkpointing, and command execution are VibeBridge
+      // Pro features. An expired/missing license still sends the user's
+      // message normally; it just skips VibeBridge's own additions.
+      const license = await chrome.runtime.sendMessage({type: "VIBEBRIDGE_LICENSE_STATUS"}).catch(() => ({active: false}));
+      if (!license?.active) {
+        showNotice("VibeBridge Pro is not active. Open the extension popup to start a trial or subscribe.");
+        return;
+      }
       const requestedCreate = original.match(/\b(?:create|make)\s+(?:a\s+)?(?:new\s+)?(?:github\s+)?(?:repo|repository)\s+(?:named|called)\s+["\x27`]?([A-Za-z0-9][A-Za-z0-9_.-]{0,99})/i);
       let createdRepository = null;
       let result;
@@ -479,29 +586,75 @@
         if (saved?.saved) showNotice("Saved a note to " + saved.project + " project memory");
         else if (saved?.error) showNotice("VibeBridge memory: " + saved.error);
       }
+      const conversation = conversationKey();
+      const primedState = await chrome.storage.local.get(["primedConversations"]);
+      const primedList = Array.isArray(primedState.primedConversations) ? primedState.primedConversations : [];
+      const isFreshConversation = !primedList.includes(conversation);
+
       if (result?.matched && result.context) {
-        const conversation = conversationKey();
         const savedConversation = await chrome.storage.local.get(["conversationProjects"]);
         const conversationProjects = savedConversation.conversationProjects || {};
         const previous = conversationProjects[conversation] || [];
         const merged = (Array.isArray(previous) ? previous : [previous]).filter(Boolean);
         const resolvedProjects = Array.isArray(result.projects) ? result.projects : (result.project ? [result.project] : []);
+        const newlyKnownProjects = resolvedProjects.filter(project => project?.path && !merged.includes(project.path));
         for (const project of resolvedProjects) {
           if (project?.path && !merged.includes(project.path)) merged.push(project.path);
         }
         conversationProjects[conversation] = merged.slice(-8);
         await chrome.storage.local.set({conversationProjects});
-        // Context is stored for subsequent resolution, but MUST NOT be written
-        // into ChatGPT's visible editor. That mutation is the recurring context
-        // leak: React remounts can retain the injected text after our cleanup.
-        // Send the user's original request unchanged instead.
+
+        // Deliver context as a separate, visible chat turn (never merged into the
+        // user's draft) whenever this thread hasn't seen it yet, or a new project
+        // just entered this conversation.
+        if (isFreshConversation || newlyKnownProjects.length) {
+          const primer = await buildPrimerMessage(isFreshConversation, result.context);
+          const sent = await sendAsSeparateMessage(primer, original);
+          if (sent && isFreshConversation) {
+            await chrome.storage.local.set({primedConversations: [...primedList, conversation].slice(-50)});
+          }
+        }
       } else if (result?.ambiguous) {
         showNotice("VibeBridge found multiple possible projects. Mention the exact project name.");
+        if (isFreshConversation) {
+          const sent = await sendAsSeparateMessage(await buildPrimerMessage(true, ""), original);
+          if (sent) await chrome.storage.local.set({primedConversations: [...primedList, conversation].slice(-50)});
+        }
       } else if (result?.error) {
         showNotice("VibeBridge: " + result.error + "\nYour original message will still be sent. Check the local agent and GitHub CLI connection in the extension popup.");
       } else {
+        // No specific project matched, but ChatGPT still needs to know what
+        // projects exist so it can ask "which one?" or offer to create one,
+        // instead of guessing or claiming it has no way to find out.
         showNotice("VibeBridge did not attach project context. Reason: " + (result?.reason || (result?.error ? "agent-error: " + result.error : "no-match")) + ". Active project: " + (activeProject || "(none)") + ". Conversation projects: " + (knownProjects.join(", ") || "(none)") + ". Agent endpoint: 127.0.0.1:43127. Your original message will still be sent. Copy this diagnostic if the issue continues.");
+        if (isFreshConversation) {
+          const sent = await sendAsSeparateMessage(await buildPrimerMessage(true, ""), original);
+          if (sent) await chrome.storage.local.set({primedConversations: [...primedList, conversation].slice(-50)});
+        }
       }
+
+      // A long back-and-forth accumulates state (decisions, progress, the exact
+      // next step) that lives only in this thread. Without an active nudge, that
+      // state is gone the moment a new thread starts — ChatGPT cannot be trusted
+      // to remember a standing "checkpoint periodically" instruction on its own
+      // for an entire conversation. Force it on a schedule instead.
+      const checkpointStore = await chrome.storage.local.get(["conversationCheckpoints"]);
+      const checkpoints = checkpointStore.conversationCheckpoints || {};
+      const checkpointEntry = checkpoints[conversation] || {count: 0, lastAt: 0};
+      const dueByCount = checkpointEntry.count >= CHECKPOINT_MESSAGE_INTERVAL;
+      const dueByTime = checkpointEntry.lastAt && (Date.now() - checkpointEntry.lastAt) >= CHECKPOINT_TIME_INTERVAL_MS;
+      if (checkpointEntry.lastAt && (dueByCount || dueByTime)) {
+        await sendAsSeparateMessage(
+          marker + "\nPlease checkpoint now: emit a fenced ```vibebridge-memory block for the active project(s) " +
+          "summarizing exactly where things stand (current state, decisions made, the exact next step) so this " +
+          "survives into the next conversation. Use the format described earlier in this thread.\nEND " + marker,
+          original
+        );
+        checkpoints[conversation] = {count: 0, lastAt: Date.now()};
+      } else {
+        checkpoints[conversation] = {count: checkpointEntry.count + 1, lastAt: checkpointEntry.lastAt || Date.now()};
+      }
+      await chrome.storage.local.set({conversationCheckpoints: checkpoints});
     } catch (error) {
       const message = String(error?.message || error || "Unknown error");
       const invalidated = /extension context invalidated|context invalidated|extension context.*invalid/i.test(message);

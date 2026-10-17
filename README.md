@@ -28,12 +28,6 @@ The installer fetches the latest public `master` code after you approve setup, i
 - **ChatGPT GitHub access** is managed in ChatGPT Settings → Apps/Connectors. VibeBridge cannot read, enable, or grant permissions for a ChatGPT connector. Connect GitHub there if you want ChatGPT to browse repository contents directly. VibeBridge can still attach context through the local agent when the local GitHub CLI has access.
 - The extension on/off switch pauses automatic context injection; it does not disable the background macOS agent.
 
-## Packaged macOS installer
-
-The macOS installer workflow builds a disk image and a separate Chrome extension ZIP on each push to `master`. Open the repository's **Actions** tab, select **macOS installer package**, open the latest successful run, and download the artifact named `VibeBridge-macOS-installer-...`. The disk image contains a guided installer and the local project files. The artifact is currently unsigned and not notarized, so macOS may show a warning. Do not bypass warnings unless you trust the source and have verified the repository.
-
-The installer checks prerequisites, asks for approval before installing the local background agent, fetches the latest public code, enables automatic agent updates, registers the Native Messaging host, and opens the extension setup. It cannot silently enable Chrome Developer mode, install an unpublished extension, grant macOS permissions, or connect ChatGPT Apps. The user must approve browser permissions. The remaining distribution blockers for a normal one-click experience are Chrome Web Store publication and signed/notarized macOS packaging.
-
 ## Automatic project switching and repository creation
 
 - In ChatGPT, explicitly say **"Switch to Autofill Insurance Extension"** or include an exact `owner/repository` slug. If an explicit switch fails, VibeBridge should display the reason instead of silently continuing with the previous project's context.
@@ -71,10 +65,9 @@ Remove the LaunchAgent plist to prevent it from being loaded again. The token is
 ## Public distribution and updates
 
 - The public source of truth is this repository: https://github.com/YamaHaroJ/VibeBridge.
-- Every push to `master` creates a preview installer artifact in GitHub Actions. These artifacts expire and are for testing, not permanent downloads.
-- The new release workflow publishes a versioned macOS installer disk image, Chrome extension ZIP, and SHA-256 checksums to GitHub Releases when a version tag such as `v0.3.0` is pushed: https://github.com/YamaHaroJ/VibeBridge/releases.
-- The installer registers a macOS LaunchAgent that checks the public GitHub `master` branch hourly, validates changes before restarting the local agent, and rolls back on validation failure. It does not require GitHub CLI authentication to update the public VibeBridge code.
-- The local agent and source code update automatically, but an unpacked Chrome extension may still require a reload in `chrome://extensions` to activate changed extension files. True consumer installation requires Chrome Web Store publication; macOS distribution also needs signing/notarization. The installer cannot silently grant Chrome or ChatGPT permissions.
+- The release workflow publishes a versioned Chrome extension ZIP and SHA-256 checksum to GitHub Releases when a version tag such as `v0.3.0` is pushed: https://github.com/YamaHaroJ/VibeBridge/releases.
+- `agent/install.sh` registers a macOS LaunchAgent that checks the public GitHub `master` branch every few seconds, validates changes before restarting the local agent, and rolls back on validation failure. It does not require GitHub CLI authentication to update the public VibeBridge code.
+- The local agent and source code update automatically, but an unpacked Chrome extension may still require a reload in `chrome://extensions` to activate changed extension files. True consumer installation requires Chrome Web Store publication. The installer cannot silently grant Chrome or ChatGPT permissions.
 
 
 ## Chrome Web Store preparation

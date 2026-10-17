@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Check out tagged source
         uses: actions/checkout@v4
@@ -24,40 +24,19 @@ jobs:
           python3 -m py_compile agent/server.py agent/updater.py
           python3 -m json.tool extension/manifest.json >/dev/null
           bash -n agent/install.sh
-          bash -n "packaging/Install VibeBridge.command"
-          bash -n "packaging/Authenticate GitHub.command"
           node --check extension/background.js
           node --check extension/chatgpt.js
           node --check extension/popup.js
 
-      - name: Build installer and Chrome extension
+      - name: Build Chrome extension package
         shell: bash
         run: |
           set -euo pipefail
-          DIST="$RUNNER_TEMP/vibebridge-dist"
           OUT="$RUNNER_TEMP/vibebridge-out"
-          mkdir -p "$DIST/VibeBridge" "$OUT"
-          rsync -a --exclude='.git/' --exclude='.github/' --exclude='tests/' --exclude='packaging/' ./ "$DIST/VibeBridge/"
-          cp "packaging/Install VibeBridge.command" "$DIST/Install VibeBridge.command"
-          cp "packaging/Authenticate GitHub.command" "$DIST/Authenticate GitHub.command"
-          chmod +x "$DIST/Install VibeBridge.command" "$DIST/Authenticate GitHub.command"
-          cat > "$DIST/Setup Guide.txt" <<'GUIDE'
-          VibeBridge setup
-
-          1. Double-click Install VibeBridge.command and review the permission prompt.
-          2. The installer installs the local agent on this Mac.
-          3. In Chrome, open chrome://extensions, enable Developer mode, select Load unpacked, and choose ~/VibeBridge/extension.
-          4. Open the VibeBridge extension, paste the local token printed by the installer, and save settings.
-          5. Use Check connection setup to verify the local agent and GitHub CLI.
-          6. Connect GitHub separately in ChatGPT Settings > Apps/Connectors if you want ChatGPT itself to browse repositories.
-
-          VibeBridge cannot silently grant Chrome or ChatGPT permissions. This release is not signed or notarized, so macOS may display a security warning.
-          GUIDE
-          hdiutil create -volname "VibeBridge Installer" -srcfolder "$DIST" -ov -format UDZO "$OUT/VibeBridge-macOS-Installer.dmg"
-          mkdir -p "$RUNNER_TEMP/extension-zip"
+          mkdir -p "$OUT" "$RUNNER_TEMP/extension-zip"
           cp -R extension/. "$RUNNER_TEMP/extension-zip/"
           (cd "$RUNNER_TEMP/extension-zip" && zip -qr "$OUT/VibeBridge-Chrome-Extension.zip" .)
-          (cd "$OUT" && shasum -a 256 "VibeBridge-macOS-Installer.dmg" "VibeBridge-Chrome-Extension.zip" > "SHA256SUMS.txt")
+          (cd "$OUT" && shasum -a 256 "VibeBridge-Chrome-Extension.zip" > "SHA256SUMS.txt")
 
       - name: Publish versioned GitHub release
         env:
@@ -65,7 +44,6 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           gh release create "$TAG" \
-            "$RUNNER_TEMP/vibebridge-out/VibeBridge-macOS-Installer.dmg" \
             "$RUNNER_TEMP/vibebridge-out/VibeBridge-Chrome-Extension.zip" \
             "$RUNNER_TEMP/vibebridge-out/SHA256SUMS.txt" \
             --title "VibeBridge $TAG" \

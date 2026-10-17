@@ -13,6 +13,9 @@ const githubStatus = document.querySelector("#github-status");
 const githubStatusText = document.querySelector("#github-status-text");
 const browserStatus = document.querySelector("#browser-status");
 const browserStatusText = document.querySelector("#browser-status-text");
+const licenseStatus = document.querySelector("#license-status");
+const licenseStatusText = document.querySelector("#license-status-text");
+const upgrade = document.querySelector("#upgrade");
 const projectCopy = document.querySelector("#project-copy");
 const connect = document.querySelector("#connect");
 const consent = document.querySelector("#consent");
@@ -36,6 +39,23 @@ function renderEnabled(value) {
 function renderStatus(element, label, state, message) {
   element.dataset.state = state;
   label.textContent = message;
+}
+async function refreshLicenseStatus() {
+  renderStatus(licenseStatus, licenseStatusText, "checking", "Checking VibeBridge Pro license");
+  try {
+    const result = await chrome.runtime.sendMessage({type: "VIBEBRIDGE_LICENSE_STATUS"});
+    if (result?.active) {
+      const label = result.status === "trialing" ? "VibeBridge Pro trial active" : "VibeBridge Pro active";
+      renderStatus(licenseStatus, licenseStatusText, "ready", label + (result.offlineGrace ? " (offline, using last known status)" : ""));
+      upgrade.classList.add("hidden");
+    } else {
+      renderStatus(licenseStatus, licenseStatusText, "setup", "VibeBridge Pro is not active");
+      upgrade.classList.remove("hidden");
+    }
+  } catch (error) {
+    renderStatus(licenseStatus, licenseStatusText, "setup", "Could not check license: " + error.message);
+    upgrade.classList.remove("hidden");
+  }
 }
 async function refreshBrowserStatus(token) {
   try {
@@ -133,6 +153,9 @@ async function initialize() {
   requestBackgroundUpdate();
   renderStatus(status, statusText, "checking", "Checking local connection");
   renderStatus(githubStatus, githubStatusText, "checking", "Checking GitHub connection");
+  // License status does not depend on local Mac pairing: a subscription can
+  // start before the agent is ever connected.
+  refreshLicenseStatus();
   try {
     const saved = await chrome.storage.local.get(["token", "enabled", "autoRunCommands", "autoMemoryCheckpoints"]);
     if (!isCurrent()) return;
@@ -226,6 +249,19 @@ async function loadUpdateLogs() {
   }
 }
 showLogs.addEventListener("click", loadUpdateLogs);
+upgrade?.addEventListener("click", async () => {
+  upgrade.disabled = true;
+  upgrade.textContent = "Opening checkout…";
+  try {
+    const result = await chrome.runtime.sendMessage({type: "VIBEBRIDGE_START_CHECKOUT"});
+    if (!result?.ok) throw new Error(result?.error || "Could not start checkout");
+  } catch (error) {
+    renderStatus(licenseStatus, licenseStatusText, "setup", "Checkout failed: " + error.message);
+  } finally {
+    upgrade.disabled = false;
+    upgrade.textContent = "Start 14-day free trial — $9/mo after";
+  }
+});
 // "Reload" means sync this Mac's extension files from GitHub first, then reload Chrome.
 reloadExtension?.addEventListener("click", async () => {
   reloadExtension.disabled = true;

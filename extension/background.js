@@ -1,4 +1,46 @@
 const API = "http://127.0.0.1:43127";
+const CLOUD_API = "https://vibebridge-cloud-api.vercel.app";
+
+// A long random identifier is all the cloud-api needs to link this install to
+// a Stripe subscription; it carries no other meaning and is not a credential
+// for anything but checking this device's own license.
+async function getDeviceToken() {
+  const saved = await chrome.storage.local.get(["deviceToken"]);
+  if (saved.deviceToken) return saved.deviceToken;
+  const token = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
+  await chrome.storage.local.set({deviceToken: token});
+  return token;
+}
+
+// Cache the license check so a brief network/cloud-api hiccup never blocks
+// VibeBridge mid-use. The grace window is intentionally generous (checking
+// is cheap and frequent; going offline should not feel like losing access).
+const LICENSE_CACHE_TTL_MS = 10 * 60 * 1000;
+const LICENSE_OFFLINE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
+
+async function fetchLicenseStatus() {
+  const deviceToken = await getDeviceToken();
+  const cached = await chrome.storage.local.get(["licenseCache"]);
+  const cache = cached.licenseCache || null;
+  const now = Date.now();
+  if (cache && now - cache.checkedAt < LICENSE_CACHE_TTL_MS) return cache.result;
+
+  try {
+    const response = await fetch(CLOUD_API + "/api/license-status?token=" + encodeURIComponent(deviceToken));
+    const data = await response.json();
+    if (!response.ok) throw new Error(data?.error || "License check failed");
+    const result = {active: !!data.active, status: data.status, trialEnd: data.trialEnd || null};
+    await chrome.storage.local.set({licenseCache: {checkedAt: now, result}});
+    return result;
+  } catch (error) {
+    // Offline or cloud-api hiccup: trust the last confirmed state within the
+    // grace window instead of locking the user out of a paid subscription.
+    if (cache && now - cache.checkedAt < LICENSE_OFFLINE_GRACE_MS) {
+      return {...cache.result, offlineGrace: true};
+    }
+    return {active: false, status: "unknown", error: error.message};
+  }
+}
 
 // Recover heartbeat automatically across every ChatGPT tab without reloading pages.
 async function ensureChatGPTTabHeartbeat(tabId) {
@@ -119,7 +161,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     "VIBEBRIDGE_BROWSER_HEARTBEAT",
     "VIBEBRIDGE_BROWSER_STATUS",
     "VIBEBRIDGE_PROBE_CHATGPT_TABS",
-    "VIBEBRIDGE_LOCAL_DIAGNOSTICS"
+    "VIBEBRIDGE_LOCAL_DIAGNOSTICS",
+    "VIBEBRIDGE_GITHUB_PROJECTS",
+    "VIBEBRIDGE_LICENSE_STATUS",
+    "VIBEBRIDGE_START_CHECKOUT"
   ];
   if (!supported.includes(message?.type)) return;
 
@@ -150,6 +195,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }));
       sendResponse({tabs: results, extensionVersion: chrome.runtime.getManifest().version});
     });
+    return true;
+  }
+
+  if (message?.type === "VIBEBRIDGE_LICENSE_STATUS") {
+    fetchLicenseStatus().then(sendResponse).catch(error => sendResponse({active: false, status: "unknown", error: error.message}));
+    return true;
+  }
+
+  if (message?.type === "VIBEBRIDGE_START_CHECKOUT") {
+    (async () => {
+      const deviceToken = await getDeviceToken();
+      const response = await fetch(CLOUD_API + "/api/checkout", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({deviceToken})
+      });
+      const data = await response.json();
+      if (!response.ok || !data.url) throw new Error(data.error || "Could not start checkout");
+      await chrome.tabs.create({url: data.url});
+      return {ok: true};
+    })().then(sendResponse).catch(error => sendResponse({ok: false, error: error.message}));
     return true;
   }
 
@@ -285,6 +351,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not save project note");
       return data;
+    }
+
+    if (message.type === "VIBEBRIDGE_GITHUB_PROJECTS") {
+      const response = await fetchAgent("/github-projects", {
+        method: "GET",
+        headers: {"Authorization": "Bearer " + saved.token}
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not list GitHub repositories");
+      return {ok: true, repositories: data.repositories || []};
     }
 
     if (message.type === "VIBEBRIDGE_RUN_COMMAND") {

@@ -75,7 +75,7 @@ class Element {
   dispatchEvent() { return true; }
 }
 
-async function runScenario(sendMessage, initialDraft = "Continue VibeBridge") {
+async function runScenario(sendMessage, initialDraft = "Continue VibeBridge", license = {active: true, status: "active"}) {
   const composer = new Element("TEXTAREA");
   composer.id = "prompt-textarea";
   composer.value = initialDraft;
@@ -124,6 +124,11 @@ async function runScenario(sendMessage, initialDraft = "Continue VibeBridge") {
   const chrome = {
     runtime: {getManifest:()=>({version:"test"}), onMessage:{addListener(){}}, async sendMessage(message) {
       notices.push(message);
+      // Licensing/roster are infra concerns, not what these scenarios test;
+      // give sane defaults so each scenario's callback only has to handle
+      // the message type it actually cares about.
+      if (message?.type === "VIBEBRIDGE_LICENSE_STATUS") return license;
+      if (message?.type === "VIBEBRIDGE_GITHUB_PROJECTS") return {ok: true, repositories: []};
       return await sendMessage(message);
     }},
     storage: {local:storage, onChanged:{addListener(){}}}
@@ -167,7 +172,10 @@ async function runScenario(sendMessage, initialDraft = "Continue VibeBridge") {
     assert.equal(h.composer.value, "Continue VibeBridge", "matched project context never mutates the visible composer");
     assert.doesNotMatch(h.composer.value, /MOCK PROJECT CONTEXT|Project background for continuity|PERSISTENT PROJECT MEMORY/, "project context remains outside the user's message");
 
-    assert.equal(h.getCurrentSend().clickCount, 1, "matched context sends automatically exactly once");
+    // A fresh conversation now sends two turns: the context primer (its own
+    // message, never merged into the user's draft) and then the user's
+    // original message, unmodified.
+    assert.equal(h.getCurrentSend().clickCount, 2, "fresh conversation sends a context primer, then the original message");
     assert.equal(h.document.getElementById("vibebridge-context-choice"), null, "automatic flow has no extra choice step");
   }
   {
@@ -191,8 +199,21 @@ async function runScenario(sendMessage, initialDraft = "Continue VibeBridge") {
       throw new Error("Unexpected message " + message.type);
     });
     assert.equal(h.composer.value, "Continue VibeBridge", "no-match preserves the original draft");
-    assert.equal(h.getCurrentSend().clickCount, 1, "no-match sends original text automatically");
+    // Even with no project matched, a fresh conversation still gets the roster
+    // primer (so ChatGPT can ask "which project?" or offer to create one),
+    // followed by the user's original message.
+    assert.equal(h.getCurrentSend().clickCount, 2, "no-match still primes a fresh conversation, then sends original text");
     assert.equal(h.document.getElementById("vibebridge-notice"), null, "no-match creates no banner");
+  }
+  {
+    // Without an active license, VibeBridge's own features (priming, command
+    // execution) must stay off, but the user's own message still goes out.
+    const h = await runScenario(async message => {
+      if (message.type === "VIBEBRIDGE_RESOLVE_CONTEXTS") return {matched:true, context:"MOCK PROJECT CONTEXT", projects:[{name:"VibeBridge",path:"/Users/test/VibeBridge"}]};
+      throw new Error("Unexpected message " + message.type);
+    }, "Continue VibeBridge", {active: false, status: "no-subscription"});
+    assert.equal(h.composer.value, "Continue VibeBridge", "unlicensed flow never touches the composer");
+    assert.equal(h.getCurrentSend().clickCount, 1, "unlicensed flow sends only the user's original message, no primer");
   }
   {
     const h = await runScenario(async () => { throw new Error("Extension context invalidated."); });
@@ -223,5 +244,5 @@ async function runScenario(sendMessage, initialDraft = "Continue VibeBridge") {
     assert.match(commandSource.slice(preserveDraft, writeResult), /existing draft was preserved/);
     assert.match(commandSource, /If the prompt already contains a draft, VibeBridge will preserve it and show the result for optional insertion/, "hands-off description accurately explains draft preservation");
   }
-  console.log("ChatGPT content-script DOM simulation: 5 scenarios passed; command draft-safety regression guard passed");
+  console.log("ChatGPT content-script DOM simulation: 6 scenarios passed; command draft-safety regression guard passed");
 })().catch(error => { console.error(error); process.exitCode = 1; });

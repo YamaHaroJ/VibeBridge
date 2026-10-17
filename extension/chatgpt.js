@@ -276,7 +276,11 @@
       // an optional JSON code fence so the relay never asks the user to paste it in Terminal.
       const normalizedBlock = rawBlock.replace(/^\s+/, "");
       const markedBlock = normalizedBlock.startsWith(commandMarker);
-      const hasShellLanguage = /language-(bash|sh|zsh|shell)\b/i.test(className);
+      // Same rendering drift as the vibebridge-* fence labels: ChatGPT may show
+      // the language name ("Bash") as a separate header outside the code block
+      // instead of (or in addition to) a CSS class, so check labelProbe too.
+      const hasShellLanguage = /language-(bash|sh|zsh|shell)\b/i.test(className) ||
+        /\b(bash|sh|zsh|shell)\b/i.test(labelProbe);
       // The fence label ("vibebridge-run" etc.) can show up in three different
       // places depending on how ChatGPT is currently rendering it: a CSS class,
       // literal leading text inside the code itself, or (current behavior) a
@@ -454,7 +458,7 @@
     const sendButton = findSendButton();
     if (sendButton && sendButton.disabled) return; // still streaming; a later scan will retry
     const text = latestAssistant.textContent || "";
-    if (!/\bterminal\b|\bpaste (?:this|it|the following)\b|\brun (?:this|the following) (?:command|script)\b/i.test(text)) return;
+    if (!/\bterminal\b|\bpaste\b|\brun (?:this|the following) (?:command|script)\b/i.test(text)) return;
     processedNudgeMessages.add(latestAssistant);
 
     const nudge = document.createElement("div");

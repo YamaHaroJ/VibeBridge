@@ -221,6 +221,7 @@ async function runScenario(sendMessage, initialDraft = "Continue VibeBridge") {
     assert.ok(writeResult > preserveDraft, "result is inserted only after the non-empty-draft early return");
     assert.ok(sendResult > writeResult, "automatic send can only occur after permitted result insertion");
     assert.match(commandSource.slice(preserveDraft, writeResult), /existing draft was preserved/);
+    assert.match(commandSource, /If the prompt already contains a draft, VibeBridge will preserve it and show the result for optional insertion/, "hands-off description accurately explains draft preservation");
   }
   console.log("ChatGPT content-script DOM simulation: 5 scenarios passed; command draft-safety regression guard passed");
 })().catch(error => { console.error(error); process.exitCode = 1; });

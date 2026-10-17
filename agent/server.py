@@ -619,6 +619,28 @@ def status_command(args, cwd=None, timeout=5):
         return {"returncode": 1, "stdout": "", "stderr": str(exc)}
 
 
+# A fixed, public salt. Hashing isn't meant to keep this secret (an installed
+# agent's own owner can already read its hardware UUID directly); it just
+# avoids putting the raw platform UUID on the wire. The value is derived live
+# from the Mac's own hardware UUID every call, never cached to a file, so
+# deleting/reinstalling VibeBridge (agent or extension) cannot change it and
+# cannot be used to claim a second free trial on the same physical Mac.
+DEVICE_ID_SALT = "vibebridge-device-v1"
+
+
+def compute_device_id():
+    result = subprocess.run(
+        ["/usr/sbin/ioreg", "-rd1", "-c", "IOPlatformExpertDevice"],
+        capture_output=True, text=True, timeout=5
+    )
+    if result.returncode != 0:
+        raise RuntimeError("Could not read this Mac's hardware identifier.")
+    match = re.search(r'"IOPlatformUUID"\s*=\s*"([^"]+)"', result.stdout)
+    if not match:
+        raise RuntimeError("Hardware identifier not found.")
+    return hashlib.sha256((DEVICE_ID_SALT + match.group(1)).encode("utf-8")).hexdigest()
+
+
 def safe_git_output(args, cwd, timeout=5):
     """Return optional Git metadata without letting a slow/broken Git block context."""
     try:
@@ -1151,6 +1173,11 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(200, {"ok": True, "service": "VibeBridge", "port": PORT})
         if path == "/diagnostics/local":
             return self.send_json(200, local_diagnostics())
+        if path == "/device-id":
+            try:
+                return self.send_json(200, {"deviceId": compute_device_id()})
+            except RuntimeError as e:
+                return self.send_json(400, {"error": str(e)})
         if path == "/projects":
             return self.send_json(200, {"projects": discover_projects()})
         if path == "/github-projects":

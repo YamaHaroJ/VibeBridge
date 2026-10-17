@@ -116,7 +116,7 @@ async function runScenario(sendMessage, initialDraft = "Continue VibeBridge", li
   };
   const storage = {
     async get(keys) {
-      const all = {enabled:true, token:"mock-token", activeProject:"/Users/test/VibeBridge", autoRunCommands:false};
+      const all = {enabled:true, token:"mock-token", activeProject:"/Users/test/VibeBridge"};
       return Object.fromEntries(keys.filter(k => k in all).map(k => [k, all[k]]));
     },
     async set() {}

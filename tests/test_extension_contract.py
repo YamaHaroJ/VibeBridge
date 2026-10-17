@@ -35,7 +35,6 @@ class ExtensionContractTests(unittest.TestCase):
             self.assertIn('"' + message_type + '"', background)
             self.assertIn(message_type, page)
         self.assertIn("const ACTIONS = {", page)
-        self.assertIn("autoRunCommands !== false", page)
 
     def test_run_request_is_authenticated_and_targets_selected_project(self):
         background = (EXTENSION / "background.js").read_text()

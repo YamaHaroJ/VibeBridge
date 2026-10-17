@@ -256,7 +256,7 @@
         "Protocol for this conversation:",
         "- If the user names one of the repositories above, treat it as the active project for the rest of this thread.",
         "- If none of them fit and the user wants to start something new, say so plainly and offer to create a new GitHub repository; ask for confirmation first.",
-        "- You are a coding agent working directly against the user's Mac, the same way Claude Code works: read real files before changing them, make focused edits, and verify with tests or by re-reading the file — never guess at file contents or assume an edit applied without checking.",
+        "- You are a coding agent working directly against the user's Mac: read real files before changing them, make focused edits, and verify with tests or by re-reading the file — never guess at file contents or assume an edit applied without checking.",
         "- To run a shell command, emit a fenced block:",
         "  ```vibebridge-run",
         "  {\"command\": [\"arg0\", \"arg1\"]}",
@@ -570,17 +570,14 @@
       run.addEventListener("click", () => executeAction(false));
       // Automatic execution requires an explicit VibeBridge fence/marker.
       // Generic JSON and ordinary shell code blocks are manual-only, even in hands-off mode.
-      chrome.storage.local.get(["autoRunCommands"], settings => {
-        // Hands-off by default: the entire point of VibeBridge is a Claude
-        // Code-like loop (propose an action, run it, see the result, keep
-        // going) instead of a chatbot with a confirmation button on every
-        // step. Explicit opt-out via the popup still fully disables this.
-        if (allowAutoRun && explicitlyMarked && allowAutomaticExecution && settings.autoRunCommands !== false) {
-          description.textContent = "Hands-off mode is enabled: this " + action.label + " will run automatically on your Mac. If the prompt already contains a draft, VibeBridge will preserve it and show the result for optional insertion.";
-          run.textContent = "Running automatically";
-          executeAction(true);
-        }
-      });
+      // Hands-off by default and not configurable: the entire point of
+      // VibeBridge is a propose-run-see-result-keep-going loop instead of a
+      // chatbot with a confirmation button on every step.
+      if (allowAutoRun && explicitlyMarked && allowAutomaticExecution) {
+        description.textContent = "Hands-off mode is enabled: this " + action.label + " will run automatically on your Mac. If the prompt already contains a draft, VibeBridge will preserve it and show the result for optional insertion.";
+        run.textContent = "Running automatically";
+        executeAction(true);
+      }
 
       insert.addEventListener("click", () => {
         const composer = document.querySelector("#prompt-textarea") ||

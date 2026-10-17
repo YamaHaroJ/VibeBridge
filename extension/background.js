@@ -1,15 +1,21 @@
 const API = "http://127.0.0.1:43127";
 const CLOUD_API = "https://vibebridge-cloud-api.vercel.app";
 
-// A long random identifier is all the cloud-api needs to link this install to
-// a Stripe subscription; it carries no other meaning and is not a credential
-// for anything but checking this device's own license.
+// The cloud-api only needs a stable identifier to link this Mac to a Stripe
+// subscription. It is derived from this Mac's own hardware UUID by the local
+// agent (not a value the extension invents), so uninstalling/reinstalling the
+// extension, or even the agent, never produces a new identity and never
+// grants a second free trial on the same physical machine. This requires the
+// local agent to be paired first; there is no fallback random identifier.
 async function getDeviceToken() {
-  const saved = await chrome.storage.local.get(["deviceToken"]);
-  if (saved.deviceToken) return saved.deviceToken;
-  const token = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
-  await chrome.storage.local.set({deviceToken: token});
-  return token;
+  const saved = await chrome.storage.local.get(["hardwareDeviceId", "token"]);
+  if (saved.hardwareDeviceId) return saved.hardwareDeviceId;
+  if (!saved.token) return null;
+  const response = await fetch(API + "/device-id", {headers: {Authorization: "Bearer " + saved.token}});
+  const data = await response.json();
+  if (!response.ok || !data.deviceId) throw new Error(data?.error || "Could not read this Mac's device identifier.");
+  await chrome.storage.local.set({hardwareDeviceId: data.deviceId});
+  return data.deviceId;
 }
 
 // Cache the license check so a brief network/cloud-api hiccup never blocks
@@ -20,6 +26,7 @@ const LICENSE_OFFLINE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
 
 async function fetchLicenseStatus() {
   const deviceToken = await getDeviceToken();
+  if (!deviceToken) return {active: false, status: "not-connected"};
   const cached = await chrome.storage.local.get(["licenseCache"]);
   const cache = cached.licenseCache || null;
   const now = Date.now();
@@ -206,6 +213,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "VIBEBRIDGE_START_CHECKOUT") {
     (async () => {
       const deviceToken = await getDeviceToken();
+      if (!deviceToken) throw new Error("Connect this Mac first, then start your trial.");
       const response = await fetch(CLOUD_API + "/api/checkout", {
         method: "POST",
         headers: {"Content-Type": "application/json"},

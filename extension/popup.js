@@ -7,26 +7,16 @@ if (buildStamp) {
 const toggle = document.querySelector("#enabled");
 const title = document.querySelector("#state-title");
 const copy = document.querySelector("#state-copy");
-const status = document.querySelector("#status");
-const statusText = document.querySelector("#status-text");
-const githubStatus = document.querySelector("#github-status");
-const githubStatusText = document.querySelector("#github-status-text");
-const browserStatus = document.querySelector("#browser-status");
-const browserStatusText = document.querySelector("#browser-status-text");
 const licenseStatus = document.querySelector("#license-status");
 const licenseStatusText = document.querySelector("#license-status-text");
 const upgrade = document.querySelector("#upgrade");
-const projectCopy = document.querySelector("#project-copy");
 const connect = document.querySelector("#connect");
 const consent = document.querySelector("#consent");
 const consentCheck = document.querySelector("#consent-check");
 const confirmConnect = document.querySelector("#confirm");
-const showLogs = document.querySelector("#show-logs");
-const reloadExtension = document.querySelector("#reload-extension");
-const autoRun = document.querySelector("#auto-run");
-const autoMemory = document.querySelector("#auto-memory");
-const logOutput = document.querySelector("#log-output");
+const cancelConnect = document.querySelector("#cancel");
 let ready = false;
+let licenseActive = false;
 let initializeGeneration = 0;
 
 function renderEnabled(value) {
@@ -40,12 +30,36 @@ function renderStatus(element, label, state, message) {
   element.dataset.state = state;
   label.textContent = message;
 }
+function formatTrialCountdown(trialEndSeconds) {
+  const msLeft = trialEndSeconds * 1000 - Date.now();
+  if (msLeft <= 0) return "ending shortly";
+  const hoursLeft = Math.ceil(msLeft / (60 * 60 * 1000));
+  if (hoursLeft <= 24) return hoursLeft + " hour" + (hoursLeft === 1 ? "" : "s") + " left";
+  const daysLeft = Math.ceil(hoursLeft / 24);
+  return daysLeft + " day" + (daysLeft === 1 ? "" : "s") + " left";
+}
+async function applyToggleAvailability() {
+  const saved = await chrome.storage.local.get(["enabled"]);
+  if (ready && licenseActive) {
+    toggle.disabled = false;
+    renderEnabled(saved.enabled !== false);
+  } else {
+    toggle.disabled = true;
+    renderEnabled(false);
+    if (ready) copy.textContent = "Start your trial to turn VibeBridge on.";
+    if (saved.enabled !== false) await chrome.storage.local.set({enabled: false});
+  }
+}
 async function refreshLicenseStatus() {
   renderStatus(licenseStatus, licenseStatusText, "checking", "Checking VibeBridge Pro license");
   try {
     const result = await chrome.runtime.sendMessage({type: "VIBEBRIDGE_LICENSE_STATUS"});
+    licenseActive = Boolean(result?.active);
     if (result?.active) {
-      const label = result.status === "trialing" ? "VibeBridge Pro trial active" : "VibeBridge Pro active";
+      let label = result.status === "trialing" ? "VibeBridge Pro trial active" : "VibeBridge Pro active";
+      if (result.status === "trialing" && result.trialEnd) {
+        label = "VibeBridge Pro trial — " + formatTrialCountdown(result.trialEnd);
+      }
       renderStatus(licenseStatus, licenseStatusText, "ready", label + (result.offlineGrace ? " (offline, using last known status)" : ""));
       upgrade.classList.add("hidden");
     } else {
@@ -53,42 +67,11 @@ async function refreshLicenseStatus() {
       upgrade.classList.remove("hidden");
     }
   } catch (error) {
+    licenseActive = false;
     renderStatus(licenseStatus, licenseStatusText, "setup", "Could not check license: " + error.message);
     upgrade.classList.remove("hidden");
   }
-}
-async function refreshBrowserStatus(token) {
-  try {
-    const [local, probe] = await Promise.all([
-      callAgent("/diagnostics/local", token),
-      chrome.runtime.sendMessage({type: "VIBEBRIDGE_PROBE_CHATGPT_TABS"})
-    ]);
-    const tabs = Array.isArray(probe?.tabs) ? probe.tabs : [];
-    const liveTabs = tabs.filter(tab => tab.contentScript);
-    if (liveTabs.length) {
-      const versions = [...new Set(liveTabs.map(tab => tab.version || "unknown"))].join(", ");
-      const hosts = [...new Set(liveTabs.map(tab => tab.host))].join(", ");
-      const recovered = liveTabs.filter(tab => tab.recovered).length;
-      const legacy = liveTabs.filter(tab => tab.coreVersion && tab.coreVersion !== tab.version).length;
-      let message = liveTabs.length + " ChatGPT tab(s) responding · v" + versions + " · " + hosts;
-      if (recovered) message += " · recovered " + recovered + " tab(s) without reload";
-      if (legacy) message += " · " + legacy + " tab(s) still have older project logic";
-      renderStatus(browserStatus, browserStatusText, legacy ? "setup" : "ready", message);
-    } else if (tabs.length) {
-      renderStatus(browserStatus, browserStatusText, "setup", tabs.length + " ChatGPT tab(s) open, but no content script responded. The loaded extension needs to be refreshed in Chrome.");
-    } else {
-      renderStatus(browserStatus, browserStatusText, "setup", "No ChatGPT tabs detected. Open ChatGPT in any tab to establish the heartbeat.");
-    }
-    const browser = local.browserExtension || {};
-    const seen = browser.lastSeen ? new Date(browser.lastSeen) : null;
-    const fresh = Boolean(browser.connected && seen && Date.now() - seen.getTime() < 120000);
-    browserStatusText.textContent += fresh ? " · agent heartbeat recent" : " · agent heartbeat pending";
-    if (Number.isInteger(browser.activeTabCount)) {
-      browserStatusText.textContent += " · per-tab heartbeats: " + browser.activeTabCount;
-    }
-  } catch (error) {
-    renderStatus(browserStatus, browserStatusText, "setup", "ChatGPT tab probe failed: " + error.message);
-  }
+  await applyToggleAvailability();
 }
 async function callAgent(path, token, timeoutMs = 8000) {
   const controller = new AbortController();
@@ -138,70 +121,93 @@ async function requestBackgroundUpdate() {
   }
 }
 
-autoRun?.addEventListener("change", async () => {
-  await chrome.storage.local.set({autoRunCommands: autoRun.checked});
-});
-autoMemory?.addEventListener("change", async () => {
-  await chrome.storage.local.set({autoMemoryCheckpoints: autoMemory.checked});
-});
-
 async function initialize() {
   const generation = ++initializeGeneration;
   const isCurrent = () => generation === initializeGeneration;
   toggle.disabled = true;
   connect.classList.add("hidden");
   requestBackgroundUpdate();
-  renderStatus(status, statusText, "checking", "Checking local connection");
-  renderStatus(githubStatus, githubStatusText, "checking", "Checking GitHub connection");
-  // License status does not depend on local Mac pairing: a subscription can
-  // start before the agent is ever connected.
+  // The device identity (and so the license/trial check) is derived from this
+  // Mac's hardware by the local agent, so it only resolves once paired.
   refreshLicenseStatus();
   try {
-    const saved = await chrome.storage.local.get(["token", "enabled", "autoRunCommands", "autoMemoryCheckpoints"]);
+    const saved = await chrome.storage.local.get(["token"]);
     if (!isCurrent()) return;
-    autoRun.checked = saved.autoRunCommands !== false;
-    autoMemory.checked = saved.autoMemoryCheckpoints === true;
     if (!saved.token) {
       ready = false;
       renderEnabled(false);
+      title.textContent = "Checking setup";
       copy.textContent = "Connect once to finish setup.";
-      renderStatus(status, statusText, "setup", "Local connection needs setup");
-      renderStatus(githubStatus, githubStatusText, "setup", "GitHub check waiting for local connection");
       connect.classList.remove("hidden");
+      await applyToggleAvailability();
       return;
     }
     await callAgent("/health", saved.token);
     if (!isCurrent()) return;
 
-    // Local pairing and GitHub CLI authentication are separate connections.
-    // Once the local health check passes, keep the extension connected even if
-    // the optional GitHub repository lookup fails.
     ready = true;
-    renderStatus(status, statusText, "ready", "Connected to this Mac");
-    renderEnabled(saved.enabled !== false);
-    toggle.disabled = false;
     connect.classList.add("hidden");
-
-    // Project choice is resolved from each ChatGPT message. Do not pin a
-    // global active repository here: one conversation may discuss many projects.
-    projectCopy.textContent = "Automatic detection · supports multiple projects per message";
-    renderStatus(githubStatus, githubStatusText, "ready", "GitHub connection available for project detection");
-    refreshBrowserStatus(saved.token);
-
+    await applyToggleAvailability();
   } catch (error) {
+    ready = false;
     consent.classList.add("hidden");
-    renderStatus(status, statusText, "setup", error.message);
+    title.textContent = "Checking setup";
     copy.textContent = error.message.includes("Native Messaging") || error.message.includes("native messaging")
       ? "Repair the Chrome connection: run bash ~/VibeBridge/agent/install.sh in Terminal, fully quit and reopen Chrome, then click Connect this Mac."
       : "Connection failed. Check the message above and try Connect this Mac again.";
     connect.classList.remove("hidden");
+    await applyToggleAvailability();
   } finally {
     confirmConnect.textContent = "Connect";
     confirmConnect.disabled = !consentCheck.checked;
   }
 }
+function requestTokenFromNativeHost() {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendNativeMessage("com.vibebridge.agent", {type: "getToken"}, response => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message || "Native Messaging host did not respond."));
+        return;
+      }
+      if (!response?.ok || !response.token) {
+        reject(new Error(response?.error || "Could not retrieve the local token."));
+        return;
+      }
+      resolve(response.token);
+    });
+  });
+}
+connect.addEventListener("click", () => {
+  consentCheck.checked = false;
+  confirmConnect.disabled = true;
+  consent.classList.remove("hidden");
+});
+cancelConnect.addEventListener("click", () => {
+  consent.classList.add("hidden");
+});
+consentCheck.addEventListener("change", () => {
+  confirmConnect.disabled = !consentCheck.checked;
+});
+confirmConnect.addEventListener("click", async () => {
+  confirmConnect.disabled = true;
+  confirmConnect.textContent = "Connecting…";
+  try {
+    const token = await requestTokenFromNativeHost();
+    await chrome.storage.local.set({token});
+    consent.classList.add("hidden");
+  } catch (error) {
+    title.textContent = "Checking setup";
+    copy.textContent = /native messaging host/i.test(error.message)
+      ? "Repair the Chrome connection: run bash ~/VibeBridge/agent/install.sh in Terminal, fully quit and reopen Chrome, then click Connect this Mac."
+      : "Connection failed: " + error.message;
+    connect.classList.remove("hidden");
+  } finally {
+    confirmConnect.textContent = "Connect";
+    confirmConnect.disabled = !consentCheck.checked;
+  }
+});
 toggle.addEventListener("click", async () => {
-  if (!ready || toggle.disabled) return;
+  if (!ready || !licenseActive || toggle.disabled) return;
   const next = toggle.getAttribute("aria-checked") !== "true";
   await chrome.storage.local.set({enabled: next});
   renderEnabled(next);
@@ -209,46 +215,10 @@ toggle.addEventListener("click", async () => {
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local") return;
   if (changes.token) initialize();
-  if (changes.enabled && ready) renderEnabled(changes.enabled.newValue !== false);
+  if (changes.enabled && ready && licenseActive) renderEnabled(changes.enabled.newValue !== false);
 });
 initialize();
 
-
-// Maintenance tools intentionally stay collapsed so the normal popup remains minimal.
-async function loadUpdateLogs() {
-  logOutput.classList.remove("hidden");
-  logOutput.textContent = "Loading local update logs…";
-  try {
-    const saved = await chrome.storage.local.get(["token"]);
-    if (!saved.token) throw new Error("Connect VibeBridge first to view local diagnostics.");
-    const [data, local] = await Promise.all([
-      callAgent("/update-status", saved.token),
-      callAgent("/diagnostics/local", saved.token)
-    ]);
-    const parts = [
-      "Local service diagnostics",
-      "macOS: " + (local.osVersion || "unknown"),
-      "Agent process PID: " + (local.agent?.requestPid ?? "unknown"),
-      "Agent LaunchAgent: " + (local.agent?.loaded ? local.agent.state + (local.agent.pid ? " (PID " + local.agent.pid + ")" : "") : local.agent?.state || "unknown"),
-      "Updater LaunchAgent: " + (local.updater?.loaded ? local.updater.state + (local.updater.pid ? " (PID " + local.updater.pid + ")" : "") : local.updater?.state || "unknown"),
-      "Snapshot: " + (local.timestamp || "unknown"),
-      "ChatGPT extension heartbeat: " + (local.browserExtension?.connected ? "v" + local.browserExtension.version + " on " + local.browserExtension.host + " · " + (local.browserExtension.lastSeen || "unknown time") : "not received"),
-      ""
-    ];
-    if (data.currentRevision) parts.push("Installed code: " + data.currentRevision);
-    if (data.remoteRevision) parts.push("GitHub master: " + data.remoteRevision);
-    if (data.updaterLoaded !== undefined) parts.push("Hourly updater loaded: " + (data.updaterLoaded ? "yes" : "no"));
-    if (data.logs) {
-      for (const [name, lines] of Object.entries(data.logs)) {
-        parts.push("\n--- " + name + " ---\n" + (lines.length ? lines.join("\n") : "(no log entries yet)"));
-      }
-    } else if (data.log) parts.push(data.log.join("\n"));
-    logOutput.textContent = parts.join("\n") || "No update diagnostics available.";
-  } catch (error) {
-    logOutput.textContent = "Could not read update logs: " + error.message;
-  }
-}
-showLogs.addEventListener("click", loadUpdateLogs);
 upgrade?.addEventListener("click", async () => {
   upgrade.disabled = true;
   upgrade.textContent = "Opening checkout…";
@@ -260,61 +230,5 @@ upgrade?.addEventListener("click", async () => {
   } finally {
     upgrade.disabled = false;
     upgrade.textContent = "Start 14-day free trial — $9/mo after";
-  }
-});
-// "Reload" means sync this Mac's extension files from GitHub first, then reload Chrome.
-reloadExtension?.addEventListener("click", async () => {
-  reloadExtension.disabled = true;
-  reloadExtension.textContent = "Syncing…";
-  logOutput.classList.remove("hidden");
-  logOutput.textContent = "Fetching the latest VibeBridge release from GitHub…";
-  try {
-    const saved = await chrome.storage.local.get(["token"]);
-    if (!saved.token) throw new Error("Connect VibeBridge first.");
-    const response = await fetch("http://127.0.0.1:43127/update", {
-      method: "POST",
-      headers: {Authorization: "Bearer " + saved.token, "Content-Type": "application/json"},
-      body: JSON.stringify({forceManaged: true})
-    });
-    const started = await response.json();
-    if (!response.ok) throw new Error(started.error || "Could not start GitHub sync.");
-    let done = false;
-    let lastStatus;
-    for (let attempt = 0; attempt < 45; attempt++) {
-      await new Promise(resolve => window.setTimeout(resolve, 2000));
-      try {
-        const statusResponse = await fetch("http://127.0.0.1:43127/update-status", {
-          headers: {Authorization: "Bearer " + saved.token},
-          cache: "no-store"
-        });
-        if (!statusResponse.ok) continue;
-        lastStatus = await statusResponse.json();
-        const lines = (lastStatus.logs?.["update.log"] || []).join("\n");
-        logOutput.textContent = [
-          "Local checkout: " + (lastStatus.currentRevision || "unknown"),
-          "GitHub master: " + (lastStatus.remoteRevision || "unknown"),
-          "",
-          lines
-        ].join("\n");
-        if (/UPDATE FAILED:|Update validation failed|Update failed/i.test(lines)) {
-          throw new Error("GitHub sync failed. See diagnostics.");
-        }
-        if (lastStatus.currentRevision && lastStatus.remoteRevision &&
-            lastStatus.currentRevision === lastStatus.remoteRevision &&
-            (/(?:Update complete\.|Already up to date\.|GitHub revision already deployed:)/i.test(lines))) {
-          done = true;
-          break;
-        }
-      } catch (pollError) {
-        if (/GitHub sync failed/.test(pollError.message)) throw pollError;
-      }
-    }
-    if (!done) throw new Error("GitHub sync did not confirm completion. Chrome was not reloaded.");
-    logOutput.textContent += "\n\nGitHub sync complete. Reloading Chrome extension…";
-    window.setTimeout(() => chrome.runtime.reload(), 500);
-  } catch (error) {
-    logOutput.textContent += "\n\nReload stopped: " + error.message;
-    reloadExtension.disabled = false;
-    reloadExtension.textContent = "Reload";
   }
 });

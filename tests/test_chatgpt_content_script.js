@@ -206,5 +206,21 @@ async function runScenario(sendMessage, initialDraft = "Continue VibeBridge") {
     assert.equal(h.getCurrentSend().clickCount, 1, "recoverable agent error still sends the original once");
     assert.equal(h.document.getElementById("vibebridge-notice"), null, "recoverable errors do not create banners");
   }
-  console.log("ChatGPT content-script DOM simulation: 5 scenarios passed");
+  // Targeted regression guard for automatic command completion with a non-empty draft.
+  // This complements the DOM send-flow scenarios: command controls are generated
+  // by MutationObserver and the mock DOM does not model the full ChatGPT message tree.
+  {
+    const commandSource = source.slice(source.indexOf('const executeCommand = async (automatic = false)'));
+    assert.notEqual(commandSource, source, "command executor exists");
+    const preserveDraft = commandSource.indexOf('if (readComposer(composer).trim())');
+    const insertControl = commandSource.indexOf('insert.style.display = "inline-block"');
+    const writeResult = commandSource.indexOf('writeComposer(composer, addition)');
+    const sendResult = commandSource.indexOf('send.click()');
+    assert.ok(preserveDraft >= 0, "automatic command completion checks for an existing draft");
+    assert.ok(insertControl >= 0 && insertControl < preserveDraft, "explicit result-insert control is available before draft safety check");
+    assert.ok(writeResult > preserveDraft, "result is inserted only after the non-empty-draft early return");
+    assert.ok(sendResult > writeResult, "automatic send can only occur after permitted result insertion");
+    assert.match(commandSource.slice(preserveDraft, writeResult), /existing draft was preserved/);
+  }
+  console.log("ChatGPT content-script DOM simulation: 5 scenarios passed; command draft-safety regression guard passed");
 })().catch(error => { console.error(error); process.exitCode = 1; });

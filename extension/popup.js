@@ -17,6 +17,7 @@ const confirmConnect = document.querySelector("#confirm");
 const cancelConnect = document.querySelector("#cancel");
 let ready = false;
 let licenseActive = false;
+let licenseChecked = false;
 let initializeGeneration = 0;
 
 function renderEnabled(value) {
@@ -43,11 +44,21 @@ async function applyToggleAvailability() {
   if (ready && licenseActive) {
     toggle.disabled = false;
     renderEnabled(saved.enabled !== false);
-  } else {
+  } else if (ready && licenseChecked) {
+    // Only force the switch off once the license check has actually
+    // resolved and come back inactive. Forcing this before it resolves was
+    // the bug: the connection check finishes near-instantly and used to win
+    // the race, writing enabled:false to storage before the (slower)
+    // license check had a chance to come back active.
     toggle.disabled = true;
     renderEnabled(false);
-    if (ready) copy.textContent = "Start your trial to turn VibeBridge on.";
+    copy.textContent = "Start your trial to turn VibeBridge on.";
     if (saved.enabled !== false) await chrome.storage.local.set({enabled: false});
+  } else {
+    // Still connecting and/or still checking the license. Reflect the
+    // existing stored value without touching it either way.
+    toggle.disabled = true;
+    renderEnabled(saved.enabled !== false);
   }
 }
 async function refreshLicenseStatus() {
@@ -55,6 +66,7 @@ async function refreshLicenseStatus() {
   try {
     const result = await chrome.runtime.sendMessage({type: "VIBEBRIDGE_LICENSE_STATUS"});
     licenseActive = Boolean(result?.active);
+    licenseChecked = true;
     if (result?.active) {
       let label = result.status === "trialing" ? "VibeBridge Pro trial active" : "VibeBridge Pro active";
       if (result.status === "trialing" && result.trialEnd) {
@@ -68,6 +80,7 @@ async function refreshLicenseStatus() {
     }
   } catch (error) {
     licenseActive = false;
+    licenseChecked = true;
     renderStatus(licenseStatus, licenseStatusText, "setup", "Could not check license: " + error.message);
     upgrade.classList.remove("hidden");
   }

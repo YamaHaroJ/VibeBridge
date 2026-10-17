@@ -235,7 +235,7 @@ async function runScenario(sendMessage, initialDraft = "Continue VibeBridge", li
   // This complements the DOM send-flow scenarios: command controls are generated
   // by MutationObserver and the mock DOM does not model the full ChatGPT message tree.
   {
-    const commandSource = source.slice(source.indexOf('const executeCommand = async (automatic = false)'));
+    const commandSource = source.slice(source.indexOf('const executeAction = async (automatic = false)'));
     assert.notEqual(commandSource, source, "command executor exists");
     const preserveDraft = commandSource.indexOf('if (readComposer(composer).trim())');
     const insertControl = commandSource.indexOf('insert.style.display = "inline-block"');

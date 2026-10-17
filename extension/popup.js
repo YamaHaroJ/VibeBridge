@@ -159,7 +159,7 @@ async function initialize() {
   try {
     const saved = await chrome.storage.local.get(["token", "enabled", "autoRunCommands", "autoMemoryCheckpoints"]);
     if (!isCurrent()) return;
-    autoRun.checked = saved.autoRunCommands === true;
+    autoRun.checked = saved.autoRunCommands !== false;
     autoMemory.checked = saved.autoMemoryCheckpoints === true;
     if (!saved.token) {
       ready = false;

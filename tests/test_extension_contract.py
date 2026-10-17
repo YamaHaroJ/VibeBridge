@@ -23,7 +23,19 @@ class ExtensionContractTests(unittest.TestCase):
         background = (EXTENSION / "background.js").read_text()
         page = (EXTENSION / "chatgpt.js").read_text()
         self.assertIn("ok: data.exitCode === 0", background)
-        self.assertIn('run.textContent = result?.ok ? "Run again" : "Retry command"', page)
+        self.assertIn('run.textContent = result?.ok ? "Run again" : "Retry"', page)
+
+    def test_file_read_write_list_tools_are_wired_like_run(self):
+        # These exist so file edits go through a clean overwrite instead of
+        # ChatGPT constructing shell heredocs/sed for every change — closer to
+        # how an actual coding agent works.
+        background = (EXTENSION / "background.js").read_text()
+        page = (EXTENSION / "chatgpt.js").read_text()
+        for message_type in ("VIBEBRIDGE_FILESYSTEM_READ", "VIBEBRIDGE_FILESYSTEM_WRITE", "VIBEBRIDGE_FILESYSTEM_LIST"):
+            self.assertIn('"' + message_type + '"', background)
+            self.assertIn(message_type, page)
+        self.assertIn("const ACTIONS = {", page)
+        self.assertIn("autoRunCommands !== false", page)
 
     def test_run_request_is_authenticated_and_targets_selected_project(self):
         background = (EXTENSION / "background.js").read_text()

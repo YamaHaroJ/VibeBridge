@@ -311,6 +311,59 @@
 
   let scannedBlocks = 0;
   let detectedBlocks = 0;
+  // Four action kinds, mirroring the tools an actual coding agent uses:
+  // run (shell), read/write (file content), list (directory). Read/write/list
+  // exist so file edits go through a clean overwrite instead of ChatGPT having
+  // to construct shell heredocs/sed one-liners for every change.
+  const ACTIONS = {
+    run: {
+      label: "command",
+      buttonLabel: "Run on my Mac",
+      runningLabel: "Running…",
+      confirm: payload => "Run this command on your Mac inside the active project folder?\n\n" + payload.command.join(" "),
+      describe: () => "VibeBridge can run this command in the active local project.",
+      validate: payload => !!payload && Array.isArray(payload.command) && payload.command.length > 0 &&
+        payload.command.every(part => typeof part === "string"),
+      send: payload => ({type: "VIBEBRIDGE_RUN_COMMAND", command: payload.command}),
+      resultMarker: "VIBEBRIDGE COMMAND RESULT",
+      describeInResult: payload => "Command: " + payload.command.join(" ")
+    },
+    read: {
+      label: "file read",
+      buttonLabel: "Read file",
+      runningLabel: "Reading…",
+      confirm: payload => "Read this file on your Mac?\n\n" + payload.path,
+      describe: () => "VibeBridge can read this file from the active local project.",
+      validate: payload => !!payload && typeof payload.path === "string" && payload.path.trim().length > 0,
+      send: payload => ({type: "VIBEBRIDGE_FILESYSTEM_READ", path: payload.path}),
+      resultMarker: "VIBEBRIDGE FILE READ RESULT",
+      describeInResult: payload => "Path: " + payload.path
+    },
+    write: {
+      label: "file write",
+      buttonLabel: "Write file",
+      runningLabel: "Writing…",
+      confirm: payload => "Write to this file on your Mac? This overwrites the existing content.\n\n" + payload.path,
+      describe: () => "VibeBridge can write this file in the active local project. This overwrites existing content.",
+      validate: payload => !!payload && typeof payload.path === "string" && payload.path.trim().length > 0 &&
+        typeof payload.content === "string",
+      send: payload => ({type: "VIBEBRIDGE_FILESYSTEM_WRITE", path: payload.path, content: payload.content}),
+      resultMarker: "VIBEBRIDGE FILE WRITE RESULT",
+      describeInResult: payload => "Path: " + payload.path
+    },
+    list: {
+      label: "folder listing",
+      buttonLabel: "List folder",
+      runningLabel: "Listing…",
+      confirm: payload => "List this folder on your Mac?\n\n" + (payload.path || "(home folder)"),
+      describe: () => "VibeBridge can list this folder in the active local project.",
+      validate: payload => !!payload && (payload.path === undefined || typeof payload.path === "string"),
+      send: payload => ({type: "VIBEBRIDGE_FILESYSTEM_LIST", path: payload.path || ""}),
+      resultMarker: "VIBEBRIDGE FOLDER LISTING RESULT",
+      describeInResult: payload => "Path: " + (payload.path || "(home folder)")
+    }
+  };
+
   function addCommandControls(allowAutoRun = false) {
     // Command blocks only arrive in the newest assistant turn. Avoid rescanning
     // every code block in a long conversation on each streaming mutation.
@@ -331,38 +384,49 @@
       // an optional JSON code fence so the relay never asks the user to paste it in Terminal.
       const normalizedBlock = rawBlock.replace(/^\s+/, "");
       const markedBlock = normalizedBlock.startsWith(commandMarker);
+      const hasShellLanguage = /language-(bash|sh|zsh|shell)\b/i.test(className);
       // Some ChatGPT render paths drop custom fence classes but retain the
       // literal fence label as the first rendered line. Preserve hands-off
       // behavior only for that explicit VibeBridge label, never generic JSON.
-      const markedFence = /^vibebridge-run(?:\s|$)/i.test(normalizedBlock);
-      const hasCommandLanguage = /language-vibebridge-run|vibebridge-run/i.test(className);
-      const hasShellLanguage = /language-(bash|sh|zsh|shell)\b/i.test(className);
+      let kind = markedBlock ? "run" : null;
+      if (!kind) {
+        for (const candidate of Object.keys(ACTIONS)) {
+          const fence = "vibebridge-" + candidate;
+          if (new RegExp("language-" + fence + "\\b", "i").test(className) ||
+              new RegExp("^" + fence + "(?:\\s|$)", "i").test(normalizedBlock)) {
+            kind = candidate;
+            break;
+          }
+        }
+      }
+      const explicitlyMarked = !!kind;
       let payload = null;
-      // Handle ChatGPT rendering custom vibebridge-run fences as plain text, including
-      // an opening "vibebridge-run id=..." line before the JSON payload.
-      if (!hasCommandLanguage && !markedBlock && !markedFence && !hasShellLanguage) {
+      // Handle ChatGPT rendering custom vibebridge-* fences as plain text, including
+      // an opening "vibebridge-<kind> id=..." line before the JSON payload.
+      if (!kind && hasShellLanguage) {
+        kind = "run";
+        payload = {command: ["bash", "-lc", rawBlock.replace(/^\s*```(?:bash|sh|zsh|shell)\s*/i, "").replace(/\s*```$/, "").trim()]};
+      } else if (!kind) {
         const jsonStart = normalizedBlock.indexOf("{");
         const jsonEnd = normalizedBlock.lastIndexOf("}");
         if (jsonStart >= 0 && jsonEnd > jsonStart) {
           try {
             const candidate = JSON.parse(normalizedBlock.slice(jsonStart, jsonEnd + 1));
             if (candidate && Array.isArray(candidate.command) && candidate.command.length &&
-                candidate.command.every(part => typeof part === "string")) payload = candidate;
+                candidate.command.every(part => typeof part === "string")) { kind = "run"; payload = candidate; }
             else if (candidate && typeof candidate.command === "string" && candidate.command.trim()) {
-              payload = {command: ["bash", "-lc", candidate.command]};
+              kind = "run"; payload = {command: ["bash", "-lc", candidate.command]};
             }
           } catch {}
         }
-        if (!payload) continue;
+        if (!kind) continue; // not a VibeBridge block at all; leave it alone
       }
-      if (hasShellLanguage && !hasCommandLanguage && !markedBlock) {
-        payload = {command: ["bash", "-lc", rawBlock.replace(/^\s*```(?:bash|sh|zsh|shell)\s*/i, "").replace(/\s*```$/, "").trim()]};
-      } else if (!payload) {
+      if (kind && !payload) {
         try {
           let jsonText = markedBlock
             ? normalizedBlock.slice(commandMarker.length).trim()
-            : markedFence
-              ? normalizedBlock.replace(/^vibebridge-run[^\r\n]*(?:\r?\n|$)/i, "").trim()
+            : explicitlyMarked
+              ? normalizedBlock.replace(new RegExp("^vibebridge-" + kind + "[^\\r\\n]*(?:\\r?\\n|$)", "i"), "").trim()
               : rawBlock;
           jsonText = jsonText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
           payload = JSON.parse(jsonText);
@@ -372,12 +436,12 @@
           continue;
         }
       }
-      if (!payload || !Array.isArray(payload.command) || !payload.command.length ||
-          !payload.command.every(part => typeof part === "string")) {
+      const action = ACTIONS[kind];
+      if (!action || !action.validate(payload)) {
         processedBlocks.add(pre);
         processedBlocks.add(target);
         const warning = document.createElement("div");
-        warning.textContent = "VibeBridge command must contain a shell command or JSON command array.";
+        warning.textContent = "VibeBridge " + (action ? action.label : "block") + " has an invalid payload.";
         warning.style.cssText = "color:#b91c1c;font:12px system-ui;margin:6px 0";
         pre.after(warning);
         continue;
@@ -391,11 +455,11 @@
       panel.className = "vibebridge-injected-control";
       panel.style.cssText = "margin:8px 0;padding:10px;border:1px solid #64748b;border-radius:8px;font:13px system-ui";
       const description = document.createElement("div");
-      description.textContent = "VibeBridge can run this command in the active local project.";
+      description.textContent = action.describe();
       description.style.marginBottom = "8px";
       const run = document.createElement("button");
       run.type = "button";
-      run.textContent = "Run on my Mac";
+      run.textContent = action.buttonLabel;
       run.style.cssText = "padding:7px 10px;border-radius:6px;cursor:pointer";
       const output = document.createElement("pre");
       output.style.cssText = "white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto;display:none;margin-top:8px";
@@ -405,7 +469,7 @@
       insert.style.cssText = "padding:7px 10px;border-radius:6px;cursor:pointer;display:none;margin-top:8px";
       let resultText = "";
 
-      const executeCommand = async (automatic = false) => {
+      const executeAction = async (automatic = false) => {
         if (run.disabled) return;
         const license = await chrome.runtime.sendMessage({type: "VIBEBRIDGE_LICENSE_STATUS"}).catch(() => ({active: false}));
         if (!license?.active) {
@@ -413,41 +477,39 @@
           output.textContent = "VibeBridge Pro is not active. Open the extension popup to start a trial or subscribe.";
           return;
         }
-        if (!automatic && !confirm("Run this command on your Mac inside the active project folder?\n\n" + payload.command.join(" "))) return;
+        if (!automatic && !confirm(action.confirm(payload))) return;
         run.disabled = true;
-        run.textContent = "Running…";
+        run.textContent = action.runningLabel;
         output.style.display = "block";
         output.textContent = "Waiting for the local agent…";
         try {
-          const result = await chrome.runtime.sendMessage({
-            type: "VIBEBRIDGE_RUN_COMMAND",
-            command: payload.command
-          });
+          const result = await chrome.runtime.sendMessage(action.send(payload));
           resultText = JSON.stringify(result, null, 2);
           output.textContent = resultText;
-          run.textContent = result?.ok ? "Run again" : "Retry command";
+          run.textContent = result?.ok ? "Run again" : "Retry";
           run.disabled = false;
           insert.style.display = "inline-block";
-          showNotice(result?.ok ? "VibeBridge command finished." : "VibeBridge command failed. See result.");
+          showNotice(result?.ok ? "VibeBridge " + action.label + " finished." : "VibeBridge " + action.label + " failed. See result.");
           if (automatic) {
             const composer = document.querySelector("#prompt-textarea") || document.querySelector('textarea[placeholder]') || document.querySelector('[contenteditable="true"][role="textbox"]');
-            if (!composer) throw new Error("Command ran, but ChatGPT prompt field was not found. Result is shown below.");
+            if (!composer) throw new Error(action.label + " ran, but ChatGPT prompt field was not found. Result is shown below.");
             // Never overwrite, append to, or send a pre-existing user draft during
-            // automatic command execution. Leave the result visible and let the
-            // explicit "Add result to ChatGPT prompt" control handle insertion.
+            // automatic execution. Leave the result visible and let the explicit
+            // "Add result to ChatGPT prompt" control handle insertion.
             if (readComposer(composer).trim()) {
-              description.textContent = "Command finished. Your existing draft was preserved; use Add result to ChatGPT prompt if you want to include the result.";
+              description.textContent = action.label.charAt(0).toUpperCase() + action.label.slice(1) + " finished. Your existing draft was preserved; use Add result to ChatGPT prompt if you want to include the result.";
               return;
             }
-            const addition = "VIBEBRIDGE COMMAND RESULT\nCommand: " + payload.command.join(" ") + "\nResult JSON:\n" + resultText + "\n\nInspect this result and continue development. If another local command is needed, emit another VIBEBRIDGE LOCAL COMMAND block.";
+            const addition = action.resultMarker + "\n" + action.describeInResult(payload) + "\nResult JSON:\n" + resultText +
+              "\n\nInspect this result and continue development. If another local action is needed, emit another vibebridge-run/read/write/list block.";
             writeComposer(composer, addition);
             const send = document.querySelector('button[data-testid="send-button"]') || document.querySelector('button[aria-label*="Send"]');
-            if (send && !send.disabled) { bypassNextSend = true; send.click(); setTimeout(() => { bypassNextSend = false; }, 800); } else { showNotice("Command result is ready in the prompt; send it to continue."); }
+            if (send && !send.disabled) { bypassNextSend = true; send.click(); setTimeout(() => { bypassNextSend = false; }, 800); } else { showNotice("Result is ready in the prompt; send it to continue."); }
           }
         } catch (error) {
           const message = error?.message || String(error);
           if (/extension context invalidated|context invalidated|receiving end does not exist/i.test(message)) {
-            output.textContent = "VibeBridge's extension context was invalidated by an extension reload. Reload this ChatGPT tab, then resend your message. This command was not confirmed as executed.";
+            output.textContent = "VibeBridge's extension context was invalidated by an extension reload. Reload this ChatGPT tab, then resend your message. This " + action.label + " was not confirmed as completed.";
             run.textContent = "Reload ChatGPT tab";
             run.disabled = false;
             run.onclick = () => location.reload();
@@ -455,19 +517,22 @@
             return;
           }
           output.textContent = message;
-          run.textContent = "Retry command";
+          run.textContent = "Retry";
           run.disabled = false;
         }
       };
-      run.addEventListener("click", () => executeCommand(false));
-      // Automatic execution must require an explicit VibeBridge command marker.
+      run.addEventListener("click", () => executeAction(false));
+      // Automatic execution requires an explicit VibeBridge fence/marker.
       // Generic JSON and ordinary shell code blocks are manual-only, even in hands-off mode.
-      const explicitlyMarkedCommand = hasCommandLanguage || markedBlock || markedFence;
       chrome.storage.local.get(["autoRunCommands"], settings => {
-        if (allowAutoRun && explicitlyMarkedCommand && allowAutomaticExecution && settings.autoRunCommands === true) {
-          description.textContent = "Hands-off mode is enabled: this command will run automatically on your Mac. If the prompt already contains a draft, VibeBridge will preserve it and show the result for optional insertion.";
-          run.textContent = "Run automatically";
-          executeCommand(true);
+        // Hands-off by default: the entire point of VibeBridge is a Claude
+        // Code-like loop (propose an action, run it, see the result, keep
+        // going) instead of a chatbot with a confirmation button on every
+        // step. Explicit opt-out via the popup still fully disables this.
+        if (allowAutoRun && explicitlyMarked && allowAutomaticExecution && settings.autoRunCommands !== false) {
+          description.textContent = "Hands-off mode is enabled: this " + action.label + " will run automatically on your Mac. If the prompt already contains a draft, VibeBridge will preserve it and show the result for optional insertion.";
+          run.textContent = "Running automatically";
+          executeAction(true);
         }
       });
 
@@ -480,10 +545,10 @@
           return;
         }
         const current = readComposer(composer).trim();
-        const addition = "\n\nVIBEBRIDGE COMMAND RESULT\nCommand: " + payload.command.join(" ") +
+        const addition = "\n\n" + action.resultMarker + "\n" + action.describeInResult(payload) +
           "\nResult JSON:\n" + resultText + "\n\nPlease inspect this result and continue development.";
         writeComposer(composer, current + addition);
-        showNotice("Command result added to your prompt. Review and send it to continue.");
+        showNotice("Result added to your prompt. Review and send it to continue.");
       });
 
       panel.append(description, run, output, insert);

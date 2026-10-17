@@ -58,3 +58,11 @@
 - Fresh-thread task #333 did not execute: only the generic GitHub reporter's “Task unknown” failure returned; this is not Mac acceptance evidence.
 - Current tool limitation: this ChatGPT session has GitHub repository read/write tools but no callable local Mac command bridge or workflow-dispatch action. The Mac runner can report task results via issue comments, but I cannot click the local Chrome UI from here.
 - Next action: open/reload a ChatGPT tab with VibeBridge enabled, then run diagnostics and the authenticated command/result acceptance in a fresh thread. Until that live heartbeat is restored, composer safety, fresh-thread continuity, updater bump/recovery, automatic project detection/concurrency, and BYOD specials remain unverified. Do not close issue #302.
+
+
+## Composer safety patch — 2026-10-17 00:21 UTC
+
+- Commit `dd aadb7` (full SHA `dd aadb7c534905ebc7e4e887be1cc0c03faa59a0`) updates `extension/chatgpt.js`: when a hands-off command finishes, if the ChatGPT composer already contains a draft, VibeBridge leaves it untouched and does not auto-send. The command result remains visible with the explicit insert control available.
+- Mac regression test task #336 queued against the latest master checkout: https://github.com/YamaHaroJ/VibeBridge/issues/336. Result was not yet available at this update.
+- Latest master now includes a source change after local Mac checkout `c3557cc`; do not claim it is deployed or tested until the runner reports the new revision and tests pass.
+- Live heartbeat remains unresolved based on last diagnostics. Fresh-thread acceptance, updater version bump/recovery, project detection/concurrency, and BYOD specials remain open. Issue #302 remains open.

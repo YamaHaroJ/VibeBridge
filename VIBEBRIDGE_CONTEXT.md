@@ -63,6 +63,6 @@
 ## Composer safety patch — 2026-10-17 00:21 UTC
 
 - Commit `dd aadb7` (full SHA `dd aadb7c534905ebc7e4e887be1cc0c03faa59a0`) updates `extension/chatgpt.js`: when a hands-off command finishes, if the ChatGPT composer already contains a draft, VibeBridge leaves it untouched and does not auto-send. The command result remains visible with the explicit insert control available.
-- Mac regression test task #336 queued against the latest master checkout: https://github.com/YamaHaroJ/VibeBridge/issues/336. Result was not yet available at this update.
+- Mac regression test task #336 PASS on commit `dd aadb7c534905ebc7e4e887be1cc0c03faa59a0`: 90 Python tests, 8 bridge scenarios, and 5 content-script scenarios passed (exit 0). The suite does not yet prove the specific auto-command/non-empty-composer branch or live Chrome behavior.
 - Latest master now includes a source change after local Mac checkout `c3557cc`; do not claim it is deployed or tested until the runner reports the new revision and tests pass.
-- Live heartbeat remains unresolved based on last diagnostics. Fresh-thread acceptance, updater version bump/recovery, project detection/concurrency, and BYOD specials remain open. Issue #302 remains open.
+- Live heartbeat remains unresolved based on last Mac diagnostics (zero connected tabs at 00:00:11 UTC). The #336 reporter confirmed tests on the new source commit but did not provide fresh Mac checkout/heartbeat data. Fresh-thread acceptance, a targeted regression test for auto-command with a non-empty composer, updater version bump/recovery, project detection/concurrency, and BYOD specials remain open. Issue #302 remains open.

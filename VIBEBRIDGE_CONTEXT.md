@@ -72,3 +72,10 @@
 - Added a targeted source-level regression guard in `tests/test_chatgpt_content_script.js` at commit `260d702ae7a246e739f627b15d4690ff365d187d`. It verifies that automatic command completion exposes the explicit insert control, checks for a non-empty composer, returns before writing the result, and only reaches auto-send after the write path. The mock DOM does not model the complete MutationObserver-generated command-card interaction, so this is a guard—not a substitute for a true command-card behavioral test.
 - Queued standard Mac regression run in issue #337: https://github.com/YamaHaroJ/VibeBridge/issues/337. Await exact checkout SHA, manifest version, command exit codes, and live heartbeat result before claiming it passed.
 - Next: inspect #337 result; improve this into a behavioral command-card test if harness supports it; restore live ChatGPT heartbeat and run fresh-thread command/result acceptance. Updater version-bump/recovery, project detection/concurrency, and BYOD specials are still open. Issue #302 remains open.
+
+## Follow-up check — 2026-10-17 00:26 UTC
+
+- Rechecked task #337: still open with zero comments, so no runner test result is available yet. Do not assume the Mac runner executed it.
+- Confirmed the updater source is present at `agent/updater.py`; its staged deployment validates Python, manifest, and JavaScript syntax and preserves a backup for rollback on validation failure. These are source-level observations only; no live updater bump/recovery was run in this session.
+- Searched repository issues for BYOD; no matching issue exists, so the phrase remains unidentified rather than silently treated as resolved.
+- Highest blocking item remains direct live Mac bridge access from this ChatGPT conversation. GitHub-only changes cannot prove live heartbeat or fresh-thread command execution. Keep issue #302 open.

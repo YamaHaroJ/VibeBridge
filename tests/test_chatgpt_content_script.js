@@ -85,7 +85,7 @@ class Element {
   dispatchEvent() { return true; }
 }
 
-async function runScenario(sendMessage, initialDraft = "Continue VibeBridge", license = {active: true, status: "active"}, trigger = "click") {
+async function runScenario(sendMessage, initialDraft = "Continue VibeBridge", license = {active: true, status: "active"}, trigger = "click", enabled = true) {
   const composer = new Element("TEXTAREA");
   composer.id = "prompt-textarea";
   composer.value = initialDraft;
@@ -125,9 +125,17 @@ async function runScenario(sendMessage, initialDraft = "Continue VibeBridge", li
     createRange() { return {selectNodeContents(){}, deleteContents(){}, insertNode(){}, setStartAfter(){}, collapse(){}}; }
   };
   const storage = {
-    async get(keys) {
-      const all = {enabled:true, token:"mock-token", activeProject:"/Users/test/VibeBridge"};
-      return Object.fromEntries(keys.filter(k => k in all).map(k => [k, all[k]]));
+    // Production code calls chrome.storage.local.get both as a promise
+    // (`await ...get(keys)`) and in the callback style
+    // (`...get(keys, state => {...})`) -- the mock must honor both, or a
+    // callback-style read (like the enabledState bootstrap) silently never
+    // resolves and the test can't exercise that code path at all.
+    get(keys, callback) {
+      const all = {enabled, token:"mock-token", activeProject:"/Users/test/VibeBridge"};
+      const list = Array.isArray(keys) ? keys : [keys];
+      const result = Object.fromEntries(list.filter(k => k in all).map(k => [k, all[k]]));
+      if (typeof callback === "function") { callback(result); return undefined; }
+      return Promise.resolve(result);
     },
     async set() {}
   };
@@ -176,102 +184,80 @@ async function runScenario(sendMessage, initialDraft = "Continue VibeBridge", li
 
 (async () => {
   {
+    // The baseline contract: VibeBridge must never intercept, delay, or alter
+    // a send. This fires VibeBridge's own listener directly (as if a real
+    // click/Enter had happened); production code must never itself click the
+    // Send button, write into the composer, or send anything to the
+    // background script beyond what the user's own message actually
+    // requires (nothing, here).
     const h = await runScenario(async message => {
-      if (message.type === "VIBEBRIDGE_RESOLVE_CONTEXTS") {
-        return {matched:true, context:"MOCK PROJECT CONTEXT", projects:[{name:"VibeBridge",path:"/Users/test/VibeBridge"}]};
-      }
       throw new Error("Unexpected message " + message.type);
     });
-    assert.equal(h.composer.value, "Continue VibeBridge", "matched project context never mutates the visible composer");
-    assert.doesNotMatch(h.composer.value, /MOCK PROJECT CONTEXT|Project background for continuity|PERSISTENT PROJECT MEMORY/, "project context remains outside the user's message");
-
-    // A fresh conversation now sends two turns: the context primer (its own
-    // message, never merged into the user's draft) and then the user's
-    // original message, unmodified.
-    assert.equal(h.getCurrentSend().clickCount, 2, "fresh conversation sends a context primer, then the original message");
-    assert.equal(h.document.getElementById("vibebridge-context-choice"), null, "automatic flow has no extra choice step");
+    assert.equal(h.composer.value, "Continue VibeBridge", "the composer is never rewritten");
+    assert.equal(h.getCurrentSend().clickCount, undefined, "VibeBridge never clicks Send itself; the user's own click (simulated above) is the only one that counts");
+    assert.deepEqual(h.notices.filter(n => n.type !== "VIBEBRIDGE_BROWSER_HEARTBEAT"), [], "a plain message triggers no background messages at all besides the routine tab heartbeat");
   }
   {
-    // Most users press Enter, not the Send button. Without this listener,
-    // VibeBridge would silently never see any message sent this way.
+    // Most users press Enter, not the Send button. This must behave
+    // identically to a click: observed, never blocked or altered.
     const h = await runScenario(async message => {
-      if (message.type === "VIBEBRIDGE_RESOLVE_CONTEXTS") {
-        return {matched:true, context:"MOCK PROJECT CONTEXT", projects:[{name:"VibeBridge",path:"/Users/test/VibeBridge"}]};
-      }
       throw new Error("Unexpected message " + message.type);
     }, "Continue VibeBridge", {active: true, status: "active"}, "enter");
-    assert.equal(h.event.prevented, true, "Enter's default newline insertion is suppressed once VibeBridge takes over the send");
-    assert.equal(h.composer.value, "Continue VibeBridge", "pressing Enter never mutates the visible composer either");
-    assert.equal(h.getCurrentSend().clickCount, 2, "pressing Enter still primes a fresh conversation, then sends the original message");
+    assert.equal(h.event.prevented, undefined, "Enter's default send behavior is never prevented; VibeBridge only observes");
+    assert.equal(h.composer.value, "Continue VibeBridge", "pressing Enter never mutates the composer either");
+    assert.deepEqual(h.notices.filter(n => n.type !== "VIBEBRIDGE_BROWSER_HEARTBEAT"), [], "a plain Enter-sent message triggers no background messages besides the routine tab heartbeat");
   }
   {
-    const staleDraft = [
-      "Project background for continuity; treat this as reference material, not a new request.",
-      "README content with a horizontal rule",
-      "---",
-      "PERSISTENT PROJECT MEMORY: old context",
-      "---",
-      "there\'s the user\'s actual request"
-    ].join("\n\n");
+    // The one narrow exception: an explicit "remember for this project: ..."
+    // phrase saves a note via a storage-only side effect. This must never
+    // touch the chat transcript itself -- no composer write, no extra send.
+    let rememberCalls = 0;
     const h = await runScenario(async message => {
-      if (message.type === "VIBEBRIDGE_RESOLVE_CONTEXTS") return {matched:false, reason:"no-match"};
+      if (message.type === "VIBEBRIDGE_REMEMBER") {
+        rememberCalls++;
+        assert.equal(message.note, "the deploy script lives in scripts/deploy.sh");
+        return {saved: true, project: "VibeBridge"};
+      }
       throw new Error("Unexpected message " + message.type);
-    }, staleDraft);
-    assert.equal(h.composer.value, staleDraft, "stale context remains untouched; VibeBridge never rewrites the user's draft");
+    }, "Remember for this project: the deploy script lives in scripts/deploy.sh");
+    assert.equal(rememberCalls, 1, "the remember phrase triggers exactly one background save");
+    assert.equal(h.composer.value, "Remember for this project: the deploy script lives in scripts/deploy.sh", "the composer and the sent message are never touched");
+    assert.equal(h.getCurrentSend().clickCount, undefined, "saving a note never adds an extra send");
   }
   {
+    // The remember side effect still requires an active license, same as
+    // every other VibeBridge action -- but a missing license must never
+    // affect the message that was already sent.
+    let rememberCalls = 0;
     const h = await runScenario(async message => {
-      if (message.type === "VIBEBRIDGE_RESOLVE_CONTEXTS") return {matched:false, reason:"no-match"};
+      if (message.type === "VIBEBRIDGE_REMEMBER") { rememberCalls++; return {saved: true}; }
       throw new Error("Unexpected message " + message.type);
-    });
-    assert.equal(h.composer.value, "Continue VibeBridge", "no-match preserves the original draft");
-    // Even with no project matched, a fresh conversation still gets the roster
-    // primer (so ChatGPT can ask "which project?" or offer to create one),
-    // followed by the user's original message.
-    assert.equal(h.getCurrentSend().clickCount, 2, "no-match still primes a fresh conversation, then sends original text");
-    assert.equal(h.document.getElementById("vibebridge-notice"), null, "no-match creates no banner");
+    }, "Remember for this project: nope", {active: false, status: "no-subscription"});
+    assert.equal(rememberCalls, 0, "no license means no note is saved");
+    assert.equal(h.composer.value, "Remember for this project: nope", "the user's message is sent regardless of license status");
   }
   {
-    // Without an active license, VibeBridge's own features (priming, command
-    // execution) must stay off, but the user's own message still goes out.
+    // When VibeBridge itself is off, it must not observe the send at all --
+    // not even for the remember side effect.
     const h = await runScenario(async message => {
-      if (message.type === "VIBEBRIDGE_RESOLVE_CONTEXTS") return {matched:true, context:"MOCK PROJECT CONTEXT", projects:[{name:"VibeBridge",path:"/Users/test/VibeBridge"}]};
       throw new Error("Unexpected message " + message.type);
-    }, "Continue VibeBridge", {active: false, status: "no-subscription"});
-    assert.equal(h.composer.value, "Continue VibeBridge", "unlicensed flow never touches the composer");
-    assert.equal(h.getCurrentSend().clickCount, 1, "unlicensed flow sends only the user's original message, no primer");
+    }, "Remember for this project: nope", {active: true, status: "active"}, "click", false);
+    assert.deepEqual(h.notices.filter(n => n.type !== "VIBEBRIDGE_BROWSER_HEARTBEAT"), [], "a disabled VibeBridge sends no background messages whatsoever besides the routine tab heartbeat");
   }
+  // Targeted regression guard: every run/read/write/list action requires an
+  // explicit confirmation click. There is no automatic/hands-off execution
+  // path left, and the manual "Add result to ChatGPT prompt" control must
+  // never send on the user's behalf either.
   {
-    const h = await runScenario(async () => { throw new Error("Extension context invalidated."); });
-    assert.equal(h.composer.value, "Continue VibeBridge", "invalidated context leaves original prompt intact");
-    assert.equal(h.getCurrentSend().clickCount, undefined, "invalidated extension must not replay/send the prompt");
-    assert.equal(h.document.getElementById("vibebridge-notice"), null, "even reload errors do not create banners");
-  }
-  {
-    const h = await runScenario(async () => { throw new Error("Failed to fetch"); });
-    assert.equal(h.composer.value, "Continue VibeBridge");
-    assert.equal(h.getCurrentSend().clickCount, 1, "recoverable agent error still sends the original once");
-    assert.equal(h.document.getElementById("vibebridge-notice"), null, "recoverable errors do not create banners");
-  }
-  // Targeted regression guard: automatic command completion must never write into
-  // the composer or click Send on the user's behalf, regardless of draft state.
-  // A message that looks like it came from the user but that they never typed
-  // is not acceptable at any time. Only the explicit "Add result to ChatGPT
-  // prompt" button may write the result, and even that must never auto-send.
-  // This complements the DOM send-flow scenarios: command controls are generated
-  // by MutationObserver and the mock DOM does not model the full ChatGPT message tree.
-  {
-    const commandSource = source.slice(source.indexOf('const executeAction = async (automatic = false)'), source.indexOf('insert.addEventListener'));
+    const commandSource = source.slice(source.indexOf('const executeAction = async ()'), source.indexOf('insert.addEventListener'));
     assert.notEqual(commandSource, source, "command executor exists");
-    assert.ok(/if \(automatic\) \{/.test(commandSource), "automatic completion has its own branch");
-    const automaticBranch = commandSource.slice(commandSource.indexOf('if (automatic) {'));
-    assert.doesNotMatch(automaticBranch, /writeComposer/, "automatic completion never writes into the composer");
-    assert.doesNotMatch(automaticBranch, /send\.click\(\)/, "automatic completion never clicks Send");
-    assert.match(commandSource, /VibeBridge never sends a message on your behalf/, "hands-off description accurately sets expectations");
+    assert.match(commandSource, /if \(!confirm\(action\.confirm\(payload\)\)\) return;/, "every action requires an explicit confirm before running");
+    assert.doesNotMatch(commandSource, /\bautomatic\b/, "no automatic/hands-off execution path remains");
+    assert.doesNotMatch(commandSource, /writeComposer/, "running an action never writes into the composer");
   }
   {
     const insertSource = source.slice(source.indexOf('insert.addEventListener'), source.indexOf('insert.addEventListener') + 800);
     assert.doesNotMatch(insertSource, /send\.click\(\)|bypassNextSend\s*=\s*true/, "the manual insert button only writes the draft; it never sends for the user");
   }
-  console.log("ChatGPT content-script DOM simulation: 7 scenarios passed; command draft-safety regression guard passed");
+  console.log("ChatGPT content-script DOM simulation: 5 scenarios passed; no-auto-send regression guard passed");
 })().catch(error => { console.error(error); process.exitCode = 1; });

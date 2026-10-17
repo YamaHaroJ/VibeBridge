@@ -100,27 +100,30 @@ class ExtensionFlowContractTests(unittest.TestCase):
         cls.popup_html = (root / "extension" / "popup.html").read_text()
         cls.manifest = json.loads((root / "extension" / "manifest.json").read_text())
 
-    def test_send_flow_automatically_attaches_detected_context_without_user_request_wrapper(self):
-        self.assertIn('"VIBEBRIDGE_RESOLVE_CONTEXTS"', self.content_script)
-        self.assertIn('conversationProjects[conversation] = merged.slice(-8)', self.content_script)
-        self.assertIn('chrome.storage.local.get(["conversationProjects"])', self.content_script)
-        self.assertNotIn("savedConversation.activeProject", self.content_script)
-        self.assertNotIn("savedConversation.project", self.content_script)
-        self.assertIn('if (!enabledState || !original', self.content_script)
-        self.assertIn('function showNotice(_text) {}', self.content_script)
-        # Resolved context must be delivered to ChatGPT, but as a separate chat
-        # turn rather than merged into the user's visible draft: that merge was
-        # the source of the original leaked-text regression (composer remounts
-        # outran cleanup).
-        self.assertIn("async function buildPrimerMessage(", self.content_script)
-        self.assertIn("async function sendAsSeparateMessage(text, restoreText)", self.content_script)
-        self.assertIn("primedConversations", self.content_script)
-        self.assertNotIn("writeComposer(composer, addition + original)", self.content_script)
-        self.assertNotIn("composer.dataset.vibebridgeContextInjection", self.content_script)
-        self.assertNotIn('USER REQUEST:\\n', self.content_script)
-        self.assertNotIn('function showContextChoice', self.content_script)
-        self.assertIn("sanitizeBridgeComposer", self.content_script)
+    def test_send_flow_never_intercepts_or_rewrites_the_users_message(self):
+        # VibeBridge must never send, write into the composer, or click Send on
+        # the user's behalf. The automatic context-primer/checkpoint-nudge/
+        # repo-creation-via-chat architecture was removed entirely after it
+        # produced "You said:" messages the user never typed.
+        self.assertNotIn('"VIBEBRIDGE_RESOLVE_CONTEXTS"', self.content_script)
+        self.assertNotIn("async function buildPrimerMessage(", self.content_script)
+        self.assertNotIn("async function sendAsSeparateMessage(", self.content_script)
+        self.assertNotIn("primedConversations", self.content_script)
+        self.assertNotIn("conversationProjects", self.content_script)
+        self.assertNotIn("conversationCheckpoints", self.content_script)
+        self.assertNotIn("CHECKPOINT_MESSAGE_INTERVAL", self.content_script)
+        self.assertNotIn('"VIBEBRIDGE_CREATE_REPOSITORY"', self.content_script)
+        self.assertNotIn("function clickCurrentSendButton(", self.content_script)
+        self.assertNotIn("bypassNextSend", self.content_script)
         self.assertNotIn('id = "vibebridge-live-status"', self.content_script)
+        self.assertIn('function showNotice(_text) {}', self.content_script)
+        self.assertIn("sanitizeBridgeComposer", self.content_script)
+        # The only thing a send is still observed for: the explicit "remember"
+        # phrase, saved as a storage-only side effect that never touches the
+        # composer or sends anything to the conversation itself.
+        self.assertIn("async function checkForRememberNote(originalText)", self.content_script)
+        self.assertIn("function observeSendAttempt(button)", self.content_script)
+        self.assertNotIn("event.preventDefault()", self.content_script)
         self.assertNotIn('"position:fixed;right:12px;bottom:12px', self.content_script)
 
     def test_assistant_memory_block_is_detected_and_forwarded(self):

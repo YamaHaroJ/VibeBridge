@@ -88,3 +88,12 @@
 - Current hard blocker unchanged: this ChatGPT session has GitHub repo access but no direct local Mac/Chrome command tool. Latest reported live heartbeat was disconnected; must not claim bridge acceptance until a real same-thread command round-trip and fresh-thread check run.
 - #337 remains without comments/results. BYOD search returned no matching issue. Updater source has staged runtime validation and rollback on validation failure, but no live version-bump/recovery exercise is evidenced here.
 - Next: inspect #338 runner results; add true behavior-level command-card test if harness supports it; continue updater/project-detection/concurrency work; retain #302 open.
+
+
+## Verification update — 2026-10-17 after 00:28 UTC
+
+- Verified remote master HEAD: `05b824cf931b43ff1b4296b13d50937ba7c3d505`; extension manifest remains `0.2.99`.
+- GitHub Actions on that exact HEAD passed: VibeBridge checks run `38986519768`, Validate VibeBridge run `38986519843`, and macOS installer package run `38986519926`. The checks workflow ran the Python unittest suite and both Node regression scripts; all reported success.
+- Attempted to clone and run the suite in this session, but the runtime could not resolve `github.com`; no local execution is claimed.
+- These green GitHub-hosted checks do not satisfy issue #338's requested self-hosted Mac run, nor prove a live heartbeat, Chrome-tab version, updater rollback, or fresh-thread command/result round trip. The available connector has no workflow-dispatch or local-agent command action, so the Mac runner could not be started from this session.
+- Remaining fix list: (1) restore/verify live heartbeat and same-thread/fresh-thread command-result bridge; (2) run the explicit Mac regression task and capture exact exit codes/heartbeat; (3) test updater version bump and recovery on Mac; (4) verify project detection and bounded concurrency live; (5) identify what “BYOD specials” refers to in the outstanding notes or remove it from the VibeBridge list if unrelated. Issue #302 remains open. Do not mark the list complete until the live acceptance criteria pass.

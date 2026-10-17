@@ -9,6 +9,17 @@ export default async function handler(req, res) {
     return send(res, 400, {error: "Invalid device token."});
   }
 
+  // Owner/developer devices, allowlisted by exact token match against a
+  // server-side secret (never committed to the repo). Reading the open-source
+  // code only reveals that this check exists, not a value that unlocks it —
+  // unlike a client-side bypass, which would be a free-Pro hole for anyone
+  // who reads the code.
+  const ownerTokens = String(process.env.OWNER_DEVICE_TOKENS || "")
+    .split(",").map(t => t.trim()).filter(Boolean);
+  if (ownerTokens.includes(deviceToken)) {
+    return send(res, 200, {active: true, status: "owner", trialEnd: null, currentPeriodEnd: null});
+  }
+
   try {
     const customer = await findCustomerByDeviceToken(deviceToken);
     if (!customer) return send(res, 200, {active: false, status: "no-subscription"});

@@ -48,3 +48,12 @@
 - Authenticated local terminal smoke task #332 PASS in 0.24s through the local `/run` route; output: `VibeBridge terminal relay OK`.
 - Still unverified: command/result completion in a freshly opened ChatGPT conversation, composer safety in live Chrome, auto-reload after a future version bump, automatic project detection/concurrent task acceptance. Keep issue #302 open until these pass.
 - Next action: run a dedicated fresh-thread command/result acceptance and composer-preservation E2E; then exercise updater with a controlled version bump and verify rollback/recovery evidence.
+
+
+## Fresh diagnostics — 2026-10-17 00:00 UTC
+
+- Mac diagnostics task #334 PASS. Agent is running on port 43127; local checkout `c3557cc` clean; manifest `0.2.99`; updater LaunchAgent loaded with RunAtLoad and 5-second interval.
+- Important regression/blocker: diagnostics found **no connected ChatGPT browser tabs** at 00:00:11 UTC (connected=false, activeTabCount=0). The earlier two-tab heartbeat at 23:50 UTC is no longer current. Re-check after opening/reloading ChatGPT with VibeBridge enabled.
+- Mac runner test suite queued as issue #335; result pending at handoff update time.
+- Fresh-thread task #333 did not execute: only the generic GitHub reporter's “Task unknown” failure returned; this is not Mac acceptance evidence.
+- Next action: restore live extension heartbeat by opening/reloading a ChatGPT tab, rerun diagnostics, then verify authenticated command/result in a fresh thread. Do not claim continuity or live composer safety complete.

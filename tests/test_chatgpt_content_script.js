@@ -261,5 +261,16 @@ async function runScenario(sendMessage, initialDraft = "Continue VibeBridge", li
     const insertSource = source.slice(source.indexOf('insert.addEventListener'), source.indexOf('insert.addEventListener') + 800);
     assert.doesNotMatch(insertSource, /send\.click\(\)|bypassNextSend\s*=\s*true/, "the manual insert button only writes the draft; it never sends for the user");
   }
+  // The Terminal-nudge control (one-click "ask VibeBridge to run this
+  // instead" draft) must only ever write a draft for the user to review and
+  // send themselves -- never send anything on its own -- and must skip
+  // messages that already got a real VibeBridge action.
+  {
+    const nudgeSource = source.slice(source.indexOf('function addTerminalNudgeControl()'), source.indexOf('function ensureBridgeStatus'));
+    assert.notEqual(nudgeSource, source, "the terminal-nudge control exists");
+    assert.match(nudgeSource, /if \(latestAssistant\.querySelector\(".vibebridge-injected-control"\)\) return;/, "skips messages that already have a real VibeBridge action");
+    assert.match(nudgeSource, /processedNudgeMessages\.add\(latestAssistant\)/, "never re-adds the control to the same message on repeated scans");
+    assert.doesNotMatch(nudgeSource, /send\.click\(\)|bypassNextSend\s*=\s*true/, "the nudge control never sends on the user's behalf");
+  }
   console.log("ChatGPT content-script DOM simulation: 5 scenarios passed; no-auto-send regression guard passed");
 })().catch(error => { console.error(error); process.exitCode = 1; });

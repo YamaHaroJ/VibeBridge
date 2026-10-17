@@ -40,6 +40,9 @@
 
   // Save only explicit checkpoint blocks; never upload raw messages.
   const processedMemoryBlocks = new WeakSet();
+  // Track which assistant messages already got a Terminal-nudge control, so
+  // repeated scans of the same still-rendering message don't add it twice.
+  const processedNudgeMessages = new WeakSet();
 
   // A brand-new chat has no "/c/<id>" in its URL until after the first
   // message is actually sent and ChatGPT creates the conversation. Returning
@@ -439,6 +442,48 @@
     }
   }
 
+  // When ChatGPT falls back to a plain "run this in Terminal yourself"
+  // instruction instead of an actual VibeBridge action, give a one-click way
+  // to ask it to use VibeBridge instead of retyping that correction every
+  // time. This never sends anything itself -- it only drafts the request
+  // into the composer; sending it is still the user's own explicit action.
+  function addTerminalNudgeControl() {
+    const latestAssistant = latestAssistantMessage();
+    if (!latestAssistant || processedNudgeMessages.has(latestAssistant)) return;
+    if (latestAssistant.querySelector(".vibebridge-injected-control")) return;
+    const sendButton = findSendButton();
+    if (sendButton && sendButton.disabled) return; // still streaming; a later scan will retry
+    const text = latestAssistant.textContent || "";
+    if (!/\bterminal\b|\bpaste (?:this|it|the following)\b|\brun (?:this|the following) (?:command|script)\b/i.test(text)) return;
+    processedNudgeMessages.add(latestAssistant);
+
+    const nudge = document.createElement("div");
+    nudge.className = "vibebridge-injected-control";
+    nudge.style.cssText = "margin:8px 0;padding:10px;border:1px solid #64748b;border-radius:8px;font:13px system-ui";
+    const description = document.createElement("div");
+    description.textContent = "This looks like a manual Terminal instruction instead of a VibeBridge action.";
+    description.style.marginBottom = "8px";
+    const nudgeButton = document.createElement("button");
+    nudgeButton.type = "button";
+    nudgeButton.textContent = "Ask VibeBridge to run this instead";
+    nudgeButton.style.cssText = "padding:7px 10px;border-radius:6px;cursor:pointer";
+    nudgeButton.addEventListener("click", () => {
+      const composer = document.querySelector("#prompt-textarea") ||
+        document.querySelector('textarea[placeholder]') ||
+        document.querySelector('[contenteditable="true"][role="textbox"]');
+      if (!composer) {
+        showNotice("Could not find the ChatGPT prompt field.");
+        return;
+      }
+      const current = readComposer(composer).trim();
+      const addition = "Use VibeBridge directly for that: emit a fenced ```vibebridge-run (or vibebridge-read/write/list) block for what you just described, instead of asking me to paste anything into Terminal myself.";
+      writeComposer(composer, current ? current + "\n\n" + addition : addition);
+      showNotice("Added a VibeBridge request to your prompt. Review and send it to continue.");
+    });
+    nudge.append(description, nudgeButton);
+    latestAssistant.after(nudge);
+  }
+
   // Keep diagnostics in memory/console only; never overlay the user's ChatGPT page.
   function ensureBridgeStatus() {}
   addCommandControls();
@@ -453,6 +498,7 @@
     scanRunning = true;
     try {
       addCommandControls();
+      addTerminalNudgeControl();
       await saveAssistantCheckpoints();
     } finally {
       scanRunning = false;
@@ -484,6 +530,7 @@
   // Do not auto-run anything already rendered during this initial pass.
   // Only command blocks that appear from here on are eligible.
   addCommandControls();
+  addTerminalNudgeControl();
   allowAutomaticExecution = true;
 
   // Never intercept, delay, or modify a send in any way. Only read the

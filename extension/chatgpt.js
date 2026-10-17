@@ -333,7 +333,7 @@
       const explicitlyMarkedCommand = hasCommandLanguage || markedBlock || markedFence;
       chrome.storage.local.get(["autoRunCommands"], settings => {
         if (allowAutoRun && explicitlyMarkedCommand && allowAutomaticExecution && settings.autoRunCommands === true) {
-          description.textContent = "Hands-off mode is enabled: this command will run automatically on your Mac, then its result will be sent back to ChatGPT.";
+          description.textContent = "Hands-off mode is enabled: this command will run automatically on your Mac. If the prompt already contains a draft, VibeBridge will preserve it and show the result for optional insertion.";
           run.textContent = "Run automatically";
           executeCommand(true);
         }

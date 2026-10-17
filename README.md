@@ -66,7 +66,7 @@ Remove the LaunchAgent plist to prevent it from being loaded again. The token is
 
 - The public source of truth is this repository: https://github.com/YamaHaroJ/VibeBridge.
 - The release workflow publishes a versioned Chrome extension ZIP and SHA-256 checksum to GitHub Releases when a version tag such as `v0.3.0` is pushed: https://github.com/YamaHaroJ/VibeBridge/releases.
-- `agent/install.sh` registers a macOS LaunchAgent that checks the public GitHub `master` branch every few seconds, validates changes before restarting the local agent, and rolls back on validation failure. It does not require GitHub CLI authentication to update the public VibeBridge code.
+- `agent/install.sh` registers a macOS LaunchAgent that checks the public GitHub `master` branch every five minutes, validates changes before restarting the local agent, and rolls back on validation failure. It does not require GitHub CLI authentication to update the public VibeBridge code.
 - The local agent and source code update automatically, but an unpacked Chrome extension may still require a reload in `chrome://extensions` to activate changed extension files. True consumer installation requires Chrome Web Store publication. The installer cannot silently grant Chrome or ChatGPT permissions.
 
 

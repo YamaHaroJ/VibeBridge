@@ -244,16 +244,18 @@ async function runScenario(sendMessage, initialDraft = "Continue VibeBridge", li
     }, "Remember for this project: nope", {active: true, status: "active"}, "click", false);
     assert.deepEqual(h.notices.filter(n => n.type !== "VIBEBRIDGE_BROWSER_HEARTBEAT"), [], "a disabled VibeBridge sends no background messages whatsoever besides the routine tab heartbeat");
   }
-  // Targeted regression guard: every run/read/write/list action requires an
-  // explicit confirmation click. There is no automatic/hands-off execution
-  // path left, and the manual "Add result to ChatGPT prompt" control must
-  // never send on the user's behalf either.
+  // Targeted regression guard: an explicitly-marked VibeBridge block may run
+  // automatically (no click, no confirm) or via an explicit Run click (with
+  // confirm) -- but either way, running an action must never write into the
+  // composer or send anything. Only the result panel updates; reaching the
+  // conversation at all still requires an explicit "Add result" click.
   {
-    const commandSource = source.slice(source.indexOf('const executeAction = async ()'), source.indexOf('insert.addEventListener'));
+    const commandSource = source.slice(source.indexOf('const executeAction = async (automatic = false)'), source.indexOf('insert.addEventListener'));
     assert.notEqual(commandSource, source, "command executor exists");
-    assert.match(commandSource, /if \(!confirm\(action\.confirm\(payload\)\)\) return;/, "every action requires an explicit confirm before running");
-    assert.doesNotMatch(commandSource, /\bautomatic\b/, "no automatic/hands-off execution path remains");
-    assert.doesNotMatch(commandSource, /writeComposer/, "running an action never writes into the composer");
+    assert.match(commandSource, /if \(!automatic && !confirm\(action\.confirm\(payload\)\)\) return;/, "manual runs still require an explicit confirm; automatic runs skip it");
+    assert.match(commandSource, /if \(explicitlyMarked && allowAutomaticExecution\)/, "automatic execution is reserved for explicitly-marked VibeBridge fences");
+    assert.doesNotMatch(commandSource, /writeComposer/, "running an action -- automatic or manual -- never writes into the composer");
+    assert.doesNotMatch(commandSource, /send\.click\(\)|bypassNextSend\s*=\s*true/, "running an action never sends on the user's behalf");
   }
   {
     const insertSource = source.slice(source.indexOf('insert.addEventListener'), source.indexOf('insert.addEventListener') + 800);

@@ -33,6 +33,10 @@
   window.addEventListener("pageshow", reportHeartbeatFromThisFile);
   const commandMarker = "VIBEBRIDGE LOCAL COMMAND";
   const processedBlocks = new WeakSet();
+  // Never replay commands already sitting in conversation history when a tab
+  // opens. Hands-off execution is reserved for command blocks that appear
+  // after startup's initial scan has already run once.
+  let allowAutomaticExecution = false;
 
   // Save only explicit checkpoint blocks; never upload raw messages.
   const processedMemoryBlocks = new WeakSet();
@@ -286,6 +290,11 @@
           }
         }
       }
+      // Automatic execution is reserved for an explicit VibeBridge fence.
+      // Generic shell/JSON blocks ChatGPT writes incidentally (not through
+      // this detection) are manual-only, even though they still get a Run
+      // button below.
+      const explicitlyMarked = !!kind;
       let payload = null;
       // Handle ChatGPT rendering custom vibebridge-* fences as plain text, including
       // an opening "vibebridge-<kind> id=..." line before the JSON payload.
@@ -358,7 +367,7 @@
       insert.style.cssText = "padding:7px 10px;border-radius:6px;cursor:pointer;display:none;margin-top:8px";
       let resultText = "";
 
-      const executeAction = async () => {
+      const executeAction = async (automatic = false) => {
         if (run.disabled) return;
         const license = await chrome.runtime.sendMessage({type: "VIBEBRIDGE_LICENSE_STATUS"}).catch(() => ({active: false}));
         if (!license?.active) {
@@ -366,7 +375,12 @@
           output.textContent = "VibeBridge Pro is not active. Open the extension popup to start a trial or subscribe.";
           return;
         }
-        if (!confirm(action.confirm(payload))) return;
+        // Hands-off: an explicitly-marked VibeBridge block runs the instant it
+        // appears, no click needed. This never writes into the composer or
+        // sends anything -- the result only ever lands in the inline panel
+        // below, which still requires an explicit "Add result" click to reach
+        // the conversation at all.
+        if (!automatic && !confirm(action.confirm(payload))) return;
         run.disabled = true;
         run.textContent = action.runningLabel;
         output.style.display = "block";
@@ -394,10 +408,16 @@
           run.disabled = false;
         }
       };
-      // Every action requires an explicit click on this button. VibeBridge
-      // never runs a command, reads/writes a file, or lists a directory on
-      // its own — only in direct response to the user clicking Run.
       run.addEventListener("click", () => executeAction());
+      // Hands-off by default: the entire point of VibeBridge is a
+      // propose-run-see-result-keep-going loop. Only explicitly-marked
+      // VibeBridge fences qualify, and only after startup (never replaying
+      // commands already sitting in conversation history when a tab opens).
+      if (explicitlyMarked && allowAutomaticExecution) {
+        description.textContent = "Hands-off mode is enabled: this " + action.label + " ran automatically on your Mac. The result is shown below for you to add to the prompt and send yourself; VibeBridge never sends a message on your behalf.";
+        run.textContent = "Running automatically";
+        executeAction(true);
+      }
 
       insert.addEventListener("click", () => {
         const composer = document.querySelector("#prompt-textarea") ||
@@ -461,7 +481,10 @@
     if (relevant) scheduleScan();
   });
   observer.observe(document.documentElement, {childList: true, subtree: true, characterData: true});
+  // Do not auto-run anything already rendered during this initial pass.
+  // Only command blocks that appear from here on are eligible.
   addCommandControls();
+  allowAutomaticExecution = true;
 
   // Never intercept, delay, or modify a send in any way. Only read the
   // message that's already going out, unmodified, for the explicit

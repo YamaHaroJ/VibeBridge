@@ -537,20 +537,11 @@
           insert.style.display = "inline-block";
           showNotice(result?.ok ? "VibeBridge " + action.label + " finished." : "VibeBridge " + action.label + " failed. See result.");
           if (automatic) {
-            const composer = document.querySelector("#prompt-textarea") || document.querySelector('textarea[placeholder]') || document.querySelector('[contenteditable="true"][role="textbox"]');
-            if (!composer) throw new Error(action.label + " ran, but ChatGPT prompt field was not found. Result is shown below.");
-            // Never overwrite, append to, or send a pre-existing user draft during
-            // automatic execution. Leave the result visible and let the explicit
-            // "Add result to ChatGPT prompt" control handle insertion.
-            if (readComposer(composer).trim()) {
-              description.textContent = action.label.charAt(0).toUpperCase() + action.label.slice(1) + " finished. Your existing draft was preserved; use Add result to ChatGPT prompt if you want to include the result.";
-              return;
-            }
-            const addition = action.resultMarker + "\n" + action.describeInResult(payload) + "\nResult JSON:\n" + resultText +
-              "\n\nInspect this result and continue development. If another local action is needed, emit another vibebridge-run/read/write/list block.";
-            writeComposer(composer, addition);
-            const send = document.querySelector('button[data-testid="send-button"]') || document.querySelector('button[aria-label*="Send"]');
-            if (send && !send.disabled) { bypassNextSend = true; send.click(); setTimeout(() => { bypassNextSend = false; }, 800); } else { showNotice("Result is ready in the prompt; send it to continue."); }
+            // Never write into the composer or send on the user's behalf, even
+            // when it's empty. A message that appears to be from the user but
+            // that they never typed is not acceptable at any time. Always wait
+            // for an explicit click on "Add result to ChatGPT prompt."
+            description.textContent = action.label.charAt(0).toUpperCase() + action.label.slice(1) + " finished. Use Add result to ChatGPT prompt to continue.";
           }
         } catch (error) {
           const message = error?.message || String(error);
@@ -574,7 +565,7 @@
       // VibeBridge is a propose-run-see-result-keep-going loop instead of a
       // chatbot with a confirmation button on every step.
       if (allowAutoRun && explicitlyMarked && allowAutomaticExecution) {
-        description.textContent = "Hands-off mode is enabled: this " + action.label + " will run automatically on your Mac. If the prompt already contains a draft, VibeBridge will preserve it and show the result for optional insertion.";
+        description.textContent = "Hands-off mode is enabled: this " + action.label + " will run automatically on your Mac. The result will be shown below for you to add to the prompt and send yourself; VibeBridge never sends a message on your behalf.";
         run.textContent = "Running automatically";
         executeAction(true);
       }

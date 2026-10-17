@@ -253,22 +253,25 @@ async function runScenario(sendMessage, initialDraft = "Continue VibeBridge", li
     assert.equal(h.getCurrentSend().clickCount, 1, "recoverable agent error still sends the original once");
     assert.equal(h.document.getElementById("vibebridge-notice"), null, "recoverable errors do not create banners");
   }
-  // Targeted regression guard for automatic command completion with a non-empty draft.
+  // Targeted regression guard: automatic command completion must never write into
+  // the composer or click Send on the user's behalf, regardless of draft state.
+  // A message that looks like it came from the user but that they never typed
+  // is not acceptable at any time. Only the explicit "Add result to ChatGPT
+  // prompt" button may write the result, and even that must never auto-send.
   // This complements the DOM send-flow scenarios: command controls are generated
   // by MutationObserver and the mock DOM does not model the full ChatGPT message tree.
   {
-    const commandSource = source.slice(source.indexOf('const executeAction = async (automatic = false)'));
+    const commandSource = source.slice(source.indexOf('const executeAction = async (automatic = false)'), source.indexOf('insert.addEventListener'));
     assert.notEqual(commandSource, source, "command executor exists");
-    const preserveDraft = commandSource.indexOf('if (readComposer(composer).trim())');
-    const insertControl = commandSource.indexOf('insert.style.display = "inline-block"');
-    const writeResult = commandSource.indexOf('writeComposer(composer, addition)');
-    const sendResult = commandSource.indexOf('send.click()');
-    assert.ok(preserveDraft >= 0, "automatic command completion checks for an existing draft");
-    assert.ok(insertControl >= 0 && insertControl < preserveDraft, "explicit result-insert control is available before draft safety check");
-    assert.ok(writeResult > preserveDraft, "result is inserted only after the non-empty-draft early return");
-    assert.ok(sendResult > writeResult, "automatic send can only occur after permitted result insertion");
-    assert.match(commandSource.slice(preserveDraft, writeResult), /existing draft was preserved/);
-    assert.match(commandSource, /If the prompt already contains a draft, VibeBridge will preserve it and show the result for optional insertion/, "hands-off description accurately explains draft preservation");
+    assert.ok(/if \(automatic\) \{/.test(commandSource), "automatic completion has its own branch");
+    const automaticBranch = commandSource.slice(commandSource.indexOf('if (automatic) {'));
+    assert.doesNotMatch(automaticBranch, /writeComposer/, "automatic completion never writes into the composer");
+    assert.doesNotMatch(automaticBranch, /send\.click\(\)/, "automatic completion never clicks Send");
+    assert.match(commandSource, /VibeBridge never sends a message on your behalf/, "hands-off description accurately sets expectations");
+  }
+  {
+    const insertSource = source.slice(source.indexOf('insert.addEventListener'), source.indexOf('insert.addEventListener') + 800);
+    assert.doesNotMatch(insertSource, /send\.click\(\)|bypassNextSend\s*=\s*true/, "the manual insert button only writes the draft; it never sends for the user");
   }
   console.log("ChatGPT content-script DOM simulation: 7 scenarios passed; command draft-safety regression guard passed");
 })().catch(error => { console.error(error); process.exitCode = 1; });

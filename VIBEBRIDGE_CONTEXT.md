@@ -79,3 +79,12 @@
 - Confirmed the updater source is present at `agent/updater.py`; its staged deployment validates Python, manifest, and JavaScript syntax and preserves a backup for rollback on validation failure. These are source-level observations only; no live updater bump/recovery was run in this session.
 - Searched repository issues for BYOD; no matching issue exists, so the phrase remains unidentified rather than silently treated as resolved.
 - Highest blocking item remains direct live Mac bridge access from this ChatGPT conversation. GitHub-only changes cannot prove live heartbeat or fresh-thread command execution. Keep issue #302 open.
+
+## Latest fix — 2026-10-17 00:28 UTC
+
+- Commit `ec627bc952e0817c67f950cfecc55ec3910cb9fa`: corrected hands-off command text so it no longer promises the command result will automatically be sent when a pre-existing draft must be preserved.
+- Commit `27722708b681ba33e210d412ce901a75a5cd6e89`: regression guard checks that the updated copy remains in place along with the existing draft-safety ordering assertions.
+- Full regression task queued as issue #338: https://github.com/YamaHaroJ/VibeBridge/issues/338. No results yet.
+- Current hard blocker unchanged: this ChatGPT session has GitHub repo access but no direct local Mac/Chrome command tool. Latest reported live heartbeat was disconnected; must not claim bridge acceptance until a real same-thread command round-trip and fresh-thread check run.
+- #337 remains without comments/results. BYOD search returned no matching issue. Updater source has staged runtime validation and rollback on validation failure, but no live version-bump/recovery exercise is evidenced here.
+- Next: inspect #338 runner results; add true behavior-level command-card test if harness supports it; continue updater/project-detection/concurrency work; retain #302 open.

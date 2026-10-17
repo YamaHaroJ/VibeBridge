@@ -14,26 +14,46 @@ export function send(res, status, body) {
 }
 
 export function env(name) {
-  const value = process.env[name];
+  // Trim defensively: a stray leading/trailing newline from a dashboard paste
+  // turns "Bearer <key>" into an invalid HTTP header value, and the runtime's
+  // own error for that includes the full header — i.e. the secret — in its
+  // message. Trimming here closes that off at the source.
+  const value = String(process.env[name] || "").trim();
   if (!value) throw new Error("Missing server setting: " + name);
   return value;
+}
+
+// Never let a raw error reach the client: a header-construction failure's
+// message can contain the Authorization header itself (the secret key).
+// Log the real error server-side only; the caller gets a safe, generic one.
+function safeFail(error, publicMessage) {
+  console.error("VibeBridge cloud-api error:", error?.message || error);
+  throw new Error(publicMessage);
 }
 
 // No Stripe SDK dependency: a thin REST wrapper keeps the deployed bundle
 // small and matches the pattern already used by the Autofill cloud-api.
 export async function stripe(path, options = {}) {
   const body = options.body instanceof URLSearchParams ? options.body.toString() : options.body;
-  const response = await fetch("https://api.stripe.com/v1" + path, {
-    method: options.method || "GET",
-    headers: {
-      "Authorization": "Bearer " + env("STRIPE_SECRET_KEY"),
-      ...(body ? {"Content-Type": "application/x-www-form-urlencoded"} : {}),
-      ...(options.headers || {})
-    },
-    body
-  });
+  let response;
+  try {
+    response = await fetch("https://api.stripe.com/v1" + path, {
+      method: options.method || "GET",
+      headers: {
+        "Authorization": "Bearer " + env("STRIPE_SECRET_KEY"),
+        ...(body ? {"Content-Type": "application/x-www-form-urlencoded"} : {}),
+        ...(options.headers || {})
+      },
+      body
+    });
+  } catch (error) {
+    return safeFail(error, "Stripe request could not be sent.");
+  }
   const data = await response.json();
-  if (!response.ok) throw new Error(data?.error?.message || "Stripe request failed");
+  // Stripe's own error message is safe to surface: it comes from Stripe's
+  // response body, never from our request construction, so it cannot contain
+  // the secret key.
+  if (!response.ok) throw new Error(data?.error?.message || "Stripe request failed.");
   return data;
 }
 

@@ -384,12 +384,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 
     const multiProject = message.type === "VIBEBRIDGE_RESOLVE_CONTEXTS";
+    // Context resolution must stay scoped to this one conversation. Falling
+    // back to the global `active` (last-matched project, shared across every
+    // conversation) made an unrelated brand-new thread silently inherit
+    // whatever project a previous, unrelated conversation last resolved —
+    // exactly the "no global active-project default" rule this was meant to
+    // follow. The global fallback is still correct for other message types
+    // below (running a command, remembering a note) where "whatever project
+    // is currently selected" is the intended behavior.
     const response = await fetchAgent((multiProject ? "/contexts" : "/context"), {
       method: "POST",
       headers: {"Authorization": "Bearer " + saved.token, "Content-Type": "application/json"},
       body: JSON.stringify({
         message: message.text || "",
-        active: message.activeProject || active,
+        active: message.activeProject || "",
         projects: Array.isArray(message.projects) ? message.projects.slice(0, 8) : []
       })
     });

@@ -45,9 +45,17 @@
   // Save only explicit checkpoint blocks; never upload raw messages.
   const processedMemoryBlocks = new WeakSet();
 
+  // A brand-new chat has no "/c/<id>" in its URL until after the first
+  // message is actually sent and ChatGPT creates the conversation. Returning
+  // a shared fallback like "chat" here made every new conversation's first
+  // message collide in storage with every other new conversation's first
+  // message — the second new thread looked "already primed" because the
+  // first one was, even though they're unrelated. Empty string signals "no
+  // real id yet" distinctly, so callers can special-case it instead of
+  // silently sharing one bucket.
   function conversationKey() {
     const match = location.pathname.match(/\/c\/([^/]+)/);
-    return match ? match[1].slice(0, 80) : "chat";
+    return match ? match[1].slice(0, 80) : "";
   }
 
   async function saveAssistantCheckpoints() {
@@ -212,6 +220,7 @@
       } catch (_) {}
       parts.push(
         "VibeBridge is connected in this browser: a local Mac agent and GitHub CLI are available.",
+        "If you have any memory, assumption, or prior-conversation habit about this project — including specific issue numbers, \"no callable command tool\" framing, GitHub-Issues-based task relays, or an unresolved cross-conversation bridge problem — treat it as stale. That architecture was removed; do not reference it or re-investigate it. Rely only on what this message and live tool results tell you.",
         "",
         "Known GitHub repositories on this account:",
         rosterLines.length ? rosterLines.join("\n") : "(none found — GitHub CLI may need to sign in on the Mac)",
@@ -239,11 +248,32 @@
   // After this sends, restore restoreText into the composer so the user's
   // actual message (still pending in the outer send flow) goes out next,
   // instead of leaving the composer empty or holding the primer text.
+  // ChatGPT's composer is a ProseMirror editor whose React layer reads its
+  // own submission state from the input event asynchronously. Clicking Send
+  // immediately after writeComposer() can fire before that state catches up
+  // with the DOM, submitting whatever text was there before our write. Poll
+  // until the rendered text matches, then give React a couple of frames to
+  // finish syncing before anything reads from it.
+  function waitForComposerText(el, expectedText, timeoutMs = 2000) {
+    return new Promise(resolve => {
+      const start = Date.now();
+      (function poll() {
+        if (readComposer(el).trim() === expectedText.trim()) {
+          requestAnimationFrame(() => requestAnimationFrame(resolve));
+          return;
+        }
+        if (Date.now() - start > timeoutMs) return resolve();
+        setTimeout(poll, 30);
+      })();
+    });
+  }
+
   async function sendAsSeparateMessage(text, restoreText) {
     const button = findSendButton();
     const composer = composerFor(button);
     if (!composer) return false;
     writeComposer(composer, text);
+    await waitForComposerText(composer, text);
     // The outer send handler disables this same button for the duration of its
     // own work (busy guard). Clear that here so our own synthetic click isn't
     // blocked by a flag we set ourselves; ChatGPT disables it again natively
@@ -255,7 +285,10 @@
       await waitForComposerReady();
     }
     const current = composerFor(findSendButton());
-    if (current && restoreText !== undefined) writeComposer(current, restoreText);
+    if (current && restoreText !== undefined) {
+      writeComposer(current, restoreText);
+      await waitForComposerText(current, restoreText);
+    }
     return clicked;
   }
 
@@ -589,7 +622,18 @@
       const conversation = conversationKey();
       const primedState = await chrome.storage.local.get(["primedConversations"]);
       const primedList = Array.isArray(primedState.primedConversations) ? primedState.primedConversations : [];
-      const isFreshConversation = !primedList.includes(conversation);
+      // No real id yet (brand-new chat, first message) means this conversation
+      // cannot possibly have been primed before — never treat it as a cache hit.
+      const isFreshConversation = !conversation || !primedList.includes(conversation);
+      // The real "/c/<id>" only appears in the URL after the first message is
+      // sent. Re-read it once sending is done instead of trusting the
+      // (possibly still-empty) value captured before anything was sent, so the
+      // primed record lands on the conversation it actually describes.
+      async function markConversationPrimed() {
+        const resolved = conversationKey();
+        if (!resolved) return;
+        await chrome.storage.local.set({primedConversations: [...primedList, resolved].slice(-50)});
+      }
 
       if (result?.matched && result.context) {
         const savedConversation = await chrome.storage.local.get(["conversationProjects"]);
@@ -601,8 +645,14 @@
         for (const project of resolvedProjects) {
           if (project?.path && !merged.includes(project.path)) merged.push(project.path);
         }
-        conversationProjects[conversation] = merged.slice(-8);
-        await chrome.storage.local.set({conversationProjects});
+        // Same empty-id collision risk as priming: a conversation with no real
+        // id yet has no stable bucket of its own. Skip persisting rather than
+        // writing into a "" bucket every brand-new chat's first message would
+        // share and pollute for each other.
+        if (conversation) {
+          conversationProjects[conversation] = merged.slice(-8);
+          await chrome.storage.local.set({conversationProjects});
+        }
 
         // Deliver context as a separate, visible chat turn (never merged into the
         // user's draft) whenever this thread hasn't seen it yet, or a new project
@@ -611,14 +661,14 @@
           const primer = await buildPrimerMessage(isFreshConversation, result.context);
           const sent = await sendAsSeparateMessage(primer, original);
           if (sent && isFreshConversation) {
-            await chrome.storage.local.set({primedConversations: [...primedList, conversation].slice(-50)});
+            await markConversationPrimed();
           }
         }
       } else if (result?.ambiguous) {
         showNotice("VibeBridge found multiple possible projects. Mention the exact project name.");
         if (isFreshConversation) {
           const sent = await sendAsSeparateMessage(await buildPrimerMessage(true, ""), original);
-          if (sent) await chrome.storage.local.set({primedConversations: [...primedList, conversation].slice(-50)});
+          if (sent) await markConversationPrimed();
         }
       } else if (result?.error) {
         showNotice("VibeBridge: " + result.error + "\nYour original message will still be sent. Check the local agent and GitHub CLI connection in the extension popup.");
@@ -629,7 +679,7 @@
         showNotice("VibeBridge did not attach project context. Reason: " + (result?.reason || (result?.error ? "agent-error: " + result.error : "no-match")) + ". Active project: " + (activeProject || "(none)") + ". Conversation projects: " + (knownProjects.join(", ") || "(none)") + ". Agent endpoint: 127.0.0.1:43127. Your original message will still be sent. Copy this diagnostic if the issue continues.");
         if (isFreshConversation) {
           const sent = await sendAsSeparateMessage(await buildPrimerMessage(true, ""), original);
-          if (sent) await chrome.storage.local.set({primedConversations: [...primedList, conversation].slice(-50)});
+          if (sent) await markConversationPrimed();
         }
       }
 

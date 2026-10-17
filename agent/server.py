@@ -176,15 +176,39 @@ def remote_repo_context(slug):
         except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
             return filename, None, exc
 
-    # These independent GitHub reads run concurrently; total wait is bounded by
-    # the slowest request instead of the sum of both request times.
+    # README naming is a convention, not a guarantee — plenty of real repos use
+    # README.txt or no extension at all. A missing README.md specifically must
+    # never be treated as fatal; try the common alternates before giving up.
+    README_CANDIDATES = ("README.md", "README.txt", "README", "Readme.md")
+
+    def fetch_readme():
+        for filename in README_CANDIDATES:
+            name, result, error = fetch_file(filename)
+            if isinstance(error, FileNotFoundError):
+                return name, result, error
+            if isinstance(error, subprocess.TimeoutExpired):
+                return name, result, error
+            if result.returncode != 0:
+                detail = (result.stderr or result.stdout or "").strip()
+                if "404" in detail or "Not Found" in detail:
+                    continue  # try the next candidate name
+                return name, result, error
+            if result.stdout.strip():
+                return name, result, error
+        return None, None, None
+
+    # README lookup (which may try several names sequentially) and the
+    # VibeBridge memory lookup are independent; run them concurrently so total
+    # wait is bounded by the slower of the two, not their sum.
     from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=2, thread_name_prefix="vibebridge-remote-context") as pool:
-        futures = [pool.submit(fetch_file, filename)
-                   for filename in ("README.md", "VIBEBRIDGE_CONTEXT.md")]
-        results = [future.result() for future in futures]
+        readme_future = pool.submit(fetch_readme)
+        memory_future = pool.submit(fetch_file, "VIBEBRIDGE_CONTEXT.md")
+        results = [readme_future.result(), memory_future.result()]
 
     for filename, result, error in results:
+        if filename is None:
+            continue  # fetch_readme found no candidate at all; not an error
         if isinstance(error, FileNotFoundError):
             raise RuntimeError("GitHub CLI (gh) is not installed, so remote project context cannot be loaded.")
         if isinstance(error, subprocess.TimeoutExpired):
@@ -192,7 +216,7 @@ def remote_repo_context(slug):
             continue
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "GitHub API request failed").strip()
-            if filename == "VIBEBRIDGE_CONTEXT.md" and ("404" in detail or "Not Found" in detail):
+            if "404" in detail or "Not Found" in detail:
                 continue
             errors.append(f"{filename}: {detail[:300]}")
             continue
@@ -209,8 +233,15 @@ def remote_repo_context(slug):
             parts.append(label + " (" + filename + "):\n" + content[:6500])
             loaded.append(filename)
     if not loaded:
-        detail = "; ".join(errors) if errors else "The repository has no readable README.md or VIBEBRIDGE_CONTEXT.md."
-        raise RuntimeError(f"Could not load useful context from GitHub repository {slug}. {detail}")
+        if errors:
+            # A real failure (auth, timeout, GitHub API error) is still fatal —
+            # only a clean "no file by any common name" degrades gracefully.
+            raise RuntimeError(f"Could not load useful context from GitHub repository {slug}. " + "; ".join(errors))
+        # A repository with no README and no VibeBridge memory file is still a
+        # real, nameable project — surface that plainly instead of failing the
+        # whole context lookup and leaving ChatGPT with nothing at all.
+        parts.append("No README or VibeBridge memory file was found in this repository. "
+                      "Context is limited to the repository identity above.")
     try:
         checkpoint = subprocess.run(
             ["gh", "api", f"repos/{slug}/contents/memory/AUTO_CHECKPOINT.md", "--jq", ".content"],
@@ -225,6 +256,8 @@ def remote_repo_context(slug):
     if errors:
         parts.append("REMOTE CONTEXT WARNINGS: " + "; ".join(errors))
     return "\n\n".join(parts)[:18000]
+
+
 def format_project_context_sections(sections):
     """Join named project contexts with real line breaks."""
     return "\n\n".join(

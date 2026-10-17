@@ -143,6 +143,10 @@ async function runScenario(sendMessage, initialDraft = "Continue VibeBridge", li
     Event:class {constructor(type){this.type=type;}},
     URL, console, navigator:{clipboard:{writeText:async()=>{}}},
     confirm:()=>true, setTimeout, clearTimeout, queueMicrotask,
+    // Real browsers (including content-script isolated worlds) provide these;
+    // Node's vm sandbox does not, so the harness must supply its own to match
+    // actual Chrome capabilities instead of changing working production code.
+    requestAnimationFrame: fn => setTimeout(fn, 0), cancelAnimationFrame: id => clearTimeout(id),
   };
   context.window.document = document;
   vm.runInNewContext(source, context, {filename:"chatgpt.js"});

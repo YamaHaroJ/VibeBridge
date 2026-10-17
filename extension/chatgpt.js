@@ -300,8 +300,15 @@
           if (automatic) {
             const composer = document.querySelector("#prompt-textarea") || document.querySelector('textarea[placeholder]') || document.querySelector('[contenteditable="true"][role="textbox"]');
             if (!composer) throw new Error("Command ran, but ChatGPT prompt field was not found. Result is shown below.");
-            const addition = "\n\nVIBEBRIDGE COMMAND RESULT\nCommand: " + payload.command.join(" ") + "\nResult JSON:\n" + resultText + "\n\nInspect this result and continue development. If another local command is needed, emit another VIBEBRIDGE LOCAL COMMAND block.";
-            writeComposer(composer, readComposer(composer).trim() + addition);
+            // Never overwrite, append to, or send a pre-existing user draft during
+            // automatic command execution. Leave the result visible and let the
+            // explicit "Add result to ChatGPT prompt" control handle insertion.
+            if (readComposer(composer).trim()) {
+              description.textContent = "Command finished. Your existing draft was preserved; use Add result to ChatGPT prompt if you want to include the result.";
+              return;
+            }
+            const addition = "VIBEBRIDGE COMMAND RESULT\nCommand: " + payload.command.join(" ") + "\nResult JSON:\n" + resultText + "\n\nInspect this result and continue development. If another local command is needed, emit another VIBEBRIDGE LOCAL COMMAND block.";
+            writeComposer(composer, addition);
             const send = document.querySelector('button[data-testid="send-button"]') || document.querySelector('button[aria-label*="Send"]');
             if (send && !send.disabled) { bypassNextSend = true; send.click(); setTimeout(() => { bypassNextSend = false; }, 800); } else { showNotice("Command result is ready in the prompt; send it to continue."); }
           }

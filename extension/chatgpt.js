@@ -333,11 +333,17 @@
         if (!kind) continue; // not a VibeBridge block at all; leave it alone
       }
       if (kind && !payload) {
+        // Declared outside the try block on purpose: the catch block below
+        // needs to inspect jsonText too, and a try block is its own scope --
+        // a `let` declared inside it is invisible from catch, which throws
+        // a ReferenceError that silently aborts this entire function (and
+        // every block still left to scan) the first time JSON.parse fails.
+        let jsonText;
         try {
           // Only strip a leading label line when the code text itself actually
           // starts with one (legacy rendering). When the label lives in a
           // separate header (current rendering), rawBlock is already clean JSON.
-          let jsonText = markedBlock
+          jsonText = markedBlock
             ? normalizedBlock.slice(commandMarker.length).trim()
             : /^vibebridge-[a-z]+\b/i.test(normalizedBlock)
               ? normalizedBlock.replace(/^vibebridge-[a-z]+[^\r\n]*(?:\r?\n|$)/i, "").trim()

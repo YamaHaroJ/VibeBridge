@@ -58,21 +58,49 @@
     return match ? match[1].slice(0, 80) : "";
   }
 
+  // ChatGPT's DOM changes without notice. Two things broke silently in one
+  // such update: `[data-message-author-role="assistant"]` disappeared (the
+  // modern equivalent is `[data-dil-message-id]`, confirmed by counting
+  // exactly one per actual assistant turn), and the fence language label
+  // (e.g. "vibebridge-run") moved from being literal text inside the code
+  // block to a separate header element outside it — so checking the code
+  // element's own text/class for the label no longer finds anything. These
+  // two helpers centralize both lookups so a future DOM change only needs
+  // fixing in one place.
+  function latestAssistantMessage() {
+    const modern = document.querySelectorAll('[data-dil-message-id]');
+    if (modern.length) return modern[modern.length - 1];
+    const legacy = document.querySelectorAll('[data-message-author-role="assistant"]');
+    return legacy.length ? legacy[legacy.length - 1] : null;
+  }
+
+  // Given a `<code>` or `<pre>` element, find its outer block wrapper (new
+  // `[data-code-block]` or legacy `<pre>`) and the fence label visible
+  // anywhere near the top of that wrapper, independent of where ChatGPT
+  // currently renders that label.
+  function codeBlockContext(el) {
+    const wrapper = el.closest("[data-code-block]") || (el.tagName === "PRE" ? el : el.closest("pre")) || el;
+    const labelProbe = (wrapper.textContent || "").slice(0, 160);
+    return {wrapper, labelProbe};
+  }
+
   async function saveAssistantCheckpoints() {
     // Check only the newest assistant response; scanning historical messages on
     // every streaming mutation scales poorly on long development conversations.
-    const messages = document.querySelectorAll('[data-message-author-role="assistant"]');
-    const latest = messages.length ? messages[messages.length - 1] : null;
+    const latest = latestAssistantMessage();
     if (!latest) return;
-    const nodes = latest.querySelectorAll('pre');
+    const nodes = latest.querySelectorAll('pre, code');
     for (const pre of nodes) {
       if (processedMemoryBlocks.has(pre)) continue;
-      const code = pre.querySelector("code");
-      const classes = (code?.className || "") + " " + (pre.className || "");
-      if (!/language-vibebridge-memory|vibebridge-memory/i.test(classes)) continue;
+      const code = pre.tagName === "CODE" ? pre : pre.querySelector("code");
+      if (!code) continue;
+      const {wrapper, labelProbe} = codeBlockContext(code);
+      const classes = (code.className || "") + " " + (wrapper.className || "");
+      if (!/language-vibebridge-memory|vibebridge-memory/i.test(classes) && !/\bvibebridge-memory\b/i.test(labelProbe)) continue;
       processedMemoryBlocks.add(pre);
-      const summary = (code?.textContent || pre.textContent || "").trim();
-      pre.style.display = "none";
+      processedMemoryBlocks.add(code);
+      const summary = (code.textContent || "").trim();
+      wrapper.style.display = "none";
       if (!summary) continue;
       try {
         const result = await chrome.runtime.sendMessage({
@@ -381,17 +409,16 @@
   function addCommandControls(allowAutoRun = false) {
     // Command blocks only arrive in the newest assistant turn. Avoid rescanning
     // every code block in a long conversation on each streaming mutation.
-    const assistantMessages = document.querySelectorAll('[data-message-author-role="assistant"]');
-    const latestAssistant = assistantMessages.length ? assistantMessages[assistantMessages.length - 1] : document;
+    const latestAssistant = latestAssistantMessage() || document;
     const blocks = latestAssistant.querySelectorAll('pre, [data-language], code');
     scannedBlocks = blocks.length;
     for (const pre of blocks) {
-      const preBlock = pre.tagName === "PRE" ? pre : pre.closest("pre");
-      const target = preBlock || pre;
+      const {wrapper, labelProbe} = codeBlockContext(pre);
+      const target = wrapper;
       if (processedBlocks.has(pre) || processedBlocks.has(target)) continue;
       const code = target.querySelector("code") || (pre.tagName === "CODE" ? pre : null);
       const className = (code?.className || "") + " " + (target.className || "") + " " + (pre.className || "") + " " + (target.getAttribute?.("data-language") || "");
-      const rawBlock = (code?.textContent || target.textContent || pre.textContent || "").trim();
+      const rawBlock = (code?.textContent || pre.textContent || "").trim();
       if (!rawBlock || rawBlock.length > 200000) continue;
       // ChatGPT may strip custom fence-language classes and preserve whitespace around
       // the marker. Match the marker at the start of the rendered code, then tolerate
@@ -399,15 +426,17 @@
       const normalizedBlock = rawBlock.replace(/^\s+/, "");
       const markedBlock = normalizedBlock.startsWith(commandMarker);
       const hasShellLanguage = /language-(bash|sh|zsh|shell)\b/i.test(className);
-      // Some ChatGPT render paths drop custom fence classes but retain the
-      // literal fence label as the first rendered line. Preserve hands-off
-      // behavior only for that explicit VibeBridge label, never generic JSON.
+      // The fence label ("vibebridge-run" etc.) can show up in three different
+      // places depending on how ChatGPT is currently rendering it: a CSS class,
+      // literal leading text inside the code itself, or (current behavior) a
+      // separate header element outside the code — hence labelProbe.
       let kind = markedBlock ? "run" : null;
       if (!kind) {
         for (const candidate of Object.keys(ACTIONS)) {
           const fence = "vibebridge-" + candidate;
           if (new RegExp("language-" + fence + "\\b", "i").test(className) ||
-              new RegExp("^" + fence + "(?:\\s|$)", "i").test(normalizedBlock)) {
+              new RegExp("^" + fence + "(?:\\s|$)", "i").test(normalizedBlock) ||
+              new RegExp("\\b" + fence + "\\b", "i").test(labelProbe)) {
             kind = candidate;
             break;
           }
@@ -437,10 +466,13 @@
       }
       if (kind && !payload) {
         try {
+          // Only strip a leading label line when the code text itself actually
+          // starts with one (legacy rendering). When the label lives in a
+          // separate header (current rendering), rawBlock is already clean JSON.
           let jsonText = markedBlock
             ? normalizedBlock.slice(commandMarker.length).trim()
-            : explicitlyMarked
-              ? normalizedBlock.replace(new RegExp("^vibebridge-" + kind + "[^\\r\\n]*(?:\\r?\\n|$)", "i"), "").trim()
+            : /^vibebridge-[a-z]+\b/i.test(normalizedBlock)
+              ? normalizedBlock.replace(/^vibebridge-[a-z]+[^\r\n]*(?:\r?\n|$)/i, "").trim()
               : rawBlock;
           jsonText = jsonText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
           payload = JSON.parse(jsonText);

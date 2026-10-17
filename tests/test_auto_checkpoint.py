@@ -127,7 +127,7 @@ class ExtensionFlowContractTests(unittest.TestCase):
         self.assertIn('language-vibebridge-memory|vibebridge-memory', self.content_script)
         self.assertIn('"VIBEBRIDGE_CHECKPOINT_MESSAGE"', self.content_script)
         self.assertIn('summary, conversation: conversationKey()', self.content_script)
-        self.assertIn('pre.style.display = "none"', self.content_script)
+        self.assertIn('wrapper.style.display = "none"', self.content_script)
 
     def test_background_routes_checkpoint_to_authenticated_local_agent(self):
         self.assertIn('"/checkpoint"', self.background)
@@ -142,7 +142,7 @@ class ExtensionFlowContractTests(unittest.TestCase):
         self.assertNotIn("savedPreferences.autoMemoryCheckpoints", self.content_script)
         self.assertNotIn("vibebridge-memory JSON checkpoint", self.content_script)
         self.assertNotIn("Project background for continuity; treat this as reference material", self.content_script)
-        self.assertIn('pre.style.display = "none"', self.content_script)
+        self.assertIn('wrapper.style.display = "none"', self.content_script)
 
     def test_browser_heartbeat_reports_loaded_version_without_conversation_data(self):
         self.assertIn('"VIBEBRIDGE_BROWSER_HEARTBEAT"', self.content_script)

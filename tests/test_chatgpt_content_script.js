@@ -147,6 +147,7 @@ async function runScenario(sendMessage, initialDraft = "Continue VibeBridge", li
     // Node's vm sandbox does not, so the harness must supply its own to match
     // actual Chrome capabilities instead of changing working production code.
     requestAnimationFrame: fn => setTimeout(fn, 0), cancelAnimationFrame: id => clearTimeout(id),
+    sessionStorage: {getItem: () => null, setItem() {}, removeItem() {}},
   };
   context.window.document = document;
   vm.runInNewContext(source, context, {filename:"chatgpt.js"});

@@ -647,8 +647,7 @@
   addCommandControls(false);
   allowAutomaticExecution = true;
 
-  document.addEventListener("click", async event => {
-    const button = event.target.closest('button[data-testid="send-button"], button[aria-label*="Send"], button[type="submit"]');
+  async function handleSendTrigger(event, button) {
     if (!button || bypassNextSend || busy) return;
     const composer = composerFor(button);
     const original = readComposer(composer).trim();
@@ -829,5 +828,20 @@
       button.disabled = false;
       if (shouldResumeSend) clickCurrentSendButton();
     }
+  }
+  // ChatGPT's composer submits on Enter (without Shift) by default; most users
+  // never click the Send button at all. Without this listener, VibeBridge only
+  // ever saw messages sent by mouse click and silently did nothing otherwise.
+  document.addEventListener("click", async event => {
+    const button = event.target.closest('button[data-testid="send-button"], button[aria-label*="Send"], button[type="submit"]');
+    if (!button) return;
+    return handleSendTrigger(event, button);
+  }, true);
+  document.addEventListener("keydown", async event => {
+    if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+    if (!event.target.closest('#prompt-textarea, textarea[placeholder], [contenteditable="true"][role="textbox"]')) return;
+    const button = findSendButton();
+    if (!button) return;
+    return handleSendTrigger(event, button);
   }, true);
 })();

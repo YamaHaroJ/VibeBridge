@@ -34,7 +34,17 @@ class Element {
   setAttribute(key, value) { this.attributes[key] = String(value); }
   getAttribute(key) { return this.attributes[key] || null; }
   closest(selector) {
-    if (selector.includes("button") && this.tagName === "BUTTON") return this;
+    const selectors = selector.split(",").map(s => s.trim());
+    let node = this;
+    while (node) {
+      for (const sel of selectors) {
+        if (sel.startsWith("#") && node.id === sel.slice(1)) return node;
+        if (sel.includes("button") && node.tagName === "BUTTON") return node;
+        if (sel.startsWith("textarea") && node.tagName === "TEXTAREA") return node;
+        if (sel.includes('[contenteditable="true"]') && node.attributes.contenteditable === "true") return node;
+      }
+      node = node.parentElement || null;
+    }
     return null;
   }
   querySelector(selector) {
@@ -75,7 +85,7 @@ class Element {
   dispatchEvent() { return true; }
 }
 
-async function runScenario(sendMessage, initialDraft = "Continue VibeBridge", license = {active: true, status: "active"}) {
+async function runScenario(sendMessage, initialDraft = "Continue VibeBridge", license = {active: true, status: "active"}, trigger = "click") {
   const composer = new Element("TEXTAREA");
   composer.id = "prompt-textarea";
   composer.value = initialDraft;
@@ -152,14 +162,12 @@ async function runScenario(sendMessage, initialDraft = "Continue VibeBridge", li
   context.window.document = document;
   vm.runInNewContext(source, context, {filename:"chatgpt.js"});
 
-  const handler = docListeners.click[0];
-  assert.ok(handler, "content script registered send handler");
-  const event = {
-    target:send,
-    preventDefault(){this.prevented=true;},
-    stopPropagation(){},
-    stopImmediatePropagation(){}
-  };
+  const handler = trigger === "enter" ? docListeners.keydown[0] : docListeners.click[0];
+  assert.ok(handler, "content script registered " + trigger + " send handler");
+  const event = trigger === "enter"
+    ? {target:composer, key:"Enter", shiftKey:false, isComposing:false,
+       preventDefault(){this.prevented=true;}, stopPropagation(){}, stopImmediatePropagation(){}}
+    : {target:send, preventDefault(){this.prevented=true;}, stopPropagation(){}, stopImmediatePropagation(){}};
   const pending = handler(event);
   await pending;
   await new Promise(resolve => setTimeout(resolve, 80));
@@ -182,6 +190,19 @@ async function runScenario(sendMessage, initialDraft = "Continue VibeBridge", li
     // original message, unmodified.
     assert.equal(h.getCurrentSend().clickCount, 2, "fresh conversation sends a context primer, then the original message");
     assert.equal(h.document.getElementById("vibebridge-context-choice"), null, "automatic flow has no extra choice step");
+  }
+  {
+    // Most users press Enter, not the Send button. Without this listener,
+    // VibeBridge would silently never see any message sent this way.
+    const h = await runScenario(async message => {
+      if (message.type === "VIBEBRIDGE_RESOLVE_CONTEXTS") {
+        return {matched:true, context:"MOCK PROJECT CONTEXT", projects:[{name:"VibeBridge",path:"/Users/test/VibeBridge"}]};
+      }
+      throw new Error("Unexpected message " + message.type);
+    }, "Continue VibeBridge", {active: true, status: "active"}, "enter");
+    assert.equal(h.event.prevented, true, "Enter's default newline insertion is suppressed once VibeBridge takes over the send");
+    assert.equal(h.composer.value, "Continue VibeBridge", "pressing Enter never mutates the visible composer either");
+    assert.equal(h.getCurrentSend().clickCount, 2, "pressing Enter still primes a fresh conversation, then sends the original message");
   }
   {
     const staleDraft = [
@@ -249,5 +270,5 @@ async function runScenario(sendMessage, initialDraft = "Continue VibeBridge", li
     assert.match(commandSource.slice(preserveDraft, writeResult), /existing draft was preserved/);
     assert.match(commandSource, /If the prompt already contains a draft, VibeBridge will preserve it and show the result for optional insertion/, "hands-off description accurately explains draft preservation");
   }
-  console.log("ChatGPT content-script DOM simulation: 6 scenarios passed; command draft-safety regression guard passed");
+  console.log("ChatGPT content-script DOM simulation: 7 scenarios passed; command draft-safety regression guard passed");
 })().catch(error => { console.error(error); process.exitCode = 1; });

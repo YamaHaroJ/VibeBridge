@@ -83,6 +83,15 @@
     return {wrapper, labelProbe};
   }
 
+  // The label header and the code body are separate DOM nodes with no
+  // whitespace between them in textContent (e.g. "vibebridge-runset -euo
+  // pipefail..."), so a trailing \b after the label never matches -- "run"
+  // flows straight into "set" with no boundary there at all. Since the
+  // label always renders first, check for it as a prefix instead.
+  function labelProbeStartsWith(labelProbe, word) {
+    return labelProbe.trim().slice(0, word.length).toLowerCase() === word.toLowerCase();
+  }
+
   async function saveAssistantCheckpoints() {
     // Check only the newest assistant response; scanning historical messages on
     // every streaming mutation scales poorly on long development conversations.
@@ -95,7 +104,7 @@
       if (!code) continue;
       const {wrapper, labelProbe} = codeBlockContext(code);
       const classes = (code.className || "") + " " + (wrapper.className || "");
-      if (!/language-vibebridge-memory|vibebridge-memory/i.test(classes) && !/\bvibebridge-memory\b/i.test(labelProbe)) continue;
+      if (!/language-vibebridge-memory|vibebridge-memory/i.test(classes) && !labelProbeStartsWith(labelProbe, "vibebridge-memory")) continue;
       processedMemoryBlocks.add(pre);
       processedMemoryBlocks.add(code);
       const summary = (code.textContent || "").trim();
@@ -280,7 +289,7 @@
       // the language name ("Bash") as a separate header outside the code block
       // instead of (or in addition to) a CSS class, so check labelProbe too.
       const hasShellLanguage = /language-(bash|sh|zsh|shell)\b/i.test(className) ||
-        /\b(bash|sh|zsh|shell)\b/i.test(labelProbe);
+        ["bash", "sh", "zsh", "shell"].some(word => labelProbeStartsWith(labelProbe, word));
       // The fence label ("vibebridge-run" etc.) can show up in three different
       // places depending on how ChatGPT is currently rendering it: a CSS class,
       // literal leading text inside the code itself, or (current behavior) a
@@ -291,7 +300,7 @@
           const fence = "vibebridge-" + candidate;
           if (new RegExp("language-" + fence + "\\b", "i").test(className) ||
               new RegExp("^" + fence + "(?:\\s|$)", "i").test(normalizedBlock) ||
-              new RegExp("\\b" + fence + "\\b", "i").test(labelProbe)) {
+              labelProbeStartsWith(labelProbe, fence)) {
             kind = candidate;
             break;
           }

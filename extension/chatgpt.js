@@ -336,9 +336,23 @@
           jsonText = jsonText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
           payload = JSON.parse(jsonText);
         } catch {
-          // The assistant may still be streaming this block. Leave it unprocessed
-          // so the next DOM mutation can retry parsing the completed JSON.
-          continue;
+          // A vibebridge-run fence with a raw shell script instead of the
+          // {"command": [...]} JSON it's supposed to use is a real, common
+          // mistake (ChatGPT has no standing instructions reminding it of the
+          // exact format anymore). Treat it the same as a plain ```bash
+          // block rather than silently discarding it forever by assuming
+          // it's still streaming -- that previously meant it got zero
+          // controls, with no way to ever run it.
+          // Only treat it as a raw script when it clearly wasn't attempting
+          // JSON at all (doesn't start with "{"). Text that does start with
+          // "{" but fails to parse is far more likely mid-stream/incomplete
+          // JSON than a deliberate raw script -- keep retrying that case
+          // instead of running a truncated fragment as a shell command.
+          if (kind === "run" && jsonText.trim() && !jsonText.trim().startsWith("{")) {
+            payload = {command: ["bash", "-lc", jsonText]};
+          } else {
+            continue;
+          }
         }
       }
       const action = ACTIONS[kind];
